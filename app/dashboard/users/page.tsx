@@ -9,16 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers/AuthProvider";
 import { UsersIcon, Plus, Search, Edit, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface User {
   user_id: string;
-  user_name: string;
+  name: string;
+  surname: string;
   email: string;
-  avatar_url: string;
+  profile_image_url: string | null;
   is_verified: boolean;
   created_at: string;
   user_roles: UserRole[];
@@ -75,9 +76,10 @@ export default function UsersPage() {
         .from("users")
         .select(`
           user_id,
-          user_name,
+          name,
+          surname,
           email,
-          avatar_url,
+          profile_image_url,
           is_verified,
           created_at,
           user_roles (
@@ -168,10 +170,13 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    (user.user_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users.filter(user => {
+    const fullName = `${user.name || ''} ${user.surname || ''}`.trim();
+    return (
+      fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    );
+  });
 
   if (loading) {
     return (
@@ -207,7 +212,7 @@ export default function UsersPage() {
           <Card key={user.user_id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                {user.user_name || user.email}
+                {`${user.name || ''} ${user.surname || ''}`.trim() || user.email}
               </CardTitle>
               <Button
                 variant="outline"
@@ -239,11 +244,14 @@ export default function UsersPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Manage User Roles</DialogTitle>
+            <DialogDescription>
+              Assign or remove roles for the selected user.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div>
               <Label className="text-base font-medium">
-                Assign roles to {selectedUser?.user_name || selectedUser?.email}
+                Assign roles to {selectedUser ? `${selectedUser.name || ''} ${selectedUser.surname || ''}`.trim() : selectedUser?.email}
               </Label>
             </div>
             <div className="space-y-2">

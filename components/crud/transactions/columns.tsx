@@ -11,11 +11,11 @@ export const columns: ColumnDef<Transaction>[] = [
     header: "ID",
   },
   {
-    accessorKey: "user.user_name",
+    accessorKey: "user.name",
     header: "User",
     cell: ({ row }) => {
       const user = row.original.user
-      return user ? user.user_name : "Unknown User"
+      return user ? `${user.name || ''} ${user.surname || ''}`.trim() : "Unknown User"
     },
   },
   {
