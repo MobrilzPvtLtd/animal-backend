@@ -1,20 +1,20 @@
-# Animal Click - Complete Vercel Base URL API Reference & cURL Commands
+# Animal Click - Complete Uniform API Reference (/api/v1/)
 
-Aap saari APIs ko apni Base URL **`https://animal-backend-nine.vercel.app`** se direct hit kar sakti hain!
+Saari APIs ab 100% Uniform **`https://animal-backend-nine.vercel.app/api/v1/`** pattern se access hongi!
 
 ---
 
-## 🌐 Base URL Configuration
-* **Vercel Base URL:** `https://animal-backend-nine.vercel.app`
+## 🌐 Uniform Base URL
+* **Base URL:** `https://animal-backend-nine.vercel.app/api/v1`
 * **API Key Header (`apikey` & `Authorization`):** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91eW5tZ2JmamlkdWV3bGRjcWZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyODY1MjIsImV4cCI6MjA5OTg2MjUyMn0.dVwRhnTrqBFb6GzZLlKX5GhuErPMlBlPKkL8PvlQz9w`
 
 ---
 
-## 1. Authentication APIs (Vercel Base URL)
+## 1. Authentication APIs
 
 ### 1.1 Sign Up API (POST)
 ```bash
-curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/auth/signup' \
 --header 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91eW5tZ2JmamlkdWV3bGRjcWZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyODY1MjIsImV4cCI6MjA5OTg2MjUyMn0.dVwRhnTrqBFb6GzZLlKX5GhuErPMlBlPKkL8PvlQz9w' \
 --header 'Content-Type: application/json' \
 --data '{
@@ -25,7 +25,7 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
 
 ### 1.2 Login API (POST)
 ```bash
-curl --location 'https://animal-backend-nine.vercel.app/api/auth/token?grant_type=password' \
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/auth/token?grant_type=password' \
 --header 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91eW5tZ2JmamlkdWV3bGRjcWZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyODY1MjIsImV4cCI6MjA5OTg2MjUyMn0.dVwRhnTrqBFb6GzZLlKX5GhuErPMlBlPKkL8PvlQz9w' \
 --header 'Content-Type: application/json' \
 --data '{
@@ -36,21 +36,21 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/token?grant_typ
 
 ---
 
-## 2. Places APIs (Next.js Backend)
+## 2. Places APIs
 
 ### 2.1 Google Places Autocomplete API (GET)
 ```bash
-curl --location 'https://animal-backend-nine.vercel.app/api/places?input=Cape%20Town'
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/places?input=Cape%20Town'
 ```
 
 ### 2.2 Google Place Details API (GET)
 ```bash
-curl --location 'https://animal-backend-nine.vercel.app/api/places/details?place_id=ChIJ3S-g4y9z5kcR8_g9k'
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/places/details?place_id=ChIJ3S-g4y9z5kcR8_g9k'
 ```
 
 ---
 
-## 3. Database Data APIs (Vercel Base URL)
+## 3. Database Data APIs
 
 ### 3.1 Fetch Users List (GET)
 ```bash

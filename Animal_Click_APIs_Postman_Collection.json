@@ -1,14 +1,14 @@
 {
 	"info": {
 		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-		"name": "Animal Click APIs Collection",
-		"description": "Complete Postman Collection for Animal Click Web & Backend APIs",
+		"name": "Animal Click APIs Collection (Uniform /api/v1/)",
+		"description": "Complete Postman Collection for Animal Click Web & Backend APIs - All Uniform under /api/v1/",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
 		{
 			"key": "baseUrl",
-			"value": "https://animal-backend-nine.vercel.app"
+			"value": "https://animal-backend-nine.vercel.app/api/v1"
 		},
 		{
 			"key": "apiKey",
@@ -17,7 +17,7 @@
 	],
 	"item": [
 		{
-			"name": "Authentication (Vercel Base URL)",
+			"name": "Authentication APIs",
 			"item": [
 				{
 					"name": "Sign Up",
@@ -38,9 +38,9 @@
 							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"Password@123\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/signup",
+							"raw": "{{baseUrl}}/auth/signup",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "signup"]
+							"path": ["auth", "signup"]
 						}
 					}
 				},
@@ -63,9 +63,9 @@
 							"raw": "{\n    \"email\": \"superadmin@animal.com\",\n    \"password\": \"Animal@123\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/token?grant_type=password",
+							"raw": "{{baseUrl}}/auth/token?grant_type=password",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "auth", "token"],
+							"path": ["auth", "token"],
 							"query": [
 								{
 									"key": "grant_type",
@@ -78,7 +78,7 @@
 			]
 		},
 		{
-			"name": "Places APIs (Next.js Backend)",
+			"name": "Places APIs",
 			"item": [
 				{
 					"name": "Places Autocomplete",
@@ -86,9 +86,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/places?input=Cape Town",
+							"raw": "{{baseUrl}}/places?input=Cape Town",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "places"],
+							"path": ["places"],
 							"query": [
 								{
 									"key": "input",
@@ -104,9 +104,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/places/details?place_id=ChIJ3S-g4y9z5kcR8_g9k",
+							"raw": "{{baseUrl}}/places/details?place_id=ChIJ3S-g4y9z5kcR8_g9k",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "places", "details"],
+							"path": ["places", "details"],
 							"query": [
 								{
 									"key": "place_id",
@@ -119,7 +119,7 @@
 			]
 		},
 		{
-			"name": "Database REST APIs (Vercel Base URL)",
+			"name": "Database REST APIs",
 			"item": [
 				{
 					"name": "Get Users",
@@ -136,9 +136,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/users?select=*",
+							"raw": "{{baseUrl}}/users?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users"],
+							"path": ["users"],
 							"query": [
 								{
 									"key": "select",
@@ -171,9 +171,9 @@
 							"raw": "{\n    \"name\": \"John\",\n    \"surname\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"9876543210\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/users",
+							"raw": "{{baseUrl}}/users",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users"]
+							"path": ["users"]
 						}
 					}
 				},
@@ -192,9 +192,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/veterinarians?select=*",
+							"raw": "{{baseUrl}}/veterinarians?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "veterinarians"],
+							"path": ["veterinarians"],
 							"query": [
 								{
 									"key": "select",
@@ -219,9 +219,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/service_categories?select=*",
+							"raw": "{{baseUrl}}/service_categories?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "service_categories"],
+							"path": ["service_categories"],
 							"query": [
 								{
 									"key": "select",
@@ -246,9 +246,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/events?select=*",
+							"raw": "{{baseUrl}}/events?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "events"],
+							"path": ["events"],
 							"query": [
 								{
 									"key": "select",
@@ -281,9 +281,9 @@
 							"raw": "{\n    \"title\": \"Pet Adoption Fair\",\n    \"description\": \"Annual animal adoption drive\",\n    \"event_date\": \"2026-08-15T10:00:00Z\",\n    \"price\": 0.00,\n    \"is_active\": true\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/events",
+							"raw": "{{baseUrl}}/events",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "events"]
+							"path": ["events"]
 						}
 					}
 				},
@@ -302,9 +302,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/breeds?select=*",
+							"raw": "{{baseUrl}}/breeds?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "breeds"],
+							"path": ["breeds"],
 							"query": [
 								{
 									"key": "select",
@@ -329,9 +329,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/roles?select=*",
+							"raw": "{{baseUrl}}/roles?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "roles"],
+							"path": ["roles"],
 							"query": [
 								{
 									"key": "select",
@@ -356,9 +356,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/transactions?select=*",
+							"raw": "{{baseUrl}}/transactions?select=*",
 							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "transactions"],
+							"path": ["transactions"],
 							"query": [
 								{
 									"key": "select",
