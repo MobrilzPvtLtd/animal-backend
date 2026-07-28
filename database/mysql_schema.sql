@@ -55,10 +55,12 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
     `user_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `email` VARCHAR(255) NULL UNIQUE,
+    `username` VARCHAR(255) NULL,
     `name` VARCHAR(255) NULL,
     `surname` VARCHAR(255) NULL,
     `password` VARCHAR(255) NULL,
     `phone` VARCHAR(50) NULL,
+    `location` VARCHAR(255) NULL,
     `device_type` VARCHAR(50) NULL,
     `profile_image_url` TEXT NULL,
     `auth_user_id` VARCHAR(100) NULL,

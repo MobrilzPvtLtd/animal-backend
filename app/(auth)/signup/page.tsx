@@ -61,33 +61,49 @@ export default function SignUpPage() {
       setShowLoading(false);
       return;
     }
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    });
 
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .insert({
-        email: email,
-        auth_user_id: data.user?.id,
-        device_type: "Web",
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-    if (userError) {
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Signup failed",
+          variant: "destructive",
+          duration: 4000,
+        });
+        setShowLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        localStorage.setItem("user_session", JSON.stringify(data.user));
+        localStorage.setItem("selected_roles", JSON.stringify(data.user.roles || []));
+      }
+
+      toast({
+        title: "Success",
+        description: "Registered successfully!",
+        duration: 3000,
+      });
+
+      setShowLoading(false);
+      router.replace("/onboarding");
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: userError.message,
+        description: err.message || "Signup failed",
         variant: "destructive",
         duration: 4000,
       });
       setShowLoading(false);
-      return;
     }
-
-    setShowLoading(false);
-
-    router.replace("/onboarding");
   }
 
   return (
