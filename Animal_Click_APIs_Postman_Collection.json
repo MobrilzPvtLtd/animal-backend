@@ -1,0 +1,374 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Animal Click APIs Collection",
+		"description": "Complete Postman Collection for Animal Click Web & Backend APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://animal-backend-nine.vercel.app"
+		},
+		{
+			"key": "apiKey",
+			"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91eW5tZ2JmamlkdWV3bGRjcWZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyODY1MjIsImV4cCI6MjA5OTg2MjUyMn0.dVwRhnTrqBFb6GzZLlKX5GhuErPMlBlPKkL8PvlQz9w"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication (Vercel Base URL)",
+			"item": [
+				{
+					"name": "Sign Up",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/signup",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "signup"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"superadmin@animal.com\",\n    \"password\": \"Animal@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/token?grant_type=password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "token"],
+							"query": [
+								{
+									"key": "grant_type",
+									"value": "password"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Places APIs (Next.js Backend)",
+			"item": [
+				{
+					"name": "Places Autocomplete",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/places?input=Cape Town",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "places"],
+							"query": [
+								{
+									"key": "input",
+									"value": "Cape Town"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Place Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/places/details?place_id=ChIJ3S-g4y9z5kcR8_g9k",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "places", "details"],
+							"query": [
+								{
+									"key": "place_id",
+									"value": "ChIJ3S-g4y9z5kcR8_g9k"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Database REST APIs (Vercel Base URL)",
+			"item": [
+				{
+					"name": "Get Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John\",\n    \"surname\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users"]
+						}
+					}
+				},
+				{
+					"name": "Get Veterinarians",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/veterinarians?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "veterinarians"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Service Categories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/service_categories?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "service_categories"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Events",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/events?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "events"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Event",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Pet Adoption Fair\",\n    \"description\": \"Annual animal adoption drive\",\n    \"event_date\": \"2026-08-15T10:00:00Z\",\n    \"price\": 0.00,\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/events",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "events"]
+						}
+					}
+				},
+				{
+					"name": "Get Breeds",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/breeds?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "breeds"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Roles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/roles?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "roles"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "apikey",
+								"value": "{{apiKey}}"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{apiKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/transactions?select=*",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "transactions"],
+							"query": [
+								{
+									"key": "select",
+									"value": "*"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}
