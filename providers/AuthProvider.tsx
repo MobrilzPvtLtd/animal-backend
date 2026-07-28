@@ -181,15 +181,40 @@ export default function AuthProvider({ children }: any) {
     }
   };
 
-  // Simple auth initialization - just check session once
+  // Simple auth initialization - check Supabase or MySQL local session
   useEffect(() => {
     const initializeAuth = async () => {
-      
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        await fetchSession(session);
+        if (session) {
+          await fetchSession(session);
+        } else {
+          // Check local MySQL user session
+          const localUserStr = typeof window !== "undefined" ? localStorage.getItem("user_session") : null;
+          if (localUserStr) {
+            const localUser = JSON.parse(localUserStr);
+            setUserDetails({
+              fullname: `${localUser.name || ""} ${localUser.surname || ""}`.trim() || localUser.email,
+              profileImageUrl: localUser.profile_image_url || "",
+              user_id: localUser.user_id,
+            });
+            const userRoles: Role[] = (localUser.roles || []).map((roleId: number) => ({
+              role_id: roleId,
+              vendor_id: null,
+              vendor_location_id: null,
+              vendors: null,
+            }));
+            setRoles(userRoles);
+            setSelected_roles(localUser.roles || []);
+            setSession({ user: { id: String(localUser.user_id), email: localUser.email } } as any);
+          } else {
+            await fetchSession(null);
+          }
+        }
       } catch (error) {
         console.error("Error getting session:", error);
+        setIsLoading(false);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -199,7 +224,10 @@ export default function AuthProvider({ children }: any) {
 
   const logOutFunction = async () => {
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut().catch(() => {});
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
       setSession(null);
       setUserDetails(null);
       setRoles([]);
@@ -209,8 +237,6 @@ export default function AuthProvider({ children }: any) {
       storage.clear();
       localStorage.clear();
       router.push("/login");
-    } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

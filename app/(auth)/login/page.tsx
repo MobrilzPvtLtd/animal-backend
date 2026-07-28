@@ -22,24 +22,50 @@ export default function LoginPage() {
 
   async function signInWithEmail() {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
-    if (error) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setIsLoading(false);
+        toast({
+          title: "Error",
+          description: data.error || "Login failed",
+          variant: "destructive",
+          duration: 4000,
+        });
+        return;
+      }
+
+      if (data.user) {
+        localStorage.setItem("user_session", JSON.stringify(data.user));
+        localStorage.setItem("selected_roles", JSON.stringify(data.user.roles || []));
+      }
+
+      toast({
+        title: "Success",
+        description: "Logged in successfully!",
+        duration: 3000,
+      });
+
+      setTimeout(() => {
+        setIsLoading(false);
+        router.replace("/dashboard");
+      }, 200);
+    } catch (err: any) {
       setIsLoading(false);
       toast({
         title: "Error",
-        description: error.message,
+        description: err.message || "Failed to connect to server",
         variant: "destructive",
         duration: 4000,
       });
-      return;
     }
-    setTimeout(() => {
-      setIsLoading(false);
-      router.replace("/dashboard");
-    }, 200);
   }
 
   return (
