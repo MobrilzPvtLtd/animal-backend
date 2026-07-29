@@ -63,19 +63,19 @@ async function handleLogin(email: string, password: string) {
     // 3. Build auth profile – same as before
     const authProfile = data?.user
       ? await buildAuthProfile({
-        id: data.user.id,
-        email: data.user.email ?? email,
-        roleNames: [
-          data.user.user_metadata?.roleName,
-          data.user.user_metadata?.role_name,
-          ...(data.user.user_metadata?.roleNames || []),
-          ...(data.user.user_metadata?.role_names || []),
-          data.user.app_metadata?.roleName,
-          data.user.app_metadata?.role_name,
-          ...(data.user.app_metadata?.roleNames || []),
-          ...(data.user.app_metadata?.role_names || []),
-        ].filter(Boolean) as string[],
-      })
+          id: data.user.id,
+          email: data.user.email ?? email,
+          roleNames: [
+            data.user.user_metadata?.roleName,
+            data.user.user_metadata?.role_name,
+            ...(data.user.user_metadata?.roleNames || []),
+            ...(data.user.user_metadata?.role_names || []),
+            data.user.app_metadata?.roleName,
+            data.user.app_metadata?.role_name,
+            ...(data.user.app_metadata?.roleNames || []),
+            ...(data.user.app_metadata?.role_names || []),
+          ].filter(Boolean) as string[],
+        })
       : null;
 
     return NextResponse.json(
