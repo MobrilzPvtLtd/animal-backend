@@ -8,9 +8,9 @@ export function generateTokens(payload: object) {
   const token = jwt.sign(
     { ...payload, token_type: 'access' },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '30d' }
   );
-  
+
   const refresh_token = jwt.sign(
     { ...payload, token_type: 'refresh' },
     REFRESH_SECRET,

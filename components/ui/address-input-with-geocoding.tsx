@@ -41,8 +41,8 @@ export function AddressInputWithGeocoding({
 
     setIsGeocoding(true)
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API
-      
+      const apiKey = process.env.Google_API
+
       if (!apiKey) {
         toast.error("Google API key not configured")
         return
@@ -51,14 +51,14 @@ export function AddressInputWithGeocoding({
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(inputValue)}&region=za&key=${apiKey}`
       )
-      
+
       const data = await response.json()
-      
+
       if (data.status === 'OK' && data.results.length > 0) {
         const result = data.results[0]
         const location = result.geometry.location
         const formattedAddress = result.formatted_address
-        
+
         setInputValue(formattedAddress)
         onChange(formattedAddress, location.lat, location.lng)
         toast.success("Address geocoded successfully")
