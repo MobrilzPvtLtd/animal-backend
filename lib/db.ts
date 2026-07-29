@@ -9,14 +9,10 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'animal_backend',
   waitForConnections: true,
   connectionLimit: 10,
+  connectTimeout: 5000, // 5 seconds fast timeout
   queueLimit: 0,
 });
 
-/**
- * Execute a SQL query against the MySQL database.
- * @param sql SQL query string
- * @param params Query parameters
- */
 export async function query<T = any>(sql: string, params: any[] = []): Promise<T> {
   const [rows] = await pool.execute(sql, params);
   return rows as T;
