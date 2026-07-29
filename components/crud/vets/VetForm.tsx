@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ImageUpload } from "@/components/ui/image-upload"
+import { PlacesAutocomplete } from "@/components/ui/places-autocomplete"
 import {
   Select,
   SelectContent,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { createLocation, updateLocation } from "@/lib/locations-api"
 import { toast } from "sonner"
 import { validateVetName } from "@/lib/name-validation"
 
@@ -99,33 +101,20 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
       // Handle location creation or update
       if (data.address) {
         if (data.location_id) {
-          // Update existing location
-          const { error: locationError } = await supabase
-            .from("locations")
-            .update({
-              address: data.address,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              show_publicly: data.show_publicly,
-            })
-            .eq("location_id", data.location_id)
-
-          if (locationError) throw locationError
+          await updateLocation(data.location_id, {
+            address: data.address,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            show_publicly: data.show_publicly,
+          })
           locationId = data.location_id
         } else {
-          // Create new location
-          const { data: locationData, error: locationError } = await supabase
-            .from("locations")
-            .insert({
-              address: data.address,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              show_publicly: data.show_publicly,
-            })
-            .select("location_id")
-            .single()
-
-          if (locationError) throw locationError
+          const locationData = await createLocation({
+            address: data.address,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            show_publicly: data.show_publicly,
+          })
           locationId = locationData.location_id
         }
       }
@@ -310,16 +299,18 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
           control={form.control}
           name="address"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Address</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter address" {...field} value={field.value || ""} />
-              </FormControl>
-              <FormDescription>
-                Enter a new address or leave empty to use existing location
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+            <PlacesAutocomplete
+              value={field.value || ""}
+              onChange={(address, lat, lng) => {
+                field.onChange(address)
+                form.setValue("latitude", lat.toString())
+                form.setValue("longitude", lng.toString())
+              }}
+              label="Address"
+              placeholder="Search for an address..."
+              description="Search an address to fetch the location from Google Maps and fill coordinates automatically."
+              error={form.formState.errors.address?.message}
+            />
           )}
         />
 

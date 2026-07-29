@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimalType, animalTypeSchema } from "./schema"
@@ -16,7 +16,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { ImageUpload } from "@/components/ui/image-upload"
 import { Loader2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { validateAnimalTypeName } from "@/lib/name-validation"
 
@@ -38,6 +37,20 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
       image_url: "",
     },
   })
+
+  useEffect(() => {
+    form.reset(
+      animalType
+        ? {
+            name: animalType.name,
+            image_url: animalType.image_url || "",
+          }
+        : {
+            name: "",
+            image_url: "",
+          }
+    )
+  }, [animalType, form])
 
   async function onSubmit(data: AnimalType) {
     setIsLoading(true)
@@ -61,28 +74,36 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
         return;
       }
 
+      const payload = {
+        name: data.name,
+        image_url: data.image_url?.trim() || null,
+      }
+
       if (isEditing) {
         // Update existing animal type
-        const { error } = await supabase
-          .from("animal_types")
-          .update({
-            name: data.name,
-            image_url: data.image_url,
-          })
-          .eq("animal_type_id", animalType.animal_type_id)
+        const response = await fetch(`/api/v1/animal-types/${animalType.animal_type_id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
 
-        if (error) throw error
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || "Failed to update animal type")
         toast.success("Animal type updated successfully")
       } else {
         // Create new animal type
-        const { error } = await supabase
-          .from("animal_types")
-          .insert({
-            name: data.name,
-            image_url: data.image_url,
-          })
+        const response = await fetch("/api/v1/animal-types", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
 
-        if (error) throw error
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || "Failed to create animal type")
         toast.success("Animal type created successfully")
       }
 

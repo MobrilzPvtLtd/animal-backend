@@ -7,7 +7,7 @@ import { UserGrowthChart } from "./UserGrowthChart"
 import { BoostStats } from "./BoostStats"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
-import { Users, Building, Stethoscope, Dog, PawPrint, Zap } from "lucide-react"
+import { Users, Building, Stethoscope, PawPrint, Zap } from "lucide-react"
 
 // Define types for our data
 type AnimalTypeData = {
@@ -33,6 +33,7 @@ export function StatsDashboard() {
     serviceProviders: {} as ServiceCategoryStats,
     totalServiceProviders: 0,
     animalTypes: [] as AnimalTypeData[],
+    totalBreeds: 0,
     boostedEntities: {
       total: 0,
       byCategory: {} as ServiceCategoryStats
@@ -54,7 +55,8 @@ export function StatsDashboard() {
         usersResult,
         serviceProvidersResult,
         activeBoostedResult,
-        animalTypesResult
+        animalTypesResult,
+        breedsResult
       ] = await Promise.all([
         // Get users count
         supabase
@@ -89,7 +91,7 @@ export function StatsDashboard() {
           .lt('start_date', new Date().toISOString())
           .gt('end_date', new Date().toISOString()),
 
-        // Get animal types with breed counts and breeder coverage in one efficient query
+        // Get animal types with breed counts and provider coverage in one efficient query
         supabase
           .from('animal_types')
           .select(`
@@ -97,15 +99,20 @@ export function StatsDashboard() {
             name,
             breeds!breeds_animal_type_id_fkey(
               breed_id,
-              breeder_breeds!breeder_breeds_breed_id_fkey(
+              service_provider_breeds!service_provider_breeds_breed_id_fkey(
                 service_provider_id,
-                service_providers!breeder_breeds_service_provider_id_fkey(
+                service_providers!service_provider_breeds_service_provider_id_fkey(
                   is_active,
                   is_deleted
                 )
               )
             )
-          `)
+          `),
+
+        // Get total breeds count
+        supabase
+          .from('breeds')
+          .select('*', { count: 'exact', head: true }),
       ])
 
       // Process service providers data
@@ -142,26 +149,26 @@ export function StatsDashboard() {
         animalTypesResult.data.forEach((animalType: any) => {
           const totalBreeds = animalType.breeds?.length || 0
           
-          // Get unique breeds that have active breeders
-          const breedsWithActiveBreeders = new Set()
+          // Get unique breeds that have active providers
+          const breedsWithActiveProviders = new Set()
           
           animalType.breeds?.forEach((breed: any) => {
-            const hasActiveBreeders = breed.breeder_breeds?.some((breederBreed: any) => 
-              breederBreed.service_providers?.is_active === true && 
-              breederBreed.service_providers?.is_deleted === false
+            const hasActiveBreeders = breed.service_provider_breeds?.some((spb: any) => 
+              spb.service_providers?.is_active === true && 
+              spb.service_providers?.is_deleted === false
             )
             
             if (hasActiveBreeders) {
-              breedsWithActiveBreeders.add(breed.breed_id)
+              breedsWithActiveProviders.add(breed.breed_id)
             }
           })
 
-          const breedsWithBreedersCount = breedsWithActiveBreeders.size
-          const percentage = totalBreeds > 0 ? (breedsWithBreedersCount / totalBreeds) * 100 : 0
+          const breedsWithProvidersCount = breedsWithActiveProviders.size
+          const percentage = totalBreeds > 0 ? (breedsWithProvidersCount / totalBreeds) * 100 : 0
 
           animalTypesWithDistribution.push({
             name: animalType.name,
-            value: breedsWithBreedersCount,
+            value: breedsWithProvidersCount,
             percentage: Math.round(percentage * 100) / 100,
             id: animalType.animal_type_id
           })
@@ -173,6 +180,7 @@ export function StatsDashboard() {
         serviceProviders: serviceProviderStats,
         totalServiceProviders,
         animalTypes: animalTypesWithDistribution,
+        totalBreeds: breedsResult.count || 0,
         boostedEntities: {
           total: totalBoostedCount,
           byCategory: boostedByCategory
@@ -238,11 +246,10 @@ export function StatsDashboard() {
           subtitle="registered vets"
         />
         <StatsCard 
-          title="Breeders" 
-          value={stats.serviceProviders['Breeders'] || 0} 
-          icon={<Dog className="h-4 w-4" />}
-          change={{ value: 15.3, isPositive: true }}
-          subtitle="registered breeders"
+          title="Breeds" 
+          value={stats.totalBreeds} 
+          icon={<PawPrint className="h-4 w-4" />}
+          subtitle="total breeds"
         />
       </div>
 
@@ -315,7 +322,7 @@ export function StatsDashboard() {
           <CardHeader>
             <CardTitle>Animal Types Distribution</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Percentage of breeds with active breeders
+              Distribution of breeds by animal type
             </p>
           </CardHeader>
           <CardContent>
@@ -338,8 +345,8 @@ export function StatsDashboard() {
                   </Pie>
                   <Tooltip 
                     formatter={(value, name, props) => [
-                      `${value} breeds with breeders (${props.payload.percentage}%)`, 
-                      'Breeds Covered'
+                      `${value} breeds (${props.payload.percentage}%)`, 
+                      'Breeds'
                     ]} 
                   />
                   <Legend />

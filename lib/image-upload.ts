@@ -1,60 +1,104 @@
 import { supabase } from './supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface UploadResult {
   url: string;
   path: string;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_DIMENSION = 1920;
+
+function compressImage(file: File, quality = 0.8, maxDimension = MAX_DIMENSION): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        const ratio = Math.min(maxDimension / width, maxDimension / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas context not available')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Compression failed'));
+        },
+        mimeType,
+        mimeType === 'image/png' ? undefined : quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export class ImageUploadService {
-  private static readonly BUCKET_NAME = 'animalclickposts';
-
-  /**
-   * Generate a unique filename for the uploaded file
-   */
-  private static generateUniqueFileName(file: File): string {
-    const extension = file.name.split('.').pop();
-    const uniqueName = `${uuidv4()}.${extension}`;
-    return uniqueName;
-  }
-
-  /**
-   * Upload a single image file to Supabase storage
-   */
   static async uploadImage(file: File, folder?: string): Promise<UploadResult> {
     try {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         throw new Error('File must be an image');
       }
 
-      // Validate file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (file.size > maxSize) {
-        throw new Error('File size must be less than 5MB');
+      let processedFile = file;
+
+      if (file.size > MAX_FILE_SIZE) {
+        let compressed = await compressImage(file);
+        let attempts = 0;
+        while (compressed.size > MAX_FILE_SIZE && attempts < 3) {
+          const q = Math.max(0.3, 0.8 - attempts * 0.2);
+          compressed = await compressImage(file, q);
+          attempts++;
+        }
+        if (compressed.size > MAX_FILE_SIZE && file.size > compressed.size) {
+          compressed = await compressImage(file, 0.3, 1200);
+        }
+        if (compressed.size < file.size) {
+          processedFile = new File([compressed], file.name, {
+            type: compressed.type || file.type,
+          });
+        }
       }
 
-      const fileName = this.generateUniqueFileName(file);
-      const filePath = folder ? `${folder}/${fileName}` : fileName;
+      const urlResponse = await fetch('/api/v1/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: processedFile.name,
+          fileType: processedFile.type,
+          folder,
+        }),
+      });
 
-      const { error } = await supabase.storage
-        .from(this.BUCKET_NAME)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      const urlPayload = await urlResponse.json();
 
-      if (error) {
-        throw new Error(`Upload failed: ${error.message}`);
+      if (!urlResponse.ok) {
+        throw new Error(urlPayload.error || 'Failed to get upload URL');
       }
 
-      const { data } = supabase.storage
-        .from(this.BUCKET_NAME)
-        .getPublicUrl(filePath);
+      const uploadResponse = await fetch(urlPayload.uploadUrl, {
+        method: 'PUT',
+        body: processedFile,
+        headers: { 'Content-Type': processedFile.type },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload file to storage');
+      }
 
       return {
-        url: data.publicUrl,
-        path: filePath
+        url: urlPayload.publicUrl,
+        path: urlPayload.path,
       };
     } catch (error) {
       console.error('Image upload error:', error);
@@ -68,7 +112,7 @@ export class ImageUploadService {
   static async deleteImage(filePath: string): Promise<void> {
     try {
       const { error } = await supabase.storage
-        .from(this.BUCKET_NAME)
+        .from('animalclickposts')
         .remove([filePath]);
 
       if (error) {
@@ -87,7 +131,7 @@ export class ImageUploadService {
     try {
       const urlObj = new URL(url);
       const pathParts = urlObj.pathname.split('/');
-      const bucketIndex = pathParts.findIndex(part => part === this.BUCKET_NAME);
+      const bucketIndex = pathParts.findIndex(part => part === 'animalclickposts');
       
       if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
         return pathParts.slice(bucketIndex + 1).join('/');

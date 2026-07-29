@@ -2,75 +2,79 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { ClipLoader } from "react-spinners";
-import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (searchParams.get("registered") === "1") {
+      toast({
+        title: "Success",
+        description: "Account created successfully. You can now log in.",
+      });
+    }
+  }, [searchParams, toast]);
+
   async function signInWithEmail() {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const response = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ action: "login", email, password }),
       });
 
-      const data = await res.json();
+      const json = await response.json();
 
-      if (!res.ok) {
+      if (!response.ok || json.error || !json.session) {
         setIsLoading(false);
-        toast({
-          title: "Error",
-          description: data.error || "Login failed",
-          variant: "destructive",
-          duration: 4000,
-        });
+        toast({ title: "Error", description: json.error || "Invalid login credentials", variant: "destructive" });
         return;
       }
 
-      if (data.user) {
-        localStorage.setItem("user_session", JSON.stringify(data.user));
-        localStorage.setItem("selected_roles", JSON.stringify(data.user.roles || []));
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: json.session.access_token,
+        refresh_token: json.session.refresh_token,
+      });
+
+      if (sessionError) {
+        setIsLoading(false);
+        toast({ title: "Error", description: sessionError.message || "Unable to establish session", variant: "destructive" });
+        return;
       }
 
       toast({
         title: "Success",
-        description: "Logged in successfully!",
-        duration: 3000,
+        description: "Logged in successfully.",
       });
 
       setTimeout(() => {
         setIsLoading(false);
         router.replace("/dashboard");
-      }, 200);
+      }, 800);
     } catch (err: any) {
       setIsLoading(false);
-      toast({
-        title: "Error",
-        description: err.message || "Failed to connect to server",
-        variant: "destructive",
-        duration: 4000,
-      });
+      toast({ title: "Error", description: err?.message || "Login failed", variant: "destructive" });
     }
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <Toaster />
       <div className="flex-1 hidden lg:block">
         <div className="h-full w-full relative flex justify-center">
           <img
@@ -161,12 +165,13 @@ export default function LoginPage() {
               onClick={signInWithEmail}
               disabled={isLoading}
               className="w-full"
+              type="button"
             >
               {!isLoading && <>Log In</>}
               {isLoading && <ClipLoader />}
             </Button>
 
-            <div className="relative">
+            {/* <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t" />
               </div>
@@ -175,9 +180,9 @@ export default function LoginPage() {
                   Or continue with
                 </span>
               </div>
-            </div>
+            </div> */}
 
-            <div className="grid grid-cols-3 gap-3">
+            {/* <div className="grid grid-cols-3 gap-3">
               <Button variant="outline" className="w-full">
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path
@@ -216,7 +221,7 @@ export default function LoginPage() {
                   <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
                 </svg>
               </Button>
-            </div>
+            </div> */}
 
             <div className="space-y-4 text-center text-sm">
               <p className="text-muted-foreground">

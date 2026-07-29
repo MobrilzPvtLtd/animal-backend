@@ -1,5 +1,6 @@
 -- =========================================================
 -- Animal Click Backend - Complete MySQL Database Schema
+-- Compiled from database/migrations/ (001 to 035)
 -- Compatible with XAMPP MySQL / MariaDB / MySQL 5.7 / MySQL 8.0+
 -- =========================================================
 
@@ -14,7 +15,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `permissions`;
 CREATE TABLE `permissions` (
     `permission_id` INT AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(100) NOT NULL UNIQUE,
+    `name` VARCHAR(150) NOT NULL UNIQUE,
     `description` TEXT NULL,
     `resource` VARCHAR(100) NOT NULL,
     `action` VARCHAR(50) NOT NULL,
@@ -67,6 +68,7 @@ CREATE TABLE `users` (
     `is_verified` BOOLEAN DEFAULT FALSE,
     `is_deleted` BOOLEAN DEFAULT FALSE,
     `is_active` BOOLEAN DEFAULT TRUE,
+    `current_token_hashes` TEXT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -112,6 +114,7 @@ CREATE TABLE `animal_types` (
     `name` VARCHAR(255) NOT NULL,
     `description` TEXT NULL,
     `icon` VARCHAR(255) NULL,
+    `image_url` TEXT NULL,
     `is_active` BOOLEAN DEFAULT TRUE,
     `sort_order` INT DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -188,6 +191,12 @@ CREATE TABLE `pet_friendly_places` (
     `address` TEXT NULL,
     `phone` VARCHAR(50) NULL,
     `website` VARCHAR(255) NULL,
+    `image_url` TEXT NULL,
+    `rating` DECIMAL(3,2) DEFAULT 0.00,
+    `is_verified` BOOLEAN DEFAULT FALSE,
+    `latitude` DECIMAL(10,8) NULL,
+    `longitude` DECIMAL(11,8) NULL,
+    `opening_hours` JSON NULL,
     `is_active` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -218,7 +227,46 @@ CREATE TABLE `locations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
--- 15. Table: event_categories
+-- 15. Table: service_providers
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `service_providers`;
+CREATE TABLE `service_providers` (
+    `service_provider_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255) NULL,
+    `phone` VARCHAR(50) NULL,
+    `emergency_number` VARCHAR(50) NULL,
+    `number_2` VARCHAR(50) NULL,
+    `bio` TEXT NULL,
+    `image_url` TEXT NULL,
+    `rating` DECIMAL(3,2) DEFAULT 0.00,
+    `total_reviews` INT DEFAULT 0,
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `featured` BOOLEAN DEFAULT FALSE,
+    `operating_hours` JSON NULL,
+    `location_id` BIGINT NULL,
+    `service_category_id` BIGINT NULL,
+    `is_deleted` BOOLEAN DEFAULT FALSE,
+    `views` INT DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_sp_location` FOREIGN KEY (`location_id`) REFERENCES `locations` (`location_id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_sp_category` FOREIGN KEY (`service_category_id`) REFERENCES `service_categories` (`service_category_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 16. Table: service_provider_locations
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `service_provider_locations`;
+CREATE TABLE `service_provider_locations` (
+    `service_provider_id` BIGINT NOT NULL,
+    `location_id` BIGINT NOT NULL,
+    PRIMARY KEY (`service_provider_id`, `location_id`),
+    CONSTRAINT `fk_spl_sp` FOREIGN KEY (`service_provider_id`) REFERENCES `service_providers` (`service_provider_id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_spl_loc` FOREIGN KEY (`location_id`) REFERENCES `locations` (`location_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 17. Table: event_categories
 -- ---------------------------------------------------------
 DROP TABLE IF EXISTS `event_categories`;
 CREATE TABLE `event_categories` (
@@ -230,7 +278,7 @@ CREATE TABLE `event_categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
--- 16. Table: events
+-- 18. Table: events
 -- ---------------------------------------------------------
 DROP TABLE IF EXISTS `events`;
 CREATE TABLE `events` (
@@ -241,26 +289,54 @@ CREATE TABLE `events` (
     `start_date` DATETIME NULL,
     `end_date` DATETIME NULL,
     `location` TEXT NULL,
+    `image_url` TEXT NULL,
+    `is_approved` BOOLEAN DEFAULT FALSE,
+    `organizer_name` VARCHAR(255) NULL,
+    `organizer_contact` VARCHAR(100) NULL,
+    `price` DECIMAL(10,2) DEFAULT 0.00,
+    `ticket_url` TEXT NULL,
     `is_active` BOOLEAN DEFAULT TRUE,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_events_category` FOREIGN KEY (`event_category_id`) REFERENCES `event_categories` (`event_category_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
--- 17. Table: boost_packages
+-- 19. Table: boost_packages
 -- ---------------------------------------------------------
 DROP TABLE IF EXISTS `boost_packages`;
 CREATE TABLE `boost_packages` (
-    `package_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `boost_package_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(255) NOT NULL,
-    `price` DECIMAL(10,2) NOT NULL,
-    `duration_days` INT NOT NULL,
+    `description` TEXT NULL,
+    `duration_days` INT NOT NULL DEFAULT 0,
+    `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `is_active` BOOLEAN DEFAULT TRUE,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
--- 18. Table: transactions
+-- 20. Table: entity_boosts
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `entity_boosts`;
+CREATE TABLE `entity_boosts` (
+    `entity_boost_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `vet_id` BIGINT NULL,
+    `breeder_id` BIGINT NULL,
+    `pet_friendly_place_id` BIGINT NULL,
+    `service_provider_id` BIGINT NULL,
+    `user_id` BIGINT NOT NULL,
+    `package_id` BIGINT NOT NULL,
+    `start_date` DATETIME NOT NULL,
+    `end_date` DATETIME NOT NULL,
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_entity_boosts_package` FOREIGN KEY (`package_id`) REFERENCES `boost_packages` (`boost_package_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 21. Table: transactions
 -- ---------------------------------------------------------
 DROP TABLE IF EXISTS `transactions`;
 CREATE TABLE `transactions` (
@@ -271,6 +347,116 @@ CREATE TABLE `transactions` (
     `payment_method` VARCHAR(50) NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 22. Table: community_posts
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `community_posts`;
+CREATE TABLE `community_posts` (
+    `post_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NULL,
+    `content` TEXT NOT NULL,
+    `image_url` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_community_posts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 23. Table: community_comments
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `community_comments`;
+CREATE TABLE `community_comments` (
+    `comment_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `post_id` BIGINT NOT NULL,
+    `user_id` BIGINT NULL,
+    `comment` TEXT NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_community_comments_post` FOREIGN KEY (`post_id`) REFERENCES `community_posts` (`post_id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_community_comments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 24. Table: post_likes
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `post_likes`;
+CREATE TABLE `post_likes` (
+    `like_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `post_id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `reaction_type` VARCHAR(50) DEFAULT 'like',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_post_likes_post` FOREIGN KEY (`post_id`) REFERENCES `community_posts` (`post_id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_post_likes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 25. Table: whats_new
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `whats_new`;
+CREATE TABLE `whats_new` (
+    `whats_new_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL UNIQUE,
+    `description` TEXT NULL,
+    `image_url` TEXT NULL,
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `created_by` BIGINT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_whats_new_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 26. Table: rescue_centres
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `rescue_centres`;
+CREATE TABLE `rescue_centres` (
+    `rescue_centre_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `address` TEXT NULL,
+    `city` VARCHAR(100) NULL,
+    `state` VARCHAR(100) NULL,
+    `phone` VARCHAR(50) NULL,
+    `email` VARCHAR(255) NULL,
+    `latitude` DECIMAL(10,8) NULL,
+    `longitude` DECIMAL(11,8) NULL,
+    `is_active` BOOLEAN DEFAULT TRUE,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 27. Table: support_tickets
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `support_tickets`;
+CREATE TABLE `support_tickets` (
+    `ticket_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL,
+    `subject` VARCHAR(255) NOT NULL,
+    `message` TEXT NOT NULL,
+    `status` VARCHAR(50) DEFAULT 'open',
+    `priority` VARCHAR(50) DEFAULT 'medium',
+    `assigned_to` BIGINT NULL,
+    `image_url` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_support_tickets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_support_tickets_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- 28. Table: support_replies
+-- ---------------------------------------------------------
+DROP TABLE IF EXISTS `support_replies`;
+CREATE TABLE `support_replies` (
+    `reply_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `ticket_id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `message` TEXT NOT NULL,
+    `image_url` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_support_replies_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `support_tickets` (`ticket_id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_support_replies_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================================
@@ -296,7 +482,23 @@ INSERT INTO `permissions` (`name`, `description`, `resource`, `action`) VALUES
 ('service_providers.view', 'View service providers', 'service_providers', 'read'),
 ('service_providers.create', 'Create service providers', 'service_providers', 'create'),
 ('service_providers.update', 'Update service providers', 'service_providers', 'update'),
-('service_providers.delete', 'Delete service providers', 'service_providers', 'delete');
+('service_providers.delete', 'Delete service providers', 'service_providers', 'delete'),
+('pet_friendly_places.view', 'View pet friendly places', 'pet_friendly_places', 'read'),
+('pet_friendly_places.create', 'Create pet friendly places', 'pet_friendly_places', 'create'),
+('pet_friendly_places.update', 'Update pet friendly places', 'pet_friendly_places', 'update'),
+('pet_friendly_places.delete', 'Delete pet friendly places', 'pet_friendly_places', 'delete'),
+('events.view', 'View events', 'events', 'read'),
+('events.create', 'Create events', 'events', 'create'),
+('events.update', 'Update events', 'events', 'update'),
+('events.delete', 'Delete events', 'events', 'delete'),
+('whats_new.view', 'View whats new entries', 'whats_new', 'read'),
+('whats_new.create', 'Create whats new entries', 'whats_new', 'create'),
+('whats_new.update', 'Update whats new entries', 'whats_new', 'update'),
+('whats_new.delete', 'Delete whats new entries', 'whats_new', 'delete'),
+('support.view', 'View support tickets', 'support', 'read'),
+('support.create', 'Create support tickets', 'support', 'create'),
+('support.update', 'Update support tickets', 'support', 'update'),
+('support.delete', 'Delete support tickets', 'support', 'delete');
 
 -- Insert System Roles
 INSERT INTO `roles` (`name`, `description`, `is_system_role`) VALUES
@@ -306,7 +508,9 @@ INSERT INTO `roles` (`name`, `description`, `is_system_role`) VALUES
 ('breeder', 'Breeder User', TRUE),
 ('pet_friendly_place', 'Pet Friendly Place Manager', TRUE),
 ('service_provider', 'Service Provider User', TRUE),
-('user', 'Regular End User', TRUE);
+('user', 'Regular End User', TRUE),
+('Owner', 'Owner Role', TRUE),
+('Manager', 'Manager Role', TRUE);
 
 -- Insert Service Categories
 INSERT INTO `service_categories` (`name`, `description`, `icon`, `color`, `sort_order`) VALUES

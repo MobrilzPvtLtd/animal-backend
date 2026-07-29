@@ -2,11 +2,14 @@
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
-import { usePathname, useRouter, redirect } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { storage } from "../lib/storage";
 
 type Role = {
   role_id: number;
+  name: string;
+  description?: string | null;
+  is_system_role?: boolean | null;
   vendor_id: number | null;
   vendor_location_id: number | null;
   vendors: {
@@ -33,6 +36,8 @@ type AuthData = {
     fullname: string;
     profileImageUrl: string;
     user_id: string | null;
+    roleNames: string[];
+    permissions: string[];
   } | null;
   selected_vendor: {
     vendor_id: number;
@@ -43,12 +48,13 @@ type AuthData = {
   selected_roles: number[];
   selected_vendor_location_id: number | null;
   roles: Role[];
-  updateSelectedRoles: Function;
-  updateSelectedVendor: Function;
-  updateSelectedVendorLocation: Function;
-  logOutFunction: Function;
-  updateUserDetails: Function;
-  hasRole: Function;
+  permissions: string[];
+  updateSelectedRoles: (selectedRoles: number[]) => void;
+  updateSelectedVendor: (selectedVendor: any) => void;
+  updateSelectedVendorLocation: (location_id: number) => void;
+  logOutFunction: () => Promise<unknown>;
+  updateUserDetails: (userData: any) => void;
+  hasRole: (args: { requiredRoleId: number }) => boolean;
 };
 
 const AuthContext = createContext<AuthData>({
@@ -58,13 +64,14 @@ const AuthContext = createContext<AuthData>({
   selected_vendor: null,
   selected_vendor_location_id: null,
   roles: [],
+  permissions: [],
   selected_roles: [],
   updateSelectedRoles: () => {},
   updateSelectedVendor: () => {},
   updateSelectedVendorLocation: () => {},
-  logOutFunction: () => {},
+  logOutFunction: async () => null,
   updateUserDetails: () => {},
-  hasRole: () => {},
+  hasRole: () => false,
 });
 
 export default function AuthProvider({ children }: any) {
@@ -84,10 +91,13 @@ export default function AuthProvider({ children }: any) {
     fullname: string;
     profileImageUrl: string;
     user_id: string | null;
+    roleNames: string[];
+    permissions: string[];
   } | null>(null);
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [selected_roles, setSelected_roles] = useState<number[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   const router = useRouter();
   const path = usePathname();
@@ -96,57 +106,154 @@ export default function AuthProvider({ children }: any) {
     []
   );
 
+  const refreshSessionFromServer = async (currentSession: Session | null) => {
+    if (!currentSession?.refresh_token) {
+      return null;
+    }
+
+    const response = await fetch("/api/v1/auth/refresh-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.session?.access_token || !payload?.session?.refresh_token) {
+      return null;
+    }
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: payload.session.access_token,
+      refresh_token: payload.session.refresh_token,
+    });
+
+    if (sessionError) {
+      return null;
+    }
+
+    return payload.session as Session;
+  };
+
   useEffect(() => {
     const isProtectedRoute = protectedRoutes.some(route => path.startsWith(route));
     if (isProtectedRoute && !loading && !session) {
-      redirect(`/login`);
+      router.replace(`/login`);
     }
-  }, [loading, session, path]);
+  }, [loading, session, path, router]);
 
-  const getRoles = async (userId: number) => {
-    try {
-      const { data: user_roles, error } = await supabase
-        .from("user_roles")
-        .select("role_id, user_id")
-        .eq("user_id", userId);
+  // Proactively redirect to login when token expires
+  useEffect(() => {
+    if (!session?.expires_at) return;
 
-      if (!error && user_roles?.length) {
-        // Transform data to match Role type
-        const transformedRoles: Role[] = user_roles.map((role: any) => ({
-          role_id: role.role_id,
-          vendor_id: null,
-          vendor_location_id: null,
-          vendors: null
-        }));
-        
-        setRoles(transformedRoles);
-        // Set default roles for non-vendor users
-        setSelected_roles(user_roles.map((role: any) => role.role_id));
-      } else {
-        setRoles([]);
-      }
-    } catch (error) {
-      console.error("Error fetching roles:", error);
+    const expiresAtMs = session.expires_at * 1000;
+    const timeUntilExpiry = expiresAtMs - Date.now();
+
+    if (timeUntilExpiry <= 0) {
+      setSession(null);
+      setUserDetails(null);
       setRoles([]);
+      setSelected_vendor(null);
+      setSelected_roles([]);
+      setPermissions([]);
+      setSelected_vendor_location_id(null);
+      storage.clear();
+      localStorage.clear();
+      return;
     }
-  };
+
+    const timeout = setTimeout(() => {
+      setSession(null);
+      setUserDetails(null);
+      setRoles([]);
+      setSelected_vendor(null);
+      setSelected_roles([]);
+      setPermissions([]);
+      setSelected_vendor_location_id(null);
+      storage.clear();
+      localStorage.clear();
+    }, timeUntilExpiry - 10000);
+
+    return () => clearTimeout(timeout);
+  }, [session?.access_token, session?.expires_at]);
 
   const fetchSession = async (newSession: Session | null) => {
     try {
       if (newSession?.user?.id) {
-        const { data: userData } = await supabase
-          .from("users")
-          .select("user_name,user_id")
-          .eq("actual_user_id", newSession.user.id)
-          .single();
+        const requestHeaders: HeadersInit = {};
+        if (newSession.access_token) {
+          requestHeaders.Authorization = `Bearer ${newSession.access_token}`;
+        }
 
-        if (userData) {
+        const response = await fetch("/api/v1/auth/me", {
+          cache: "no-store",
+          headers: requestHeaders,
+        });
+
+        const payload = await response.json();
+
+        if (response.status === 401) {
+          if (newSession?.refresh_token) {
+            const refreshedSession = await refreshSessionFromServer(newSession);
+
+            if (refreshedSession) {
+              await fetchSession(refreshedSession);
+              return;
+            }
+          }
+
+          // Token expired and refresh failed - auto redirect to login
+          setSession(null);
+          setUserDetails(null);
+          setRoles([]);
+          setSelected_vendor(null);
+          setSelected_roles([]);
+          setPermissions([]);
+          setSelected_vendor_location_id(null);
+          storage.clear();
+          localStorage.clear();
+          return;
+        }
+
+        if (response.ok && payload.profile) {
+          const profile = payload.profile;
+          const profileRoles = profile.user_roles || [];
+          const profilePermissions = (profile.permissions || payload.permissions || [])
+            .map((permission: any) => permission?.name)
+            .filter(Boolean);
+          const normalizedRoles = profileRoles.length > 0
+            ? profileRoles
+            : (payload.roleNames || []).map((roleName: string, index: number) => ({
+                role_id: payload.roleIds?.[index] ?? index + 1,
+                roles: { role_id: payload.roleIds?.[index] ?? index + 1, name: roleName },
+              }));
           setUserDetails({
-            fullname: `${userData.user_name}`,
-            profileImageUrl: "",
-            user_id: userData.user_id,
+            fullname: `${profile.user_name || profile.name || "User"}`,
+            profileImageUrl: profile.avatar_url || "",
+            user_id: profile.user_id,
+            roleNames: (payload.roleNames || normalizedRoles.map((role: any) => role.roles?.name).filter(Boolean)) as string[],
+            permissions: profilePermissions,
           });
-          await getRoles(userData.user_id);
+
+          const transformedRoles: Role[] = profileRoles.map((role: any) => ({
+            role_id: role.role_id,
+            name: role.roles?.name || "Unknown",
+            vendor_id: null,
+            vendor_location_id: null,
+            vendors: null,
+          }));
+
+          const transformedFallbackRoles: Role[] = normalizedRoles.map((role: any) => ({
+            role_id: role.role_id,
+            name: role.roles?.name || role.name || "Unknown",
+            vendor_id: null,
+            vendor_location_id: null,
+            vendors: null,
+          }));
+
+          setRoles(transformedRoles.length > 0 ? transformedRoles : transformedFallbackRoles);
+          setSelected_roles((profileRoles.length > 0 ? profileRoles : normalizedRoles).map((role: any) => role.role_id));
+          setPermissions(profilePermissions);
 
           // Load non-auth data securely
           const storedVendor = storage.get("selected_vendor");
@@ -159,6 +266,9 @@ export default function AuthProvider({ children }: any) {
             setSelected_vendor_location_id(storedLocationId);
         } else {
           setUserDetails(null);
+          setRoles([]);
+          setSelected_roles([]);
+          setPermissions([]);
         }
 
         setSession(newSession);
@@ -168,6 +278,7 @@ export default function AuthProvider({ children }: any) {
         setRoles([]);
         setSelected_vendor(null);
         setSelected_roles([]);
+        setPermissions([]);
         setSelected_vendor_location_id(null);
 
         // Clear secure local storage
@@ -181,40 +292,30 @@ export default function AuthProvider({ children }: any) {
     }
   };
 
-  // Simple auth initialization - check Supabase or MySQL local session
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "SIGNED_OUT") {
+        void fetchSession(null);
+        return;
+      }
+
+      void fetchSession(nextSession);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Simple auth initialization - just check session once
   useEffect(() => {
     const initializeAuth = async () => {
+      
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          await fetchSession(session);
-        } else {
-          // Check local MySQL user session
-          const localUserStr = typeof window !== "undefined" ? localStorage.getItem("user_session") : null;
-          if (localUserStr) {
-            const localUser = JSON.parse(localUserStr);
-            setUserDetails({
-              fullname: `${localUser.name || ""} ${localUser.surname || ""}`.trim() || localUser.email,
-              profileImageUrl: localUser.profile_image_url || "",
-              user_id: localUser.user_id,
-            });
-            const userRoles: Role[] = (localUser.roles || []).map((roleId: number) => ({
-              role_id: roleId,
-              vendor_id: null,
-              vendor_location_id: null,
-              vendors: null,
-            }));
-            setRoles(userRoles);
-            setSelected_roles(localUser.roles || []);
-            setSession({ user: { id: String(localUser.user_id), email: localUser.email } } as any);
-          } else {
-            await fetchSession(null);
-          }
-        }
+        await fetchSession(session);
       } catch (error) {
         console.error("Error getting session:", error);
-        setIsLoading(false);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -224,19 +325,47 @@ export default function AuthProvider({ children }: any) {
 
   const logOutFunction = async () => {
     try {
-      await supabase.auth.signOut().catch(() => {});
-    } catch (error) {
-      console.error("Error signing out:", error);
-    } finally {
+      await fetch("/api/v1/auth/logout", {
+        method: "POST",
+      });
+
+      const { error } = await supabase.auth.signOut();
+      
+      // Clear state regardless of signOut success
       setSession(null);
       setUserDetails(null);
       setRoles([]);
       setSelected_vendor(null);
       setSelected_roles([]);
+      setPermissions([]);
       setSelected_vendor_location_id(null);
       storage.clear();
       localStorage.clear();
-      router.push("/login");
+      
+      // Wait a moment then redirect
+      setTimeout(() => {
+        router.push("/login");
+      }, 500);
+      
+      return error; // Return error or null
+    } catch (error) {
+      console.error("Error signing out:", error);
+      // Still clear state and redirect even if error
+      setSession(null);
+      setUserDetails(null);
+      setRoles([]);
+      setSelected_vendor(null);
+      setSelected_roles([]);
+      setPermissions([]);
+      setSelected_vendor_location_id(null);
+      storage.clear();
+      localStorage.clear();
+      
+      setTimeout(() => {
+        router.push("/login");
+      }, 500);
+      
+      return error;
     }
   };
 
@@ -247,6 +376,7 @@ export default function AuthProvider({ children }: any) {
     selected_vendor,
     selected_vendor_location_id,
     roles,
+    permissions,
     selected_roles,
     updateSelectedRoles: (selectedRoles: number[]) => {
       setSelected_roles(selectedRoles);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { supabase } from "@/lib/supabase"
+import { createLocation, fetchLocations } from "@/lib/locations-api"
 import { serviceProviderSchema } from "./schema"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
@@ -22,11 +23,11 @@ import { ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 
 const WIZARD_STEPS = [
   { id: 1, label: "Basic Info", component: "basic" },
-  { id: 2, label: "Contact & Location", component: "contact" },
-  { id: 3, label: "Operating Hours", component: "hours" },
-  { id: 4, label: "Settings", component: "settings" },
-  { id: 5, label: "Services & Breeds", component: "services" },
-  { id: 6, label: "Images", component: "images" },
+  { id: 2, label: "Images", component: "images" },
+  { id: 3, label: "Contact & Location", component: "contact" },
+  { id: 4, label: "Operating Hours", component: "hours" },
+  { id: 5, label: "Settings", component: "settings" },
+  { id: 6, label: "Services & Breeds", component: "services" },
 ]
 
 interface ServiceProviderWizardProps {
@@ -65,12 +66,13 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       latitude: "",
       longitude: "",
       show_publicly: true,
+      operating_hours: undefined,
     },
   })
 
   useEffect(() => {
     fetchCategories()
-    fetchLocations()
+    loadLocations()
   }, [])
 
   const fetchCategories = async () => {
@@ -96,14 +98,9 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
     }
   }
 
-  const fetchLocations = async () => {
+  const loadLocations = async () => {
     try {
-      const { data, error } = await supabase
-        .from("locations")
-        .select("*")
-        .order("address")
-
-      if (error) throw error
+      const data = await fetchLocations()
       setLocations(data || [])
     } catch (error) {
       console.error("Error fetching locations:", error)
@@ -151,41 +148,40 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
   const onSubmit = async (values: any) => {
     setIsLoading(true)
     try {
-      let locationId = values.location_id
+      const currentFormValues = form.getValues()
+      const submissionValues = { ...currentFormValues }
+
+      let locationId = submissionValues.location_id
 
       // Create location if address is provided and no location is selected
-      if (values.address && !locationId) {
-        const { data: locationData, error: locationError } = await supabase
-          .from("locations")
-          .insert([{
-            address: values.address,
-            latitude: values.latitude || null,
-            longitude: values.longitude || null,
-            show_publicly: values.show_publicly,
-          }])
-          .select()
-          .single()
-
-        if (locationError) throw locationError
+      if (submissionValues.address && !locationId) {
+        const locationData = await createLocation({
+          address: submissionValues.address,
+          latitude: submissionValues.latitude || null,
+          longitude: submissionValues.longitude || null,
+          show_publicly: submissionValues.show_publicly,
+        })
         locationId = locationData.location_id
       }
 
+      const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
+
       const providerData = {
-        service_category_id: values.service_category_id,
-        name: values.name,
-        description: values.description || null,
-        bio: values.bio || null,
-        image_url: values.image_url || null,
-        phone: values.phone || null,
-        emergency_number: values.emergency_number || null,
-        number_2: values.number_2 || null,
-        email: values.email || null,
-        website: values.website || null,
+        service_category_id: submissionValues.service_category_id,
+        name: submissionValues.name,
+        description: submissionValues.description || null,
+        bio: submissionValues.bio || null,
+        image_url: profileImage,
+        phone: submissionValues.phone || null,
+        emergency_number: submissionValues.emergency_number || null,
+        number_2: submissionValues.number_2 || null,
+        email: submissionValues.email || null,
+        website: submissionValues.website || null,
         location_id: locationId || null,
-        is_verified: values.is_verified,
-        is_active: values.is_active,
-        featured: values.featured,
-        operating_hours: values.operating_hours || null,
+        is_verified: submissionValues.is_verified,
+        is_active: submissionValues.is_active,
+        featured: submissionValues.featured,
+        operating_hours: submissionValues.operating_hours || null,
       }
 
       const { data: providerResult, error } = await supabase
@@ -222,7 +218,6 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         }
       }
 
-      // Save breeds if any (for all service categories)
       if (selectedBreeds.length > 0) {
         const breedsData = selectedBreeds.map(breed => ({
           service_provider_id: serviceProviderId,
@@ -230,7 +225,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         }))
 
         const { error: breedsError } = await supabase
-          .from("breeder_breeds")
+          .from("service_provider_breeds")
           .insert(breedsData)
 
         if (breedsError) {
@@ -239,9 +234,21 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         }
       }
 
-      // Save images if any
-      if (images.length > 0) {
-        const imageData = images.map((img, index) => ({
+      // Save images if any (includes profile image as first)
+      const allImages: ServiceProviderImage[] = []
+
+      if (profileImage && !images.some(img => img.image_url === profileImage)) {
+        allImages.push({ image_url: profileImage, order: 0 })
+      }
+
+      images.forEach((img) => {
+        if (!allImages.some(i => i.image_url === img.image_url)) {
+          allImages.push({ ...img, order: allImages.length })
+        }
+      })
+
+      if (allImages.length > 0) {
+        const imageData = allImages.map((img, index) => ({
           service_provider_id: serviceProviderId,
           image_url: img.image_url,
           order: index,
@@ -268,39 +275,39 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
   }
 
   const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
+    return (
+      <>
+        <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
           <BasicInfoTab 
             form={form} 
             categories={categories}
             hideCategorySelector={!!preselectedCategoryId}
             selectedCategoryName={selectedCategoryName}
           />
-        )
-      case 2:
-        return <ContactLocationTab form={form} />
-      case 3:
-        return <OperatingHoursTab form={form} />
-      case 4:
-        return <SettingsTab form={form} />
-      case 5:
-        return (
+        </div>
+        <div style={{ display: currentStep === 2 ? 'block' : 'none' }}>
+          <ImagesTab 
+            onImagesChange={setImages}
+          />
+        </div>
+        <div style={{ display: currentStep === 3 ? 'block' : 'none' }}>
+          <ContactLocationTab form={form} />
+        </div>
+        <div style={{ display: currentStep === 4 ? 'block' : 'none' }}>
+          <OperatingHoursTab form={form} />
+        </div>
+        <div style={{ display: currentStep === 5 ? 'block' : 'none' }}>
+          <SettingsTab form={form} />
+        </div>
+        <div style={{ display: currentStep === 6 ? 'block' : 'none' }}>
           <ServicesAndBreedsTab 
             serviceCategoryId={form.watch("service_category_id")}
             onServicesChange={setServices}
             onBreedsChange={setSelectedBreeds}
           />
-        )
-      case 6:
-        return (
-          <ImagesTab 
-            onImagesChange={setImages}
-          />
-        )
-      default:
-        return null
-    }
+        </div>
+      </>
+    )
   }
 
   const isLastStep = currentStep === WIZARD_STEPS.length

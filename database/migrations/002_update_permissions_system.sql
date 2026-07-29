@@ -1,11 +1,5 @@
 -- =============================
--- 1. ADD MISSING COLUMN TO ROLES TABLE
--- =============================
-ALTER TABLE public.roles 
-ADD COLUMN IF NOT EXISTS is_system_role BOOLEAN DEFAULT FALSE;
-
--- =============================
--- 2. CREATE USERS TABLE (IF NOT EXISTS)
+-- 1. CREATE USERS TABLE (IF NOT EXISTS)
 -- =============================
 CREATE TABLE IF NOT EXISTS public.users (
     user_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -21,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- =============================
--- 3. CREATE USER ROLES TABLE (IF NOT EXISTS)
+-- 2. CREATE USER ROLES TABLE (IF NOT EXISTS)
 -- =============================
 CREATE TABLE IF NOT EXISTS public.user_roles (
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE CASCADE,
@@ -35,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
 );
 
 -- =============================
--- 4. ADD ADDITIONAL PERMISSIONS (only new ones)
+-- 3. ADD ADDITIONAL PERMISSIONS (only new ones)
 -- =============================
 INSERT INTO public.permissions (name, description, resource, action) VALUES
 ('pet_friendly_places.view', 'View pet friendly places', 'pet_friendly_places', 'read'),
@@ -65,27 +59,7 @@ INSERT INTO public.permissions (name, description, resource, action) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- =============================
--- 5. INSERT DEFAULT ROLES (IF NOT EXISTS)
--- =============================
-INSERT INTO public.roles (name, description, is_system_role) VALUES
-('Super Admin', 'Full system access', true),
-('Admin', 'Administrative access', true),
-('Manager', 'Management access', true),
-('User', 'Basic user access', true),
-('Viewer', 'Read-only access', true)
-ON CONFLICT (name) DO NOTHING;
-
--- =============================
--- 6. ASSIGN SUPER ADMIN ALL PERMISSIONS
--- =============================
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'Super Admin'
-ON CONFLICT DO NOTHING;
-
--- =============================
--- 7. ASSIGN ADMIN PERMISSIONS
+-- 4. ASSIGN ADMIN PERMISSIONS
 -- =============================
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.role_id, p.permission_id
@@ -94,7 +68,7 @@ WHERE r.name = 'Admin' AND p.name != 'users.delete'
 ON CONFLICT DO NOTHING;
 
 -- =============================
--- 8. ASSIGN MANAGER PERMISSIONS
+-- 5. ASSIGN MANAGER PERMISSIONS
 -- =============================
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.role_id, p.permission_id
@@ -102,26 +76,9 @@ FROM public.roles r, public.permissions p
 WHERE r.name = 'Manager' AND p.action IN ('read', 'create', 'update')
 ON CONFLICT DO NOTHING;
 
--- =============================
--- 9. ASSIGN USER PERMISSIONS
--- =============================
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'User' AND p.action = 'read'
-ON CONFLICT DO NOTHING;
 
 -- =============================
--- 10. ASSIGN VIEWER PERMISSIONS
--- =============================
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'Viewer' AND p.action = 'read'
-ON CONFLICT DO NOTHING;
-
--- =============================
--- 11. CREATE INDEXES
+-- 6. CREATE INDEXES
 -- =============================
 CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON public.role_permissions(role_id);
 CREATE INDEX IF NOT EXISTS idx_role_permissions_permission_id ON public.role_permissions(permission_id);

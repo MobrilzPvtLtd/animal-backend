@@ -53,6 +53,14 @@ export const PERMISSIONS = {
   REPORTS_CREATE: 'reports.create',
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_UPDATE: 'settings.update',
+  WHATS_NEW_VIEW: 'whats_new.view',
+  WHATS_NEW_CREATE: 'whats_new.create',
+  WHATS_NEW_UPDATE: 'whats_new.update',
+  WHATS_NEW_DELETE: 'whats_new.delete',
+  SUPPORT_VIEW: 'support.view',
+  SUPPORT_CREATE: 'support.create',
+  SUPPORT_UPDATE: 'support.update',
+  SUPPORT_RESPOND: 'support.respond',
 } as const;
 
 // Cache for user permissions to avoid repeated database calls

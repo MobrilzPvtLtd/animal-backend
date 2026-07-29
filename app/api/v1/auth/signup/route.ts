@@ -1,0 +1,373 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '../../../../../lib/server-supabase';
+import { buildAuthProfile, PUBLIC_SIGNUP_ROLE_NAMES } from '@/lib/auth-profile';
+import { setCurrentTokenHashes } from '@/lib/auth-session';
+import { uploadAnimalImage } from '@/lib/storage-upload';
+
+function isSerializedFileObject(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value === '[object File]' || value === '[object Object]';
+  }
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return !('url' in value || value instanceof URL);
+  }
+  return false;
+}
+
+// ----------------------------------------------------------------------
+// Geocoding helper using Google Maps Geocoding API
+// ----------------------------------------------------------------------
+async function geocodeLocation(location: string): Promise<{ latitude: number | null; longitude: number | null }> {
+  if (!location || location.trim() === '') {
+    return { latitude: null, longitude: null };
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API;
+  if (!apiKey) {
+    console.error('Google Maps API key is missing');
+    return { latitude: null, longitude: null };
+  }
+
+  try {
+    const encodedAddress = encodeURIComponent(location.trim());
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.results?.length > 0) {
+      const { lat, lng } = data.results[0].geometry.location;
+      return { latitude: lat, longitude: lng };
+    } else {
+      console.warn(`Geocoding failed for "${location}": ${data.status} - ${data.error_message || ''}`);
+      return { latitude: null, longitude: null };
+    }
+  } catch (error) {
+    console.error('Google Geocoding request error:', error);
+    return { latitude: null, longitude: null };
+  }
+}
+
+// ----------------------------------------------------------------------
+// Validation helpers
+// ----------------------------------------------------------------------
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+  return emailRegex.test(email);
+}
+
+function isStrongPassword(password: string): boolean {
+  return password.length >= 8;
+}
+
+// ----------------------------------------------------------------------
+// POST handler – accepts FormData
+// ----------------------------------------------------------------------
+export async function POST(request: NextRequest) {
+  try {
+    let email = '';
+    let usernameInput = '';
+    let password = '';
+    let confirm_password = '';
+    let full_name = '';
+    let location: string | undefined = undefined;
+    let profile_image_url: string | undefined = undefined;
+    let roleName = 'Guest';
+
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await request.json().catch(() => ({}));
+      email = body?.email?.toString() || '';
+      usernameInput = body?.username?.toString() || '';
+      password = body?.password?.toString() || '';
+      confirm_password = body?.confirm_password?.toString() || '';
+      full_name = body?.full_name?.toString() || '';
+      location = body?.location?.toString() || undefined;
+
+      const rawImage = body?.profile_image_url;
+      if (isSerializedFileObject(rawImage)) {
+        return NextResponse.json(
+          { error: 'profile_image_url must be a valid image URL string. Use multipart/form-data to upload a file.' },
+          { status: 400 }
+        );
+      }
+      profile_image_url = rawImage?.toString() || undefined;
+
+      roleName = body?.roleName?.toString() || 'Guest';
+    } else {
+      const formData = await request.formData();
+      email = formData.get('email')?.toString() || '';
+      usernameInput = formData.get('username')?.toString() || '';
+      password = formData.get('password')?.toString() || '';
+      confirm_password = formData.get('confirm_password')?.toString() || '';
+      full_name = formData.get('full_name')?.toString() || '';
+      location = formData.get('location')?.toString() || undefined;
+
+      const profileImageField = formData.get('profile_image_url');
+      if (profileImageField instanceof File) {
+        if (!profileImageField.type.startsWith('image/')) {
+          return NextResponse.json({ error: 'Profile image must be an image file' }, { status: 400 });
+        }
+        if (profileImageField.size > 50 * 1024 * 1024) {
+          return NextResponse.json({ error: 'Profile image must be less than 50MB' }, { status: 400 });
+        }
+        try {
+          const { url } = await uploadAnimalImage(profileImageField, 'avatars');
+          profile_image_url = url;
+        } catch (uploadErr: any) {
+          console.error('Profile image upload failed:', uploadErr);
+          return NextResponse.json(
+            { error: `Profile image upload failed: ${uploadErr.message || 'Unknown error'}` },
+            { status: 400 }
+          );
+        }
+      } else if (profileImageField && profileImageField.toString() !== '[object File]') {
+        profile_image_url = profileImageField.toString();
+      } else if (profileImageField) {
+        return NextResponse.json(
+          { error: 'profile_image_url must be a valid image file or URL string' },
+          { status: 400 }
+        );
+      }
+
+      roleName = formData.get('roleName')?.toString() || 'Guest';
+    }
+
+    // Basic validation
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+    if (!isStrongPassword(password)) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters long' }, { status: 400 });
+    }
+    if (password !== confirm_password) {
+      return NextResponse.json({ error: 'Passwords do not match' }, { status: 400 });
+    }
+
+    return handleSignup(
+      email,
+      usernameInput,
+      password,
+      full_name,
+      location,
+      profile_image_url,
+      roleName
+    );
+  } catch (error: any) {
+    console.error('Signup POST error:', error);
+    return NextResponse.json(
+      { error: `Signup failed. ${error?.message || 'Please try again later.'}` },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
+}
+
+// ----------------------------------------------------------------------
+// Core signup logic
+// ----------------------------------------------------------------------
+async function handleSignup(
+  email: string,
+  usernameInput: string,
+  password: string,
+  fullName: string,
+  location: string | undefined,
+  profileImageUrl: string | undefined,
+  roleName: string = 'Guest'
+) {
+  // 1. Validate required fields
+  if (!fullName || fullName.trim() === '') {
+    return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
+  }
+
+  // 2. Split full_name into name and surname
+  const nameParts = fullName.trim().split(/\s+/);
+  const name = nameParts[0];
+  const surname = nameParts.slice(1).join(' ') || '';
+
+  // Derive user_name: use provided if non-empty, else from email prefix
+  const isUsernameAutoGenerated = !usernameInput || usernameInput.trim() === '';
+  let finalUsername = isUsernameAutoGenerated
+    ? email.split('@')[0]
+    : usernameInput.trim();
+
+  // Check username uniqueness
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('user_id')
+    .eq('user_name', finalUsername)
+    .maybeSingle();
+
+  if (existing) {
+    if (isUsernameAutoGenerated) {
+      let suffix = 1;
+      for (;;) {
+        finalUsername = `${email.split('@')[0]}${suffix}`;
+        const { data: next } = await supabaseAdmin
+          .from('users')
+          .select('user_id')
+          .eq('user_name', finalUsername)
+          .maybeSingle();
+        if (!next) break;
+        suffix++;
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'Username is already taken' },
+        { status: 409 }
+      );
+    }
+  }
+
+  // 3. Geocode location
+  const { latitude, longitude } = await geocodeLocation(location || '');
+  const staticLocation = location?.trim() || null;
+
+  // 4. Check allowed roles
+  if (!PUBLIC_SIGNUP_ROLE_NAMES.includes(roleName as any)) {
+    return NextResponse.json(
+      { error: 'Selected role is not available for public signup' },
+      { status: 400 }
+    );
+  }
+
+  // 5. Create user in Supabase Auth
+  let result;
+  let error;
+  try {
+    const userMetadata = {
+      roleName,
+      name,
+      surname,
+      user_name: finalUsername,
+      full_name: fullName,
+      profile_image_url: profileImageUrl,
+    };
+
+    if (supabaseAdmin.auth.admin?.createUser) {
+      result = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: userMetadata,
+      });
+      error = result.error;
+    } else {
+      const signUpResult = await supabaseAdmin.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userMetadata,
+        },
+      });
+      result = signUpResult;
+      error = signUpResult.error;
+    }
+  } catch (err: any) {
+    console.error('Auth user creation failed:', err);
+    return NextResponse.json({ error: 'Unable to create user. Please try again.' }, { status: 400 });
+  }
+
+  if (error || !result?.data) {
+    const errMsg = error?.message || 'User creation failed';
+    console.error('Auth error:', errMsg);
+    return NextResponse.json({ error: 'Signup failed. Email might already exist.' }, { status: 400 });
+  }
+
+  const resultData = result.data;
+  const createdUser = 'user' in resultData ? resultData.user : resultData;
+  const userId = createdUser?.id;
+  if (!userId) {
+    return NextResponse.json({ error: 'User creation returned no user id' }, { status: 400 });
+  }
+
+  // 6. Insert into public.users
+  let internalUserId: number | null = null;
+  try {
+    const { data: internalUser, error: insertError } = await supabaseAdmin
+      .from('users')
+      .insert({
+        auth_user_id: userId,
+        email,
+        user_name: finalUsername,
+        name,
+        surname,
+        profile_image_url: profileImageUrl || null,
+        user_type: roleName,
+        static_location: staticLocation,
+        latitude,
+        longitude,
+        subscription_status: 'guest',
+        is_verified: true,
+        notification_preferences: { events: true, warnings: true, updates: true },
+      })
+      .select('user_id')
+      .single();
+
+    if (insertError) throw insertError;
+    internalUserId = internalUser?.user_id;
+  } catch (err) {
+    console.error('Failed to insert internal user:', err);
+    // Attempt to look up existing record (in case insert failed due to duplicate)
+    const { data: existing } = await supabaseAdmin
+      .from('users')
+      .select('user_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    internalUserId = existing?.user_id ?? null;
+  }
+
+  if (!internalUserId) {
+    console.warn('No internal user_id found for', userId);
+    // Non-critical, continue
+  }
+
+  // 7. Assign role (if roles table exists)
+  try {
+    const { data: role } = await supabaseAdmin
+      .from('roles')
+      .select('role_id')
+      .eq('name', roleName)
+      .maybeSingle();
+    if (role?.role_id && internalUserId) {
+      await supabaseAdmin.from('user_roles').upsert(
+        [{ user_id: internalUserId, role_id: role.role_id }],
+        { onConflict: 'user_id,role_id' }
+      );
+    }
+  } catch (err) {
+    console.error('Role assignment failed:', err);
+    // Non-critical, continue
+  }
+
+  // 8. Obtain session and store token hash
+  let session = 'session' in resultData ? resultData.session ?? null : null;
+  if (!session) {
+    try {
+      const login = await supabaseAdmin.auth.signInWithPassword({ email, password });
+      session = login.data.session ?? null;
+    } catch (err) {
+      console.warn('Could not create session after signup:', err);
+    }
+  }
+  if (session?.access_token && session?.refresh_token) {
+    await setCurrentTokenHashes(userId, session.access_token, session.refresh_token);
+  }
+
+  // 9. Build auth profile
+  const authProfile = await buildAuthProfile({
+    id: userId,
+    email,
+    roleNames: [roleName],
+  });
+
+  return NextResponse.json(
+    { user: createdUser, session, ...authProfile },
+    { status: 201 }
+  );
+}

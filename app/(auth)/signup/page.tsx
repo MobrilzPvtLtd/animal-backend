@@ -1,16 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { ClipLoader } from "react-spinners";
+import { supabase } from "@/lib/supabase";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -21,6 +20,8 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showLoading, setShowLoading] = useState(false);
+  const [roleName, setRoleName] = useState("Subscriber");
+  const [roles, setRoles] = useState<any[]>([]);
   const { toast } = useToast();
 
   const checkPasswordStrength = (password: string) => {
@@ -63,63 +64,95 @@ export default function SignUpPage() {
     }
 
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/v1/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ action: "signup", email, password, roleName }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let json: any = {};
 
-      if (!res.ok) {
-        toast({
-          title: "Error",
-          description: data.error || "Signup failed",
-          variant: "destructive",
-          duration: 4000,
-        });
+      try {
+        json = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        json = { error: responseText || "Signup failed" };
+      }
+
+      if (!res.ok || json.error) {
+        toast({ title: "Error", description: json.error || "Signup failed", variant: "destructive" });
         setShowLoading(false);
         return;
       }
 
-      if (data.user) {
-        localStorage.setItem("user_session", JSON.stringify(data.user));
-        localStorage.setItem("selected_roles", JSON.stringify(data.user.roles || []));
+      if (!json.session?.access_token || !json.session?.refresh_token) {
+        toast({
+          title: "Error",
+          description: "Signup succeeded, but no session was returned. Please log in again.",
+          variant: "destructive",
+        });
+        setShowLoading(false);
+        router.replace("/login");
+        return;
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: json.session.access_token,
+        refresh_token: json.session.refresh_token,
+      });
+
+      if (sessionError) {
+        toast({ title: "Error", description: sessionError.message || "Unable to establish session", variant: "destructive" });
+        setShowLoading(false);
+        return;
       }
 
       toast({
         title: "Success",
-        description: "Registered successfully!",
-        duration: 3000,
+        description: "Account created successfully.",
       });
 
       setShowLoading(false);
-      router.replace("/onboarding");
+      setTimeout(() => {
+        router.replace("/dashboard");
+      }, 900);
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Signup failed",
-        variant: "destructive",
-        duration: 4000,
-      });
+      toast({ title: "Error", description: err?.message || "Signup failed", variant: "destructive" });
       setShowLoading(false);
     }
   }
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/v1/signup-roles');
+        const json = await res.json();
+        if (!res.ok) return;
+        if (mounted) {
+          setRoles(json.roles || []);
+          if (json.roles && json.roles.length > 0) setRoleName(json.roles[0].name);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <Toaster />
-
-      <div className="flex-1 hidden lg:block">
-        <div className="h-full w-full relative">
+     <div className="flex-1 hidden lg:block">
+        <div className="h-full w-full relative flex justify-center">
           <img
             src="/images/Logo1024.png"
             alt="Secure payments"
-            className="h-full w-full object-scale-down"
+            className="h-full w-1/2 object-scale-down"
           />
-          <div className="absolute inset-0" />
+          <div className="absolute inset-0 " />
         </div>
       </div>
+      
 
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
@@ -156,6 +189,29 @@ export default function SignUpPage() {
                   }}
                   value={email}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="role">Account Type</Label>
+                <select
+                  id="role"
+                  className="w-full rounded-md border border-input px-3 py-2"
+                  value={roleName}
+                  onChange={(e) => setRoleName(e.target.value)}
+                >
+                  {roles.length === 0 && (
+                    <>
+                      <option value="Guest">Guest (Non-Subscriber)</option>
+                      <option value="Subscriber">Subscriber</option>
+                      <option value="Provider">Provider (Place Owner)</option>
+                    </>
+                  )}
+                  {roles.map((r) => (
+                    <option key={r.role_id} value={r.name}>
+                      {r.name} {r.description ? `- ${r.description}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -255,12 +311,13 @@ export default function SignUpPage() {
               disabled={showLoading}
               onClick={signUpNewUser}
               className="w-full"
+              type="button"
             >
               {!showLoading && <>Create Account</>}
               {showLoading && <ClipLoader />}
             </Button>
 
-            <div className="relative">
+            {/* <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t" />
               </div>
@@ -269,9 +326,9 @@ export default function SignUpPage() {
                   Or continue with
                 </span>
               </div>
-            </div>
+            </div> */}
 
-            <div className="grid grid-cols-3 gap-3">
+            {/* <div className="grid grid-cols-3 gap-3">
               <Button variant="outline" className="w-full">
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path
@@ -310,7 +367,7 @@ export default function SignUpPage() {
                   <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
                 </svg>
               </Button>
-            </div>
+            </div> */}
 
             <p className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
