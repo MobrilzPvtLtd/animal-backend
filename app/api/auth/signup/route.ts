@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import { NextRequest, NextResponse } from 'next/server';
+import { query } from '@/lib/db';
+import { generateTokens } from '@/lib/jwt';
+import bcrypt from 'bcryptjs';
 
 interface UserRow {
   user_id: number;
@@ -14,13 +15,13 @@ interface InsertResult {
   insertId: number;
 }
 
-// Auto-ensure columns exist in users table (prevents 'Unknown column' MySQL errors on existing live databases)
+// Auto-ensure columns exist in users table
 let isTableChecked = false;
 async function ensureUserColumns() {
   if (isTableChecked) return;
   try {
-    await query("ALTER TABLE `users` ADD COLUMN `username` VARCHAR(255) NULL AFTER `email`").catch(() => { });
-    await query("ALTER TABLE `users` ADD COLUMN `location` VARCHAR(255) NULL AFTER `phone`").catch(() => { });
+    await query('ALTER TABLE `users` ADD COLUMN `username` VARCHAR(255) NULL AFTER `email`').catch(() => { });
+    await query('ALTER TABLE `users` ADD COLUMN `location` VARCHAR(255) NULL AFTER `phone`').catch(() => { });
     isTableChecked = true;
   } catch (err) {
     isTableChecked = true;
@@ -31,14 +32,10 @@ export async function POST(request: NextRequest) {
   try {
     await ensureUserColumns();
 
-    const contentType = request.headers.get("content-type") || "";
+    const contentType = request.headers.get('content-type') || '';
     let body: Record<string, any> = {};
 
-    // Handle FormData & JSON
-    if (
-      contentType.includes("multipart/form-data") ||
-      contentType.includes("application/x-www-form-urlencoded")
-    ) {
+    if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
       const formData = await request.formData();
       formData.forEach((value, key) => {
         if (value instanceof File) {
@@ -55,56 +52,65 @@ export async function POST(request: NextRequest) {
       email,
       password,
       confirmPassword,
-      name = "",
-      username = "",
-      location = "",
-      imagePath = "",
+      name = '',
+      username = '',
+      location = '',
+      imagePath = '',
     } = body;
 
-    // 1. Mandatory Validation
+    // Validation
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
     if (password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
     if (confirmPassword && password !== confirmPassword) {
-      return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+      return NextResponse.json({ error: 'Passwords do not match' }, { status: 400 });
     }
 
-    // 2. Check existing user
+    // Check existing user
     const existingUsers = await query<UserRow[]>(
-      "SELECT user_id FROM users WHERE email = ? LIMIT 1",
+      'SELECT user_id FROM users WHERE email = ? LIMIT 1',
       [email]
     );
 
     if (existingUsers && existingUsers.length > 0) {
-      return NextResponse.json({ error: "User with this email already exists" }, { status: 400 });
+      return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
     }
 
-    // 3. Hash password
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Insert user
+    // Insert user
     const result = (await query(
       `INSERT INTO users (email, username, name, password, location, profile_image_url, device_type, is_verified, is_active)
        VALUES (?, ?, ?, ?, ?, ?, 'Web', 1, 1)`,
       [email, username, name, hashedPassword, location, imagePath]
     )) as InsertResult;
 
-    // 5. Get default role
-    const roles = await query<RoleRow[]>(
-      "SELECT role_id FROM roles WHERE name = 'user' LIMIT 1"
-    );
+    // Default role
+    const roles = await query<RoleRow[]>("SELECT role_id FROM roles WHERE name = 'user' LIMIT 1");
     const roleId = roles && roles.length ? roles[0].role_id : 7;
 
-    // 6. Assign role
-    await query("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)", [
-      result.insertId,
-      roleId,
-    ]);
+    // Assign role
+    await query('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [result.insertId, roleId]);
+
+    const origin = request.nextUrl.origin;
+    let fullImagePath = imagePath;
+    if (imagePath && !imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
+      const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+      fullImagePath = `${origin}${cleanPath}`;
+    }
+
+    // Generate JWT Access Token & Refresh Token
+    const tokens = generateTokens({
+      user_id: result.insertId,
+      email: email,
+      roles: [roleId],
+    });
 
     const userPayload = {
       user_id: result.insertId,
@@ -112,27 +118,43 @@ export async function POST(request: NextRequest) {
       username: username || email,
       name,
       location,
-      imagePath,
+      imagePath: fullImagePath,
       roles: [roleId],
     };
 
+    // Response body (Clean user data, tokens sent in Headers only)
     const response = NextResponse.json(
-      { message: "Registration successful", user: userPayload },
+      {
+        message: 'Registration successful',
+        user: userPayload,
+      },
       { status: 201 }
     );
 
-    response.cookies.set("user_session", JSON.stringify(userPayload), {
+    // Set Tokens in HTTP Response Headers ONLY
+    response.headers.set('Authorization', `Bearer ${tokens.token}`);
+    response.headers.set('access-token', tokens.token);
+    response.headers.set('refresh-token', tokens.refresh_token);
+
+    // Set Auth Cookies
+    response.cookies.set('user_session', JSON.stringify(userPayload), {
       httpOnly: false,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: tokens.expires_in,
+    });
+    response.cookies.set('token', tokens.token, {
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: tokens.expires_in,
     });
 
     return response;
   } catch (error: any) {
-    console.error("Signup API Error:", error);
+    console.error('Signup API Error:', error);
     return NextResponse.json(
-      { error: error?.message || "Internal Server Error" },
+      { error: error?.message || 'Internal Server Error' },
       { status: 500 }
     );
   }

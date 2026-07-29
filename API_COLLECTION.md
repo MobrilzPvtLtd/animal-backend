@@ -12,6 +12,11 @@
 ### 1.1 Super Admin / User Login
 * **Method:** `POST`
 * **URL:** `https://animal-backend-nine.vercel.app/api/auth/login`
+* **Tokens sent in HTTP Response Headers:**
+  - `Authorization: Bearer <access_token>`
+  - `access-token: <access_token>`
+  - `refresh-token: <refresh_token>`
+
 ```bash
 curl --location 'https://animal-backend-nine.vercel.app/api/auth/login' \
 --header 'Content-Type: application/json' \
@@ -21,9 +26,29 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/login' \
 }'
 ```
 
+**Example JSON Response Body:**
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "user_id": 1,
+    "email": "superadmin@animal.com",
+    "username": "superadmin",
+    "name": "Super",
+    "surname": "Admin",
+    "roles": [1]
+  }
+}
+```
+
 ### 1.2 User Registration / Sign Up
 * **Method:** `POST`
 * **URL:** `https://animal-backend-nine.vercel.app/api/auth/signup`
+* **Tokens sent in HTTP Response Headers:**
+  - `Authorization: Bearer <access_token>`
+  - `access-token: <access_token>`
+  - `refresh-token: <refresh_token>`
+
 ```bash
 curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
 --header 'Content-Type: application/json' \
@@ -36,6 +61,22 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
   "location": "Durban, South Africa",
   "imagePath": "https://example.com/images/profile.jpg"
 }'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "message": "Registration successful",
+  "user": {
+    "user_id": 3,
+    "email": "user@example.com",
+    "username": "janedoe",
+    "name": "Jane Doe",
+    "location": "Durban, South Africa",
+    "imagePath": "https://animal-backend-nine.vercel.app/images/profile.jpg",
+    "roles": [7]
+  }
+}
 ```
 
 ---
