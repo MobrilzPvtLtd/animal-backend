@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { supabaseServer } from '@/lib/supabase-server';
 import { generateTokens } from '@/lib/jwt';
 import bcrypt from 'bcryptjs';
 
@@ -14,20 +14,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Fetch user from MySQL
-    const users = await query<any[]>(
-      'SELECT * FROM users WHERE email = ? AND is_active = TRUE AND is_deleted = FALSE LIMIT 1',
-      [email]
-    );
+    // 1. Fetch user from Supabase (PostgreSQL)
+    const { data: user, error: userError } = await supabaseServer
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('is_active', true)
+      .eq('is_deleted', false)
+      .maybeSingle();
 
-    if (!users || users.length === 0) {
+    if (userError || !user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
-
-    const user = users[0];
 
     // 2. Validate password
     let isPasswordValid = false;
@@ -47,11 +48,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Fetch user roles
-    const userRoles = await query<any[]>(
-      'SELECT role_id FROM user_roles WHERE user_id = ?',
-      [user.user_id]
-    );
-    const roles = userRoles.map((r) => r.role_id);
+    const { data: userRoles } = await supabaseServer
+      .from('user_roles')
+      .select('role_id')
+      .eq('user_id', user.user_id);
+
+    const roles = (userRoles || []).map((r: any) => r.role_id);
 
     // 4. Generate JWT Access Token & Refresh Token
     const tokens = generateTokens({
