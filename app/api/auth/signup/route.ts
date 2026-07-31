@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { query } from '@/lib/db';
 import { generateTokens } from '@/lib/jwt';
 import bcrypt from 'bcryptjs';
 
+interface UserRow {
+  user_id: number;
+}
+
+interface RoleRow {
+  role_id: number;
+}
+
+interface InsertResult {
+  insertId: number;
+}
+
+// Auto-ensure columns exist in users table
+let isTableChecked = false;
+async function ensureUserColumns() {
+  if (isTableChecked) return;
+  try {
+    await query('ALTER TABLE `users` ADD COLUMN `username` VARCHAR(255) NULL AFTER `email`').catch(() => { });
+    await query('ALTER TABLE `users` ADD COLUMN `location` VARCHAR(255) NULL AFTER `phone`').catch(() => { });
+    isTableChecked = true;
+  } catch (err) {
+    isTableChecked = true;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    await ensureUserColumns();
+
     const contentType = request.headers.get('content-type') || '';
     let body: Record<string, any> = {};
 
@@ -44,58 +71,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Passwords do not match' }, { status: 400 });
     }
 
-    // Check existing user in Supabase (PostgreSQL)
-    const { data: existingUser } = await supabaseServer
-      .from('users')
-      .select('user_id')
-      .eq('email', email)
-      .maybeSingle();
+    // Check existing user
+    const existingUsers = await query<UserRow[]>(
+      'SELECT user_id FROM users WHERE email = ? LIMIT 1',
+      [email]
+    );
 
-    if (existingUser) {
+    if (existingUsers && existingUsers.length > 0) {
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user into Supabase (PostgreSQL)
-    const { data: newUser, error: insertError } = await supabaseServer
-      .from('users')
-      .insert({
-        email,
-        username: username || email,
-        name,
-        password: hashedPassword,
-        location,
-        profile_image_url: imagePath,
-        device_type: 'Web',
-        is_verified: true,
-        is_active: true,
-      })
-      .select('user_id')
-      .single();
+    // Insert user
+    const result = (await query(
+      `INSERT INTO users (email, username, name, password, location, profile_image_url, device_type, is_verified, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, 'Web', 1, 1)`,
+      [email, username, name, hashedPassword, location, imagePath]
+    )) as InsertResult;
 
-    if (insertError || !newUser) {
-      console.error('Error creating user:', insertError);
-      return NextResponse.json({ error: 'Failed to create user account' }, { status: 500 });
-    }
+    // Default role
+    const roles = await query<RoleRow[]>("SELECT role_id FROM roles WHERE name = 'user' LIMIT 1");
+    const roleId = roles && roles.length ? roles[0].role_id : 7;
 
-    const userId = newUser.user_id;
-
-    // Default role query
-    const { data: defaultRole } = await supabaseServer
-      .from('roles')
-      .select('role_id')
-      .eq('name', 'user')
-      .maybeSingle();
-
-    const roleId = defaultRole?.role_id ?? 7;
-
-    // Assign user role
-    await supabaseServer.from('user_roles').insert({
-      user_id: userId,
-      role_id: roleId,
-    });
+    // Assign role
+    await query('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [result.insertId, roleId]);
 
     const origin = request.nextUrl.origin;
     let fullImagePath = imagePath;
@@ -106,13 +107,13 @@ export async function POST(request: NextRequest) {
 
     // Generate JWT Access Token & Refresh Token
     const tokens = generateTokens({
-      user_id: userId,
+      user_id: result.insertId,
       email: email,
       roles: [roleId],
     });
 
     const userPayload = {
-      user_id: userId,
+      user_id: result.insertId,
       email,
       username: username || email,
       name,
