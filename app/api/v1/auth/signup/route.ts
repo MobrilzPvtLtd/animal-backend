@@ -249,34 +249,38 @@ async function handleSignup(
       profile_image_url: profileImageUrl,
     };
 
-    if (supabaseAdmin.auth.admin?.createUser) {
-      result = await supabaseAdmin.auth.admin.createUser({
+    const signUpResult = await supabaseAdmin.auth.signUp({
+      email,
+      password,
+      options: {
+        data: userMetadata,
+      },
+    });
+
+    result = signUpResult;
+    error = signUpResult.error;
+
+    if (error && process.env.SUPABASE_SERVICE_ROLE_KEY && supabaseAdmin.auth.admin?.createUser) {
+      const adminResult = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: userMetadata,
       });
-      error = result.error;
-    } else {
-      const signUpResult = await supabaseAdmin.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userMetadata,
-        },
-      });
-      result = signUpResult;
-      error = signUpResult.error;
+      if (!adminResult.error) {
+        result = adminResult;
+        error = null;
+      }
     }
   } catch (err: any) {
     console.error('Auth user creation failed:', err);
-    return NextResponse.json({ error: 'Unable to create user. Please try again.' }, { status: 400 });
+    return NextResponse.json({ error: err?.message || 'Unable to create user. Please try again.' }, { status: 400 });
   }
 
   if (error || !result?.data) {
     const errMsg = error?.message || 'User creation failed';
     console.error('Auth error:', errMsg);
-    return NextResponse.json({ error: 'Signup failed. Email might already exist.' }, { status: 400 });
+    return NextResponse.json({ error: errMsg }, { status: 400 });
   }
 
   const resultData = result.data;
