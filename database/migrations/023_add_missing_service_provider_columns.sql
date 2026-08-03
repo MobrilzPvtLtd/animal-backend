@@ -18,6 +18,4 @@ alter table public.service_providers
 alter table public.service_providers
   drop column if exists service_type;
 
--- Drop the old user_id column if it exists (using auth users now)
-alter table public.service_providers
-  drop column if exists user_id;
+-- Keep user_id column for relation to public.users

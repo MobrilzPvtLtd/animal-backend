@@ -1571,9 +1571,7 @@ alter table public.service_providers
 alter table public.service_providers
   drop column if exists service_type;
 
--- Drop the old user_id column if it exists (using auth users now)
-alter table public.service_providers
-  drop column if exists user_id;
+-- Keep user_id column for relation to public.users
 
 
 
@@ -3081,5 +3079,35 @@ create policy "Authenticated users can update whats_new"
 drop policy if exists "Authenticated users can delete whats_new" on public.whats_new;
 create policy "Authenticated users can delete whats_new"
   on public.whats_new for delete to authenticated using (true);
+
+
+
+-- ============================================================
+-- Migration: 036_sync_auth_users_trigger.sql
+-- ============================================================
+
+-- Create trigger to automatically sync auth.users to public.users
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.users (auth_user_id, email, name, user_name, user_type, is_verified)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'user_name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'roleName', 'Guest'),
+    true
+  )
+  on conflict (email) do update set auth_user_id = EXCLUDED.auth_user_id;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Trigger definition on auth.users
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 
