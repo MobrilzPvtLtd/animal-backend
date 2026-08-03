@@ -294,7 +294,6 @@ async function handleSignup(
       .insert({
         auth_user_id: userId,
         email,
-        user_name: finalUsername,
         name,
         surname,
         password,

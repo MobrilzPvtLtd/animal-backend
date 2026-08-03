@@ -3090,12 +3090,12 @@ create policy "Authenticated users can delete whats_new"
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.users (auth_user_id, email, name, user_name, user_type, is_verified)
+  insert into public.users (auth_user_id, email, name, surname, user_type, is_verified)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'user_name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'surname', ''),
     coalesce(new.raw_user_meta_data->>'roleName', 'Guest'),
     true
   )
