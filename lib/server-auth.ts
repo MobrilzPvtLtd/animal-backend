@@ -90,22 +90,21 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
     return null;
   }
 
-  const internalQuery = await supabaseAdmin
+  let internalQuery = await supabaseAdmin
     .from('users')
     .select('user_id')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
-  if (internalQuery.error) {
-    console.error('Unable to resolve internal user record:', internalQuery.error.message);
-    return null;
+  if (!internalQuery.data && user.email) {
+    internalQuery = await supabaseAdmin
+      .from('users')
+      .select('user_id')
+      .eq('email', user.email)
+      .maybeSingle();
   }
 
-  const internalUserId = internalQuery.data?.user_id ?? null;
-
-  if (!internalUserId) {
-    return null;
-  }
+  const internalUserId = internalQuery.data?.user_id ?? user.id;
 
   const rolesQuery = internalUserId
     ? await supabaseAdmin
