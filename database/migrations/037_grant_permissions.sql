@@ -1,5 +1,7 @@
 -- ============================================================
--- Grant permissions to postgres, anon, authenticated, and service_role
+-- MIGRATION 037: GRANT SCHEMA & TABLE PERMISSIONS
+-- Grants full access to postgres, anon, authenticated, service_role
+-- so all API routes can read/write public.users and related tables.
 -- ============================================================
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;

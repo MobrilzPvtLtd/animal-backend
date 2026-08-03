@@ -249,28 +249,27 @@ async function handleSignup(
       profile_image_url: profileImageUrl,
     };
 
-    const signUpResult = await supabaseAdmin.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userMetadata,
-      },
-    });
-
-    result = signUpResult;
-    error = signUpResult.error;
-
-    if (error && process.env.SUPABASE_SERVICE_ROLE_KEY && supabaseAdmin.auth.admin?.createUser) {
+    // Use admin API (email_confirm: true) so user is auto-confirmed → session possible immediately
+    if (supabaseAdmin.auth.admin?.createUser) {
       const adminResult = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: userMetadata,
       });
-      if (!adminResult.error) {
-        result = adminResult;
-        error = null;
-      }
+      result = adminResult;
+      error = adminResult.error;
+    }
+
+    // Fallback: standard signUp (email confirmation may be required → no session)
+    if (!result || error) {
+      const signUpResult = await supabaseAdmin.auth.signUp({
+        email,
+        password,
+        options: { data: userMetadata },
+      });
+      result = signUpResult;
+      error = signUpResult.error;
     }
   } catch (err: any) {
     console.error('Auth user creation failed:', err);
@@ -290,38 +289,61 @@ async function handleSignup(
     return NextResponse.json({ error: 'User creation returned no user id' }, { status: 400 });
   }
 
-  // 6. Insert into public.users
+  // 6. Insert into public.users (use upsert since the trigger may have already inserted a row)
   let internalUserId: number | null = null;
   try {
-    const { data: internalUser, error: insertError } = await supabaseAdmin
-      .from('users')
-      .insert({
-        auth_user_id: userId,
-        email,
-        name,
-        surname,
-        password,
-        profile_image_url: profileImageUrl || null,
-        user_type: roleName,
-        static_location: staticLocation,
-        latitude,
-        longitude,
-        subscription_status: 'guest',
-        is_verified: true,
-        notification_preferences: { events: true, warnings: true, updates: true },
-      })
-      .select('user_id')
-      .single();
-
-    if (insertError) throw insertError;
-    internalUserId = internalUser?.user_id;
-  } catch (err) {
-    console.error('Failed to insert internal user:', err);
-    // Attempt to look up existing record (in case insert failed due to duplicate)
+    // First, check if trigger already inserted the user
     const { data: existing } = await supabaseAdmin
       .from('users')
       .select('user_id')
       .eq('auth_user_id', userId)
+      .maybeSingle();
+
+    if (existing?.user_id) {
+      internalUserId = existing.user_id;
+      // Update additional fields that the trigger doesn't set
+      await supabaseAdmin
+        .from('users')
+        .update({
+          profile_image_url: profileImageUrl || null,
+          static_location: staticLocation,
+          latitude,
+          longitude,
+          subscription_status: 'guest',
+          notification_preferences: { events: true, warnings: true, updates: true },
+        })
+        .eq('user_id', existing.user_id);
+    } else {
+      // Trigger didn't run (not installed), insert manually
+      const { data: internalUser, error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          auth_user_id: userId,
+          email,
+          name,
+          surname,
+          profile_image_url: profileImageUrl || null,
+          user_type: roleName,
+          static_location: staticLocation,
+          latitude,
+          longitude,
+          subscription_status: 'guest',
+          is_verified: true,
+          notification_preferences: { events: true, warnings: true, updates: true },
+        })
+        .select('user_id')
+        .single();
+
+      if (insertError) throw insertError;
+      internalUserId = internalUser?.user_id;
+    }
+  } catch (err: any) {
+    console.error('Failed to upsert internal user:', err);
+    // Try lookup by email as last resort
+    const { data: existing } = await supabaseAdmin
+      .from('users')
+      .select('user_id')
+      .eq('email', email)
       .maybeSingle();
     internalUserId = existing?.user_id ?? null;
   }
@@ -330,6 +352,7 @@ async function handleSignup(
     console.warn('No internal user_id found for', userId);
     // Non-critical, continue
   }
+
 
   // 7. Assign role (if roles table exists)
   try {
