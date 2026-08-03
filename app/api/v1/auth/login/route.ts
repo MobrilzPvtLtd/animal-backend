@@ -25,10 +25,30 @@ export async function GET() {
 async function handleLogin(email: string, password: string) {
   try {
     // 1. Attempt sign in directly with Supabase Auth
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    let { data, error } = await supabaseAdmin.auth.signInWithPassword({
       email,
       password,
     });
+
+    // If email is not confirmed, auto-confirm via admin API and retry
+    if (error?.message?.toLowerCase().includes('email not confirmed')) {
+      try {
+        // Find the user by email in auth.users
+        const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
+        const authUser = userList?.users?.find((u: any) => u.email === email);
+        if (authUser?.id) {
+          await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
+            email_confirm: true,
+          });
+          // Retry sign in after confirming
+          const retryResult = await supabaseAdmin.auth.signInWithPassword({ email, password });
+          data = retryResult.data;
+          error = retryResult.error;
+        }
+      } catch (confirmErr: any) {
+        console.warn('Auto-confirm failed:', confirmErr?.message);
+      }
+    }
 
     if (error || !data?.user) {
       console.error('SignIn error:', error?.message);
