@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
       email = body?.email?.toString() || '';
       usernameInput = body?.username?.toString() || '';
       password = body?.password?.toString() || '';
-      confirm_password = body?.confirm_password?.toString() || '';
-      full_name = body?.full_name?.toString() || '';
+      confirm_password = body?.confirm_password?.toString() || password;
+      full_name = body?.full_name?.toString() || (email ? email.split('@')[0] : '');
       location = body?.location?.toString() || undefined;
 
       const rawImage = body?.profile_image_url;
