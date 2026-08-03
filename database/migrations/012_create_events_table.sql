@@ -19,12 +19,24 @@ create table if not exists public.events (
   constraint events_pkey primary key (event_id)
 ) tablespace pg_default;
 
+-- Ensure columns exist if events table was created by migration 007
+alter table public.events add column if not exists end_date timestamp with time zone null;
+alter table public.events add column if not exists location_id bigint null;
+alter table public.events add column if not exists image_url text null;
+alter table public.events add column if not exists price numeric(10,2) null;
+alter table public.events add column if not exists max_attendees integer null;
+alter table public.events add column if not exists current_attendees integer not null default 0;
+alter table public.events add column if not exists additional_info jsonb null;
+
+alter table public.events drop constraint if exists events_service_provider_id_fkey;
 alter table public.events
   add constraint events_service_provider_id_fkey foreign key (service_provider_id) references public.service_providers(service_provider_id);
 
+alter table public.events drop constraint if exists events_location_id_fkey;
 alter table public.events
   add constraint events_location_id_fkey foreign key (location_id) references public.locations(location_id);
 
+alter table public.events drop constraint if exists events_event_category_id_fkey;
 alter table public.events
   add constraint events_event_category_id_fkey foreign key (event_category_id) references public.event_categories(event_category_id);
 

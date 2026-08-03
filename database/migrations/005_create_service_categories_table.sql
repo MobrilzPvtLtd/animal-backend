@@ -1,5 +1,5 @@
 -- Create service_categories table
-create table public.service_categories (
+create table if not exists public.service_categories (
   service_category_id bigint generated always as identity not null,
   name text not null,
   description text null,

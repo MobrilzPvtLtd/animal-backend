@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.groups (
 );
 -- 3. PLACE GROUP MAPPING TABLE
 CREATE TABLE IF NOT EXISTS public.place_groups (
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     group_id BIGINT REFERENCES public.groups(group_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (place_id, group_id)
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.animal_types (
 );
 -- 5. PLACE ANIMAL TYPES MAPPING TABLE
 CREATE TABLE IF NOT EXISTS public.place_animal_types (
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     animal_type_id BIGINT REFERENCES public.animal_types(animal_type_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (place_id, animal_type_id)
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS public.user_blocks (
 CREATE TABLE IF NOT EXISTS public.reviews (
     review_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     rating INTEGER CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     is_approved BOOLEAN DEFAULT FALSE,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS public.reviews (
 CREATE TABLE IF NOT EXISTS public.provider_requests (
     request_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     status TEXT DEFAULT 'pending',
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS public.boost_packages (
 -- 16. BOOST PACKAGE LINKING TABLE
 CREATE TABLE IF NOT EXISTS public.boost_package_links (
     boost_package_id BIGINT REFERENCES public.boost_packages(boost_package_id) ON DELETE CASCADE,
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     group_id BIGINT REFERENCES public.groups(group_id) ON DELETE CASCADE,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS public.entity_boosts (
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
     boost_package_id BIGINT REFERENCES public.boost_packages(boost_package_id) ON DELETE SET NULL,
     vet_id BIGINT REFERENCES public.vets(vet_id) ON DELETE SET NULL,
-    pet_friendly_place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE SET NULL,
+    pet_friendly_place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE SET NULL,
     service_provider_id BIGINT REFERENCES public.service_providers(service_provider_id) ON DELETE SET NULL,
     start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     end_date TIMESTAMP WITH TIME ZONE,
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS public.entity_boosts (
 -- 18. SAVED PLACES TABLE
 CREATE TABLE IF NOT EXISTS public.saved_places (
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE CASCADE,
-    place_id BIGINT REFERENCES public.pet_friendly_places(place_id) ON DELETE CASCADE,
+    place_id BIGINT REFERENCES public.pet_friendly_places(pet_friendly_place_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (user_id, place_id)
 );
@@ -409,32 +409,32 @@ WHERE NOT EXISTS (
 SELECT 1 FROM public.pet_friendly_places p WHERE p.name = v.name
 );
 INSERT INTO public.place_groups (place_id, group_id)
-SELECT p.place_id, g.group_id
+SELECT p.pet_friendly_place_id, g.group_id
 FROM public.pet_friendly_places p, public.groups g
 WHERE p.name = 'Happy Trails Boarding' AND g.name = 'Pet Friendly Accommodation'
 AND NOT EXISTS (
-    SELECT 1 FROM public.place_groups pg WHERE pg.place_id = p.place_id AND pg.group_id = g.group_id
+    SELECT 1 FROM public.place_groups pg WHERE pg.place_id = p.pet_friendly_place_id AND pg.group_id = g.group_id
 );
 INSERT INTO public.place_groups (place_id, group_id)
-SELECT p.place_id, g.group_id
+SELECT p.pet_friendly_place_id, g.group_id
 FROM public.pet_friendly_places p, public.groups g
 WHERE p.name = 'Bark & Purr Park' AND g.name = 'Pet Events & Training'
 AND NOT EXISTS (
-    SELECT 1 FROM public.place_groups pg WHERE pg.place_id = p.place_id AND pg.group_id = g.group_id
+    SELECT 1 FROM public.place_groups pg WHERE pg.place_id = p.pet_friendly_place_id AND pg.group_id = g.group_id
 );
 INSERT INTO public.place_animal_types (place_id, animal_type_id)
-SELECT p.place_id, a.animal_type_id
+SELECT p.pet_friendly_place_id, a.animal_type_id
 FROM public.pet_friendly_places p, public.animal_types a
 WHERE p.name = 'Happy Trails Boarding' AND a.name = 'Dogs'
 AND NOT EXISTS (
-    SELECT 1 FROM public.place_animal_types pa WHERE pa.place_id = p.place_id AND pa.animal_type_id = a.animal_type_id
+    SELECT 1 FROM public.place_animal_types pa WHERE pa.place_id = p.pet_friendly_place_id AND pa.animal_type_id = a.animal_type_id
 );
 INSERT INTO public.place_animal_types (place_id, animal_type_id)
-SELECT p.place_id, a.animal_type_id
+SELECT p.pet_friendly_place_id, a.animal_type_id
 FROM public.pet_friendly_places p, public.animal_types a
 WHERE p.name = 'Bark & Purr Park' AND a.name = 'Cats'
 AND NOT EXISTS (
-    SELECT 1 FROM public.place_animal_types pa WHERE pa.place_id = p.place_id AND pa.animal_type_id = a.animal_type_id
+    SELECT 1 FROM public.place_animal_types pa WHERE pa.place_id = p.pet_friendly_place_id AND pa.animal_type_id = a.animal_type_id
 );
 -- 33. DUMMY EVENTS
 INSERT INTO public.events (title, description, event_date, venue, location, expiry, is_active, is_approved, user_id, event_category_id)
@@ -461,17 +461,17 @@ AND NOT EXISTS (
 );
 -- 35. DUMMY REVIEWS
 INSERT INTO public.reviews (user_id, place_id, rating, comment, is_approved)
-SELECT u.user_id, p.place_id, 5, 'Amazing boarding service and friendly staff.', true
+SELECT u.user_id, p.pet_friendly_place_id, 5, 'Amazing boarding service and friendly staff.', true
 FROM public.users u, public.pet_friendly_places p
 WHERE u.email = 'subscriber@example.com' AND p.name = 'Happy Trails Boarding'
 ON CONFLICT DO NOTHING;
 -- 36. DUMMY PROVIDER REQUESTS
 INSERT INTO public.provider_requests (user_id, place_id, status, notes)
-SELECT u.user_id, p.place_id, 'pending', 'Requesting provider access after verifying ownership.'
+SELECT u.user_id, p.pet_friendly_place_id, 'pending', 'Requesting provider access after verifying ownership.'
 FROM public.users u, public.pet_friendly_places p
 WHERE u.email = 'subscriber@example.com' AND p.name = 'Bark & Purr Park'
 AND NOT EXISTS (
-    SELECT 1 FROM public.provider_requests pr WHERE pr.user_id = u.user_id AND pr.place_id = p.place_id AND pr.status = 'pending' AND pr.notes = 'Requesting provider access after verifying ownership.'
+    SELECT 1 FROM public.provider_requests pr WHERE pr.user_id = u.user_id AND pr.place_id = p.pet_friendly_place_id AND pr.status = 'pending' AND pr.notes = 'Requesting provider access after verifying ownership.'
 );
 -- 37. DUMMY DONATION CAMPAIGNS
 INSERT INTO public.donation_campaigns (rescue_centre_id, title, description, monthly_target, visible, expires_at)
@@ -483,7 +483,7 @@ AND NOT EXISTS (
 );
 -- 38. DUMMY BOOST PACKAGE LINKS
 INSERT INTO public.boost_package_links (boost_package_id, place_id, group_id, expires_at)
-SELECT bp.boost_package_id, p.place_id, g.group_id, NOW() + INTERVAL '30 days'
+SELECT bp.boost_package_id, p.pet_friendly_place_id, g.group_id, NOW() + INTERVAL '30 days'
 FROM public.boost_packages bp, public.pet_friendly_places p, public.groups g
 WHERE bp.name = 'Visibility Booster' AND p.name = 'Happy Trails Boarding' AND g.name = 'Pet Friendly Accommodation'
 ON CONFLICT DO NOTHING;
@@ -498,11 +498,11 @@ AND NOT EXISTS (
 LIMIT 1;
 -- 39. DUMMY SAVED PLACES
 INSERT INTO public.saved_places (user_id, place_id)
-SELECT u.user_id, p.place_id
+SELECT u.user_id, p.pet_friendly_place_id
 FROM public.users u, public.pet_friendly_places p
 WHERE u.email = 'subscriber@example.com' AND p.name = 'Happy Trails Boarding'
 AND NOT EXISTS (
-    SELECT 1 FROM public.saved_places sp WHERE sp.user_id = u.user_id AND sp.place_id = p.place_id
+    SELECT 1 FROM public.saved_places sp WHERE sp.user_id = u.user_id AND sp.place_id = p.pet_friendly_place_id
 );
 -- 40. DUMMY SUPPORT REPLIES
 INSERT INTO public.support_replies (support_ticket_id, reply, responder_user_id)

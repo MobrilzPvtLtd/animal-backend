@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS public.vets (
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-) COMMENT ON COLUMN public.vets.emergency_number IS 'Emergency contact number for urgent situations';
+);
+
+COMMENT ON COLUMN public.vets.emergency_number IS 'Emergency contact number for urgent situations';
 
 -- =============================
 -- 3. SERVICE PROVIDERS TABLE
@@ -44,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.service_providers (
 -- 4. PET FRIENDLY PLACES TABLE
 -- =============================
 CREATE TABLE IF NOT EXISTS public.pet_friendly_places (
-    place_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    pet_friendly_place_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,

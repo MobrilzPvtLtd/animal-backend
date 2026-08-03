@@ -1,5 +1,5 @@
 -- Create permissions table
-CREATE TABLE IF NOT EXISTS permissions (
+CREATE TABLE IF NOT EXISTS public.permissions (
     permission_id SERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL UNIQUE,
     description TEXT,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS permissions (
 );
 
 -- Create roles table
-CREATE TABLE IF NOT EXISTS roles (
+CREATE TABLE IF NOT EXISTS public.roles (
     role_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS roles (
 );
 
 -- Create role_permissions junction table
-CREATE TABLE IF NOT EXISTS role_permissions (
-    role_id INTEGER REFERENCES roles(role_id) ON DELETE CASCADE,
-    permission_id INTEGER REFERENCES permissions(permission_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.role_permissions (
+    role_id INTEGER REFERENCES public.roles(role_id) ON DELETE CASCADE,
+    permission_id INTEGER REFERENCES public.permissions(permission_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     PRIMARY KEY (role_id, permission_id)
 );

@@ -11,6 +11,7 @@ create table if not exists public.transactions (
   constraint transactions_pkey primary key (transaction_id)
 ) tablespace pg_default;
 
+alter table public.transactions drop constraint if exists transactions_user_id_fkey;
 alter table public.transactions
   add constraint transactions_user_id_fkey foreign key (user_id) references public.users(user_id);
 
