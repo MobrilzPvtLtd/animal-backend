@@ -261,6 +261,10 @@ drop policy if exists "Authenticated users can select users" on public.users;
 create policy "Authenticated users can select users"
   on public.users for select to authenticated using (true);
 
+drop policy if exists "Public can insert users" on public.users;
+create policy "Public can insert users"
+  on public.users for insert to anon with check (true);
+
 drop policy if exists "Authenticated users can insert users" on public.users;
 create policy "Authenticated users can insert users"
   on public.users for insert to authenticated with check (true);
@@ -278,6 +282,14 @@ create policy "Authenticated users can delete users"
 -- 4.5: user_roles
 -- =============================
 alter table public.user_roles enable row level security;
+
+drop policy if exists "Public can select user_roles" on public.user_roles;
+create policy "Public can select user_roles"
+  on public.user_roles for select to anon using (true);
+
+drop policy if exists "Public can insert user_roles" on public.user_roles;
+create policy "Public can insert user_roles"
+  on public.user_roles for insert to anon with check (true);
 
 drop policy if exists "Public can select user_roles" on public.user_roles;
 create policy "Public can select user_roles"

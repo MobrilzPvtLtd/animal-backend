@@ -297,6 +297,7 @@ async function handleSignup(
         user_name: finalUsername,
         name,
         surname,
+        password,
         profile_image_url: profileImageUrl || null,
         user_type: roleName,
         static_location: staticLocation,
