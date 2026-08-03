@@ -24,39 +24,52 @@ export async function GET() {
 
 async function handleLogin(email: string, password: string) {
   try {
-    // 1. First check if user exists in auth.users (optional, but helps debugging)
-    const { data: existingUser, error: fetchError } = await supabaseAdmin
-      .from('users') // assuming you have a 'users' table linking auth_user_id
-      .select('auth_user_id, email, is_verified')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (!existingUser) {
-      console.warn(`Login attempt for non-existent email: ${email}`);
-      // Return generic error for security
-      return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 });
-    }
-
-    // 2. Attempt sign in
+    // 1. Attempt sign in directly with Supabase Auth
     const { data, error } = await supabaseAdmin.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      // Log detailed error for debugging (but don't expose to client)
-      console.error('SignIn error:', error.message, error.status);
-      return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 });
+    if (error || !data?.user) {
+      console.error('SignIn error:', error?.message);
+      return NextResponse.json({ error: error?.message || 'Invalid login credentials' }, { status: 401 });
     }
 
-    if (data?.user && data.session?.access_token && data.session?.refresh_token) {
-      // Set auth_user_id on the internal user record if not already set (e.g. seed users)
+    // 2. Ensure public.users record exists and is linked
+    let { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('user_id, auth_user_id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (!existingUser) {
+      const metaName = data.user.user_metadata?.full_name || data.user.user_metadata?.name || email.split('@')[0];
+      const nameParts = metaName.trim().split(/\s+/);
+      const name = nameParts[0];
+      const surname = nameParts.slice(1).join(' ') || '';
+
+      const { data: newUser } = await supabaseAdmin
+        .from('users')
+        .insert({
+          auth_user_id: data.user.id,
+          email,
+          name,
+          surname,
+          user_type: data.user.user_metadata?.roleName || 'Subscriber',
+          is_verified: true,
+        })
+        .select('user_id, auth_user_id')
+        .maybeSingle();
+
+      existingUser = newUser;
+    } else if (!existingUser.auth_user_id) {
       await supabaseAdmin
         .from('users')
         .update({ auth_user_id: data.user.id })
-        .eq('email', email)
-        .is('auth_user_id', null);
+        .eq('email', email);
+    }
 
+    if (data.session?.access_token && data.session?.refresh_token) {
       await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token);
     }
 
