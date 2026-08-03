@@ -70,12 +70,18 @@ async function handleLogin(email: string, password: string) {
     }
 
     if (data.session?.access_token && data.session?.refresh_token) {
-      await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token);
+      try {
+        await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token);
+      } catch (tokenErr) {
+        console.warn('setCurrentTokenHashes warning:', tokenErr);
+      }
     }
 
-    // 3. Build auth profile – same as before
-    const authProfile = data?.user
-      ? await buildAuthProfile({
+    // 3. Build auth profile (with fallback)
+    let authProfile: any = null;
+    try {
+      if (data?.user) {
+        authProfile = await buildAuthProfile({
           id: data.user.id,
           email: data.user.email ?? email,
           roleNames: [
@@ -88,15 +94,18 @@ async function handleLogin(email: string, password: string) {
             ...(data.user.app_metadata?.roleNames || []),
             ...(data.user.app_metadata?.role_names || []),
           ].filter(Boolean) as string[],
-        })
-      : null;
+        });
+      }
+    } catch (profileErr) {
+      console.warn('buildAuthProfile warning:', profileErr);
+    }
 
     return NextResponse.json(
-      { user: data?.user ?? null, session: data?.session ?? null, ...authProfile },
+      { user: data?.user ?? null, session: data?.session ?? null, ...(authProfile || {}) },
       { status: 200 }
     );
   } catch (err: any) {
     console.error('Login exception:', err);
-    return NextResponse.json({ error: 'Login error' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Login error' }, { status: 500 });
   }
 }
