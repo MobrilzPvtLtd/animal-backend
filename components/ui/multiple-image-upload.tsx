@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload } from 'lucide-react';
+import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload, Link as LinkIcon, FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUploadService } from '@/lib/image-upload';
 import { toast } from 'sonner';
@@ -157,6 +158,8 @@ export function MultipleImageUpload({
 }: MultipleImageUploadProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
+  const [pastedUrl, setPastedUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
@@ -244,6 +247,29 @@ export function MultipleImageUpload({
     }
   };
 
+  const handleAddUrl = () => {
+    const trimmed = pastedUrl.trim();
+    if (!trimmed) {
+      toast.error('Please enter a valid image URL');
+      return;
+    }
+
+    if (value.length >= maxImages) {
+      toast.error(`Maximum ${maxImages} images allowed`);
+      return;
+    }
+
+    const newImage: ServiceProviderImage = {
+      image_url: trimmed,
+      order: value.length,
+      isNew: true,
+    };
+
+    onChange([...value, newImage]);
+    setPastedUrl('');
+    toast.success('Image link added successfully');
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -305,36 +331,89 @@ export function MultipleImageUpload({
     <div className={`space-y-4 ${className}`}>
       {label && <Label className="text-base font-medium">{label}</Label>}
 
-      {canAddMore && (
-        <div
-          className={`
-            border-2 border-dashed rounded-lg p-6 text-center transition-colors
-            ${dragActive ? 'border-primary bg-primary/5' : 'border-gray-300'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary'}
-          `}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => !disabled && fileInputRef.current?.click()}
+      <div className="flex items-center gap-1 bg-muted p-1 rounded-md text-xs w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab('file')}
+          className={`px-3 py-1.5 rounded-sm font-medium transition-colors ${
+            activeTab === 'file' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
         >
-          <div className="space-y-2">
-            {uploadingCount > 0 ? (
-              <Upload className="h-8 w-8 mx-auto text-primary" />
-            ) : (
-              <Plus className="h-8 w-8 mx-auto text-gray-400" />
-            )}
-            <div>
-              <p className="text-sm font-medium">
-                {uploadingCount > 0
-                  ? `Uploading ${uploadingCount} file(s)...`
-                  : 'Drop images here or click to upload'}
-              </p>
-              <p className="text-xs text-gray-500">
-                PNG, JPG, GIF up to {maxSize}MB ({totalSlots}/{maxImages} images)
-              </p>
+          <FileUp className="h-3.5 w-3.5 inline mr-1.5" />
+          Upload Files
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('url')}
+          className={`px-3 py-1.5 rounded-sm font-medium transition-colors ${
+            activeTab === 'url' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <LinkIcon className="h-3.5 w-3.5 inline mr-1.5" />
+          Paste Image Link
+        </button>
+      </div>
+
+      {canAddMore && (
+        activeTab === 'file' ? (
+          <div
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center transition-colors
+              ${dragActive ? 'border-primary bg-primary/5' : 'border-gray-300'}
+              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary'}
+            `}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !disabled && fileInputRef.current?.click()}
+          >
+            <div className="space-y-2">
+              {uploadingCount > 0 ? (
+                <Upload className="h-8 w-8 mx-auto text-primary" />
+              ) : (
+                <Plus className="h-8 w-8 mx-auto text-gray-400" />
+              )}
+              <div>
+                <p className="text-sm font-medium">
+                  {uploadingCount > 0
+                    ? `Uploading ${uploadingCount} file(s)...`
+                    : 'Drop images here or click to upload'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  PNG, JPG, GIF up to {maxSize}MB ({totalSlots}/{maxImages} images)
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="border rounded-lg p-4 space-y-3 bg-card">
+            <Label className="text-xs text-muted-foreground">Add image via direct URL link:</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Paste image link/URL here (e.g. https://example.com/photo.jpg)"
+                value={pastedUrl}
+                onChange={(e) => setPastedUrl(e.target.value)}
+                disabled={disabled}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddUrl();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                onClick={handleAddUrl}
+                disabled={disabled || !pastedUrl.trim()}
+              >
+                Add Link
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Current count: {totalSlots}/{maxImages} images
+            </p>
+          </div>
+        )
       )}
 
       <input
@@ -383,11 +462,12 @@ export function MultipleImageUpload({
       )}
 
       {value.length === 0 && uploadingFiles.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-500 border rounded-lg border-dashed">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No images uploaded yet</p>
+          <p className="text-sm">No images added yet</p>
         </div>
       )}
     </div>
   );
 }
+

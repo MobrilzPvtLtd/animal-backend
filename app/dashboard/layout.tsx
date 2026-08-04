@@ -14,14 +14,18 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { roles, selected_vendor, loading, selected_roles } = useAuth();
+  const { session, roles, selected_vendor, loading, selected_roles } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && roles.length > 1) {
-      checkIfNeedToGoToSelect();
+    if (!loading) {
+      if (!session) {
+        router.replace("/login");
+      } else if (roles.length > 1) {
+        checkIfNeedToGoToSelect();
+      }
     }
-  }, [loading, roles]);
+  }, [loading, session, roles]);
 
   const checkIfNeedToGoToSelect = () => {
     if (roles.length > 1 && !selected_vendor && selected_roles.length == 0) {
@@ -29,13 +33,13 @@ export default function DashboardLayout({
     }
   };
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // Show loading spinner while checking authentication or if no valid session
+  if (loading || !session) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Authenticating...</p>
         </div>
       </div>
     );
@@ -57,3 +61,4 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
+

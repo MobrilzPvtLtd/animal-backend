@@ -202,7 +202,8 @@ export default function AuthProvider({ children }: any) {
             }
           }
 
-          // Token expired and refresh failed - auto redirect to login
+          // Token expired and refresh failed - sign out & auto redirect to login
+          await supabase.auth.signOut().catch(() => {});
           setSession(null);
           setUserDetails(null);
           setRoles([]);
@@ -212,6 +213,9 @@ export default function AuthProvider({ children }: any) {
           setSelected_vendor_location_id(null);
           storage.clear();
           localStorage.clear();
+          if (protectedRoutes.some((route) => path.startsWith(route))) {
+            router.replace("/login");
+          }
           return;
         }
 
@@ -307,16 +311,19 @@ export default function AuthProvider({ children }: any) {
     };
   }, []);
 
-  // Simple auth initialization - just check session once
+  // Simple auth initialization - check session once and handle errors cleanly
   useEffect(() => {
     const initializeAuth = async () => {
-      
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetchSession(session);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session) {
+          await fetchSession(null);
+        } else {
+          await fetchSession(session);
+        }
       } catch (error) {
         console.error("Error getting session:", error);
-        setIsLoading(false);
+        await fetchSession(null);
       }
     };
 
