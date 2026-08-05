@@ -354,7 +354,7 @@ export function DataTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 30,
   })
   const sortableId = React.useId()
   const sensors = useSensors(

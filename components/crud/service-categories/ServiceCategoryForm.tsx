@@ -112,18 +112,38 @@ export function ServiceCategoryForm({ category, onSuccess, onCancel }: ServiceCa
         <FormField
           control={form.control}
           name="icon"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Icon</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter emoji or icon identifier" {...field} />
-              </FormControl>
-              <FormDescription>
-                Use an emoji (🐕) or icon identifier for this category
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const PRESET_ICONS = ["🐶", "🐱", "🏥", "✂️", "🎓", "🏨", "🦴", "🚚", "🐴", "🐠", "🦜", "💉", "🐾", "🏠", "🛒", "🧼", "🩺", "🏬", "🏞️", "🚑", "🦮", "🐈", "🐎", "⭐"];
+            return (
+              <FormItem>
+                <FormLabel>Icon</FormLabel>
+                <FormControl>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1.5 p-2 border rounded-md bg-muted/30">
+                      {PRESET_ICONS.map((iconStr) => (
+                        <button
+                          key={iconStr}
+                          type="button"
+                          onClick={() => field.onChange(iconStr)}
+                          className={`h-8 w-8 rounded text-lg flex items-center justify-center transition-all ${field.value === iconStr
+                            ? "bg-primary text-primary-foreground scale-110 shadow-sm"
+                            : "bg-background hover:bg-muted border border-border"
+                            }`}
+                        >
+                          {iconStr}
+                        </button>
+                      ))}
+                    </div>
+                    <Input placeholder="Or enter custom emoji or icon identifier" {...field} />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Click a preset icon above or enter a custom emoji/icon identifier.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
 
         <FormField

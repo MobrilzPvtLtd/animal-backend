@@ -75,14 +75,14 @@ export function ServiceProvidersByCategoryCrud({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 30,
   });
 
   // Initialize state from URL parameters only once on mount
   useEffect(() => {
     const filter = searchParams.get('filter') || '';
     const page = Math.max(0, parseInt(searchParams.get('page') || '1') - 1);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const pageSize = parseInt(searchParams.get('pageSize') || '30');
     const sortBy = searchParams.get('sortBy');
     const sortOrder = searchParams.get('sortOrder');
     const hiddenColumns = searchParams.get('hiddenColumns');
