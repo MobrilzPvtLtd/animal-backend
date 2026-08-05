@@ -1,4 +1,4 @@
-﻿
+
 -- ============================================================
 -- Migration: 001_create_permissions_roles_tables.sql
 -- ============================================================
@@ -906,15 +906,33 @@ INSERT INTO public.animal_types (name, description) VALUES
 ('Small Pets', 'Small mammals and exotic pet services.')
 ON CONFLICT (name) DO NOTHING;
 -- 27. DUMMY SERVICE PROVIDERS
-INSERT INTO public.service_providers (name, description, address, phone, email, website, service_type, is_verified, user_id)
-SELECT v.name, v.description, v.address, v.phone, v.email, v.website, v.service_type, v.is_verified, v.user_id
-FROM (VALUES
-('Healthy Paws Clinic', 'Full veterinary care for dogs and cats.', '22 Health Street, Cape Town', '0215559001', 'info@healthypaws.example.com', 'https://healthypaws.example.com', 'Veterinary', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com')),
-('Groom & Go', 'Professional grooming and styling for all pets.', '14 Pet Lane, Johannesburg', '0115559002', 'hello@groomandgo.example.com', 'https://groomandgo.example.com', 'Grooming', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com'))
-) AS v(name, description, address, phone, email, website, service_type, is_verified, user_id)
-WHERE NOT EXISTS (
-SELECT 1 FROM public.service_providers sp WHERE sp.name = v.name AND sp.address = v.address
-);
+DO $$
+BEGIN
+  IF EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'service_providers' AND column_name = 'address'
+  ) THEN
+      INSERT INTO public.service_providers (name, description, address, phone, email, website, service_type, is_verified, user_id)
+      SELECT v.name, v.description, v.address, v.phone, v.email, v.website, v.service_type, v.is_verified, v.user_id
+      FROM (VALUES
+      ('Healthy Paws Clinic', 'Full veterinary care for dogs and cats.', '22 Health Street, Cape Town', '0215559001', 'info@healthypaws.example.com', 'https://healthypaws.example.com', 'Veterinary', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com')),
+      ('Groom & Go', 'Professional grooming and styling for all pets.', '14 Pet Lane, Johannesburg', '0115559002', 'hello@groomandgo.example.com', 'https://groomandgo.example.com', 'Grooming', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com'))
+      ) AS v(name, description, address, phone, email, website, service_type, is_verified, user_id)
+      WHERE NOT EXISTS (
+      SELECT 1 FROM public.service_providers sp WHERE sp.name = v.name
+      );
+  ELSE
+      INSERT INTO public.service_providers (name, description, phone, email, website, is_verified, user_id)
+      SELECT v.name, v.description, v.phone, v.email, v.website, v.is_verified, v.user_id
+      FROM (VALUES
+      ('Healthy Paws Clinic', 'Full veterinary care for dogs and cats.', '0215559001', 'info@healthypaws.example.com', 'https://healthypaws.example.com', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com')),
+      ('Groom & Go', 'Professional grooming and styling for all pets.', '0115559002', 'hello@groomandgo.example.com', 'https://groomandgo.example.com', true, (SELECT user_id FROM public.users WHERE email = 'provider@example.com'))
+      ) AS v(name, description, phone, email, website, is_verified, user_id)
+      WHERE NOT EXISTS (
+      SELECT 1 FROM public.service_providers sp WHERE sp.name = v.name
+      );
+  END IF;
+END $$;
 -- 28. DUMMY VETERINARIANS
 INSERT INTO public.vets (name, clinic_name, description, address, phone, emergency_number, email, specialization, is_verified, user_id)
 SELECT v.name, v.clinic_name, v.description, v.address, v.phone, v.emergency_number, v.email, v.specialization, v.is_verified, v.user_id
@@ -3138,5 +3156,88 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO postgres, anon, authenticated, ser
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO postgres, anon, authenticated, service_role;
+
+
+
+-- ============================================================
+-- Migration: 038_add_entry_type_to_whats_new.sql
+-- ============================================================
+ALTER TABLE public.whats_new 
+ADD COLUMN IF NOT EXISTS entry_type TEXT DEFAULT 'Feature';
+
+UPDATE public.whats_new 
+SET entry_type = 'Feature' 
+WHERE entry_type IS NULL;
+
+
+-- ============================================================
+-- Migration: 039_create_service_provider_categories_junction.sql
+-- ============================================================
+ALTER TABLE public.service_providers 
+ADD COLUMN IF NOT EXISTS service_areas TEXT,
+ADD COLUMN IF NOT EXISTS show_operating_hours BOOLEAN DEFAULT TRUE;
+
+CREATE TABLE IF NOT EXISTS public.service_provider_categories (
+    service_provider_id BIGINT REFERENCES public.service_providers(service_provider_id) ON DELETE CASCADE,
+    service_category_id BIGINT REFERENCES public.service_categories(service_category_id) ON DELETE CASCADE,
+    PRIMARY KEY (service_provider_id, service_category_id)
+);
+
+INSERT INTO public.service_provider_categories (service_provider_id, service_category_id)
+SELECT service_provider_id, service_category_id 
+FROM public.service_providers 
+WHERE service_category_id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- Migration: 040_fix_service_providers_rls.sql
+-- ============================================================
+ALTER TABLE public.service_providers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public select service_providers" ON public.service_providers;
+CREATE POLICY "Allow public select service_providers"
+  ON public.service_providers FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated insert service_providers" ON public.service_providers;
+CREATE POLICY "Allow authenticated insert service_providers"
+  ON public.service_providers FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated update service_providers" ON public.service_providers;
+CREATE POLICY "Allow authenticated update service_providers"
+  ON public.service_providers FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated delete service_providers" ON public.service_providers;
+CREATE POLICY "Allow authenticated delete service_providers"
+  ON public.service_providers FOR DELETE
+  TO authenticated
+  USING (true);
+
+ALTER TABLE public.service_provider_categories ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public select service_provider_categories" ON public.service_provider_categories;
+CREATE POLICY "Allow public select service_provider_categories"
+  ON public.service_provider_categories FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated insert service_provider_categories" ON public.service_provider_categories;
+CREATE POLICY "Allow authenticated insert service_provider_categories"
+  ON public.service_provider_categories FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated delete service_provider_categories" ON public.service_provider_categories;
+CREATE POLICY "Allow authenticated delete service_provider_categories"
+  ON public.service_provider_categories FOR DELETE
+  TO authenticated
+  USING (true);
 
 

@@ -69,7 +69,7 @@ export function StatsDashboard() {
           .from('service_providers')
           .select(`
             service_category_id,
-            service_categories!inner(name),
+            service_categories!service_providers_service_category_id_fkey!inner(name),
             is_active,
             is_deleted
           `)
@@ -83,7 +83,7 @@ export function StatsDashboard() {
             service_provider_id,
             service_providers!inner(
               service_category_id,
-              service_categories!inner(name)
+              service_categories!service_providers_service_category_id_fkey!inner(name)
             )
           `)
           .not('service_provider_id', 'is', null)

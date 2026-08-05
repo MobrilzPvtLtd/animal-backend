@@ -164,15 +164,44 @@ export function OperatingHoursTab({ form }: OperatingHoursTabProps) {
     toast.success(isOpen ? "Opened all days" : "Closed all days")
   }
 
+  const showOperatingHours = form.watch("show_operating_hours") ?? true
+
   return (
-    <FormField
-      control={form.control}
-      name="operating_hours"
-      render={() => (
-        <FormItem>
-          <div className="space-y-6">
-            {/* Header and Quick Actions */}
-            <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Show/Hide Operating Hours Toggle */}
+      <FormField
+        control={form.control}
+        name="show_operating_hours"
+        render={({ field }) => (
+          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 bg-card">
+            <div className="space-y-0.5">
+              <FormLabel className="text-base font-semibold flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                Include / Show Operating Hours
+              </FormLabel>
+              <FormDescription>
+                Turn off to hide business opening hours (useful for 24/7 services, online-only providers, or places without fixed opening hours).
+              </FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                checked={field.value ?? true}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      {showOperatingHours ? (
+        <FormField
+          control={form.control}
+          name="operating_hours"
+          render={() => (
+            <FormItem>
+              <div className="space-y-6">
+                {/* Header and Quick Actions */}
+                <div className="flex items-center justify-between">
               <div>
                 <FormLabel className="text-lg font-medium flex items-center gap-2">
                   <Clock className="h-5 w-5" />
@@ -360,5 +389,13 @@ export function OperatingHoursTab({ form }: OperatingHoursTabProps) {
         </FormItem>
       )}
     />
-  )
+  ) : (
+    <Card className="border-dashed p-6 text-center text-muted-foreground">
+      <Clock className="h-10 w-10 mx-auto mb-2 opacity-40" />
+      <p className="font-medium text-sm">Operating Hours Excluded</p>
+      <p className="text-xs mt-1">Operating hours will not be shown on the public listing for this provider.</p>
+    </Card>
+  )}
+</div>
+)
 }

@@ -45,6 +45,8 @@ export function ServicesAndBreedsTab({
   onBreedsChange 
 }: ServicesAndBreedsTabProps) {
   const [breeds, setBreeds] = useState<Breed[]>([])
+  const [animalTypes, setAnimalTypes] = useState<any[]>([])
+  const [selectedAnimalTypeIds, setSelectedAnimalTypeIds] = useState<number[]>([])
   const [selectedBreedIds, setSelectedBreedIds] = useState<string[]>([])
   const [services, setServices] = useState<ServiceItem[]>([])
   const [breedsLoading, setBreedsLoading] = useState(false)
@@ -55,13 +57,27 @@ export function ServicesAndBreedsTab({
   const isBreederCategory = serviceCategoryId === 12
 
   useEffect(() => {
-    // Always fetch breeds for all categories
     fetchBreeds()
+    fetchAnimalTypes()
     if (serviceProviderId) {
       fetchSelectedBreeds()
       fetchServices()
     }
   }, [serviceCategoryId, serviceProviderId])
+
+  const fetchAnimalTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("animal_types")
+        .select("*")
+        .order("name")
+      if (!error && data) {
+        setAnimalTypes(data)
+      }
+    } catch (err) {
+      console.error("Error fetching animal types:", err)
+    }
+  }
 
   // Trigger callbacks when data is loaded
   useEffect(() => {
@@ -359,6 +375,44 @@ export function ServicesAndBreedsTab({
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Applicable Animal Types Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Applicable Animal Types</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Select broader animal types supported by this provider (e.g. Dogs, Cats, Horses, Fish for pet shops, trainers, or vets):
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {animalTypes.map((type) => {
+              const isSelected = selectedAnimalTypeIds.includes(type.animal_type_id)
+              const toggleType = () => {
+                if (isSelected) {
+                  setSelectedAnimalTypeIds(selectedAnimalTypeIds.filter((id) => id !== type.animal_type_id))
+                } else {
+                  setSelectedAnimalTypeIds([...selectedAnimalTypeIds, type.animal_type_id])
+                }
+              }
+              return (
+                <button
+                  key={type.animal_type_id}
+                  type="button"
+                  onClick={toggleType}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-background hover:bg-muted border-border text-muted-foreground"
+                  }`}
+                >
+                  <span>🐾 {type.name}</span>
+                </button>
+              )
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>

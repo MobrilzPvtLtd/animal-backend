@@ -30,36 +30,56 @@ export function BasicInfoTab({ form, categories, hideCategorySelector, selectedC
       {!hideCategorySelector ? (
         <FormField
           control={form.control}
-          name="service_category_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Service Category</FormLabel>
-              <Select
-                onValueChange={(value) => field.onChange(parseInt(value))}
-                value={field.value?.toString()}
-              >
+          name="category_ids"
+          render={({ field }) => {
+            const currentCategoryIds: number[] = Array.isArray(field.value)
+              ? field.value
+              : form.getValues("service_category_id")
+              ? [form.getValues("service_category_id")]
+              : []
+
+            const toggleCategory = (catId: number) => {
+              let updated: number[]
+              if (currentCategoryIds.includes(catId)) {
+                updated = currentCategoryIds.filter((id) => id !== catId)
+              } else {
+                updated = [...currentCategoryIds, catId]
+              }
+              field.onChange(updated)
+              if (updated.length > 0) {
+                form.setValue("service_category_id", updated[0])
+              }
+            }
+
+            return (
+              <FormItem>
+                <FormLabel>Service Categories / Groups (Select all that apply)</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
+                  <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/20">
+                    {categories.map((category) => {
+                      const isSelected = currentCategoryIds.includes(category.service_category_id)
+                      return (
+                        <button
+                          key={category.service_category_id}
+                          type="button"
+                          onClick={() => toggleCategory(category.service_category_id)}
+                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
+                              : "bg-background hover:bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {category.icon && <span>{category.icon}</span>}
+                          <span>{category.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </FormControl>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem
-                      key={category.service_category_id}
-                      value={category.service_category_id.toString()}
-                    >
-                      <div className="flex items-center space-x-2">
-                        {category.icon && <span>{category.icon}</span>}
-                        <span>{category.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+                <FormMessage />
+              </FormItem>
+            )
+          }}
         />
       ) : (
         <div className="space-y-2">

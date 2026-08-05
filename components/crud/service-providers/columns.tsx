@@ -60,6 +60,11 @@ export const columns: ColumnDef<ServiceProvider>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Location" />
     ),
+    accessorFn: (row) => row.location?.address || "",
+    filterFn: (row, id, value) => {
+      const address = row.original.location?.address || ""
+      return address.toLowerCase().includes(String(value).toLowerCase())
+    },
     cell: ({ row }) => {
       const location = row.original.location
       return (

@@ -58,6 +58,8 @@ export const serviceProviderSchema = z.object({
   }).optional(),
   social_media: z.record(z.any()).optional(),
   additional_info: z.record(z.any()).optional(),
+  service_areas: z.string().optional(),
+  show_operating_hours: z.boolean().default(true),
   // Location fields for creating a new location
   address: z.string().optional(),
   latitude: z.string().optional(),

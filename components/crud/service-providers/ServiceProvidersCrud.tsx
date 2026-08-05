@@ -183,9 +183,9 @@ export function ServiceProvidersCrud() {
         .select(`
           *,
           location:locations(*),
-          service_category:service_categories(*)
+          service_category:service_categories!service_providers_service_category_id_fkey(*)
         `)
-        .eq("is_deleted", false)
+        .or("is_deleted.eq.false,is_deleted.is.null")
         .order("name")
 
       if (error) throw error
@@ -379,6 +379,8 @@ export function ServiceProvidersCrud() {
           table={table} 
           filterKey="name" 
           placeholder="Filter providers..."
+          secondaryFilterKey="location"
+          secondaryPlaceholder="Filter location..."
           onAdd={handleAddProvider}
         />
         <div className="rounded-md border">

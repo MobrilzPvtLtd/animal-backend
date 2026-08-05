@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
         .select(`
           service_provider_id, 
           name,
-          service_category:service_categories(
+          service_category:service_categories!service_providers_service_category_id_fkey(
             service_category_id,
             name,
             color

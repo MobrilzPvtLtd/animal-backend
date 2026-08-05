@@ -16,7 +16,7 @@ export async function GET(
     .select(`
       *,
       location:locations(*),
-      service_category:service_categories(*),
+      service_category:service_categories!service_providers_service_category_id_fkey(*),
       service_provider_images(*),
       services(*)
     `)

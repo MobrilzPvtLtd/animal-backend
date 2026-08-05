@@ -27,7 +27,7 @@ export async function GET(
 
   const { data: providers } = await supabaseAdmin
     .from('service_providers')
-    .select('*, service_categories(*), service_provider_images(*), services(*)')
+    .select('*, service_categories!service_providers_service_category_id_fkey(*), service_provider_images(*), services(*)')
     .eq('service_category_id', Number(id))
     .eq('is_deleted', false)
     .order('name');

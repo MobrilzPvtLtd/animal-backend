@@ -33,7 +33,7 @@ export default function EditServiceProviderPage() {
         .select(`
           *,
           location:locations(*),
-          service_category:service_categories(*)
+          service_category:service_categories!service_providers_service_category_id_fkey(*)
         `)
         .eq("service_provider_id", providerId)
         .single()

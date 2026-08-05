@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('service_providers')
-    .select('*, service_categories(*), service_provider_images(*)')
+    .select('*, service_categories!service_providers_service_category_id_fkey(*), service_provider_images(*)')
     .order('name');
 
   if (serviceCategoryId) {

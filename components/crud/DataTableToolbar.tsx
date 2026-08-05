@@ -10,6 +10,8 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>
   filterKey: string
   placeholder?: string
+  secondaryFilterKey?: string
+  secondaryPlaceholder?: string
   onAdd?: () => void
 }
 
@@ -17,6 +19,8 @@ export function DataTableToolbar<TData>({
   table,
   filterKey,
   placeholder = "Filter...",
+  secondaryFilterKey,
+  secondaryPlaceholder = "Filter by location...",
   onAdd
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0
@@ -32,6 +36,16 @@ export function DataTableToolbar<TData>({
           }
           className="h-8 w-[150px] lg:w-[250px]"
         />
+        {secondaryFilterKey && table.getColumn(secondaryFilterKey) && (
+          <Input
+            placeholder={secondaryPlaceholder}
+            value={(table.getColumn(secondaryFilterKey)?.getFilterValue() as string) ?? ""}
+            onChange={(event) =>
+              table.getColumn(secondaryFilterKey)?.setFilterValue(event.target.value)
+            }
+            className="h-8 w-[150px] lg:w-[220px]"
+          />
+        )}
         {isFiltered && (
           <Button
             variant="ghost"
