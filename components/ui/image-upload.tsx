@@ -23,19 +23,23 @@ interface ImageUploadProps {
   accept?: string;
 }
 
-export function ImageUpload({
-  value,
-  onChange,
-  onError,
-  folder,
-  label = "Image",
-  placeholder = "Upload an image",
-  className = "",
-  variant = "default",
-  disabled = false,
-  maxSize = 20,
-  accept = "image/*"
-}: ImageUploadProps) {
+export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
+  (
+    {
+      value,
+      onChange,
+      onError,
+      folder,
+      label = "Image",
+      placeholder = "Upload an image",
+      className = "",
+      variant = "default",
+      disabled = false,
+      maxSize = 20,
+      accept = "image/*",
+    },
+    ref
+  ) => {
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -44,14 +48,11 @@ export function ImageUpload({
   const [imageLoadError, setImageLoadError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync pastedUrl and active tab with incoming value prop (for edit forms)
+  // Sync pastedUrl with incoming value prop (for edit forms)
   useEffect(() => {
     if (value) {
       setPastedUrl(value);
       setImageLoadError(false);
-      if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) {
-        setActiveTab('url');
-      }
     } else {
       setPastedUrl('');
     }
@@ -97,6 +98,7 @@ export function ImageUpload({
     if (file) {
       handleFileUpload(file);
     }
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -383,7 +385,7 @@ export function ImageUpload({
   };
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div ref={ref} className={`space-y-2 ${className}`}>
       {label && <Label>{label}</Label>}
 
       {renderImagePreview()}
@@ -399,5 +401,7 @@ export function ImageUpload({
     </div>
   );
 }
+);
+ImageUpload.displayName = "ImageUpload";
 
 

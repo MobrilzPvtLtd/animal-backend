@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 type CommunityPost = {
   post_id: number;
@@ -42,13 +43,13 @@ type CommunityPost = {
 type CommunityFormState = {
   title: string;
   body: string;
-  file: File | null;
+  image_url: string;
 };
 
 const emptyForm: CommunityFormState = {
   title: "",
   body: "",
-  file: null,
+  image_url: "",
 };
 
 export default function CommunityPage() {
@@ -73,11 +74,20 @@ export default function CommunityPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
+        let { data: profile } = await supabase
+          .from("users")
           .select("user_id")
           .eq("auth_user_id", user.id)
-          .single();
+          .maybeSingle();
+
+        if (!profile && user.email) {
+          const { data: userByEmail } = await supabase
+            .from("users")
+            .select("user_id")
+            .eq("email", user.email)
+            .maybeSingle();
+          profile = userByEmail;
+        }
 
         if (profile) {
           setCurrentUserId(profile.user_id);
@@ -148,7 +158,7 @@ export default function CommunityPage() {
     setForm({
       title: post.title || "",
       body: post.body || "",
-      file: null,
+      image_url: post.image_url || "",
     });
     setFormOpen(true);
   }
@@ -179,11 +189,6 @@ export default function CommunityPage() {
   }
 
   async function submitReaction(postId: number, reaction: 'like' | 'dislike') {
-    if (!currentUserId) {
-      toast.error('Please log in to react to posts');
-      return;
-    }
-
     try {
       const headers = await getAuthHeaders();
       const response = await fetch('/api/v1/community/reactions', {
@@ -240,8 +245,8 @@ export default function CommunityPage() {
       const formData = new FormData();
       formData.append('title', form.title);
       formData.append('body', form.body);
-      if (form.file) {
-        formData.append('file', form.file);
+      if (form.image_url) {
+        formData.append('image_url', form.image_url);
       }
 
       const endpoint = isEditing && selected
@@ -298,6 +303,41 @@ export default function CommunityPage() {
       toast.error(error.message || "Failed to delete post");
     } finally {
       setSaving(false);
+    }
+  }
+
+  const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
+  const [submittingComment, setSubmittingComment] = useState<Record<number, boolean>>({});
+
+  async function handleAddComment(postId: number) {
+    const text = commentInputs[postId]?.trim();
+    if (!text) return;
+
+    setSubmittingComment((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/v1/community/comments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify({ post_id: postId, comment: text }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData?.error || "Failed to post comment");
+      }
+
+      toast.success("Comment added!");
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+      loadPosts();
+    } catch (err: any) {
+      console.error("Error adding comment:", err);
+      toast.error(err.message || "Failed to add comment");
+    } finally {
+      setSubmittingComment((prev) => ({ ...prev, [postId]: false }));
     }
   }
 
@@ -364,11 +404,13 @@ export default function CommunityPage() {
               </CardHeader>
               <CardContent>
                 {post.image_url ? (
-                  <img
-                    src={post.image_url}
-                    alt={post.title || "Community post image"}
-                    className="mb-4 h-auto w-full rounded-xl object-cover"
-                  />
+                  <div className="mb-4 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50 flex items-center justify-center max-h-64 sm:max-h-72">
+                    <img
+                      src={post.image_url}
+                      alt={post.title || "Community post image"}
+                      className="max-h-64 sm:max-h-72 w-full object-cover rounded-xl"
+                    />
+                  </div>
                 ) : null}
                 <p className="whitespace-pre-wrap text-sm">{post.body}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -392,6 +434,35 @@ export default function CommunityPage() {
                   </div>
                   <span>{post.comments_count ?? 0} comment{(post.comments_count ?? 0) === 1 ? "" : "s"}</span>
                 </div>
+
+                {/* Comment Input Box */}
+                <div className="mt-3 flex gap-2">
+                  <Input
+                    placeholder="Write a comment..."
+                    value={commentInputs[post.post_id] || ""}
+                    onChange={(e) =>
+                      setCommentInputs((prev) => ({ ...prev, [post.post_id]: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddComment(post.post_id);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={submittingComment[post.post_id]}
+                    onClick={() => handleAddComment(post.post_id)}
+                  >
+                    {submittingComment[post.post_id] ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Comment"
+                    )}
+                  </Button>
+                </div>
+
                 {post.comments && post.comments.length > 0 && (
                   <div className="mt-4 space-y-3">
                     {post.comments.slice(0, 3).map((comment) => (
@@ -420,7 +491,7 @@ export default function CommunityPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Post" : "Add Post"}</DialogTitle>
             <DialogDescription>
@@ -437,18 +508,14 @@ export default function CommunityPage() {
                 placeholder="Enter a title for your post"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="file">Image file (Optional)</Label>
-              <input
-                id="file"
-                type="file"
-                accept="image/*"
-                className="file-input-bordered file-input w-full"
-                onChange={(e) => setForm((prev) => ({ ...prev, file: e.target.files?.[0] ?? null }))}
+            <div>
+              <ImageUpload
+                value={form.image_url}
+                onChange={(url) => setForm((prev) => ({ ...prev, image_url: url }))}
+                label="Post Image (Optional)"
+                folder="community_posts"
+                placeholder="Upload post image or paste image link"
               />
-              {form.file && (
-                <p className="text-sm text-muted-foreground">Selected file: {form.file.name}</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="body">Body *</Label>

@@ -3247,3 +3247,51 @@ CREATE POLICY "Allow authenticated delete service_provider_categories"
   USING (true);
 
 
+-- ============================================================
+-- Migration: 041_add_provider_link_and_donation_bank_details.sql
+-- ============================================================
+ALTER TABLE public.pet_friendly_places 
+ADD COLUMN IF NOT EXISTS service_provider_id BIGINT REFERENCES public.service_providers(service_provider_id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_pet_friendly_places_service_provider_id ON public.pet_friendly_places(service_provider_id);
+
+ALTER TABLE public.donation_campaigns 
+ADD COLUMN IF NOT EXISTS bank_name TEXT,
+ADD COLUMN IF NOT EXISTS account_number TEXT,
+ADD COLUMN IF NOT EXISTS account_type TEXT,
+ADD COLUMN IF NOT EXISTS branch_code_swift TEXT;
+
+ALTER TABLE public.rescue_centres 
+ADD COLUMN IF NOT EXISTS bank_name TEXT,
+ADD COLUMN IF NOT EXISTS account_number TEXT,
+ADD COLUMN IF NOT EXISTS account_type TEXT,
+ADD COLUMN IF NOT EXISTS branch_code_swift TEXT;
+
+
+-- ============================================================
+-- Migration: 042_add_reaction_to_post_likes.sql
+-- ============================================================
+ALTER TABLE public.post_likes 
+ADD COLUMN IF NOT EXISTS reaction TEXT DEFAULT 'like';
+
+ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public select post_likes" ON public.post_likes;
+CREATE POLICY "Allow public select post_likes"
+  ON public.post_likes FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated write post_likes" ON public.post_likes;
+CREATE POLICY "Allow authenticated write post_likes"
+  ON public.post_likes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+ALTER TABLE public.community_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public select community_comments" ON public.community_comments;
+CREATE POLICY "Allow public select community_comments"
+  ON public.community_comments FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated write community_comments" ON public.community_comments;
+CREATE POLICY "Allow authenticated write community_comments"
+  ON public.community_comments FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+

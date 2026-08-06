@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('community_comments')
-    .select('comment_id, post_id, user_id, comment, created_at, updated_at')
+    .select('comment_id, post_id, user_id, comment, created_at, updated_at, users(user_id, user_name)')
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
 

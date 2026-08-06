@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, location:locations(*)`)
+    .select(`*, location:locations(*), service_provider:service_providers(*)`)
     .order('name');
 
   if (!includeDeleted) {

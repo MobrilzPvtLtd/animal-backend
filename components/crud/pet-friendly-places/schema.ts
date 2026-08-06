@@ -11,14 +11,14 @@ export const petFriendlyPlaceSchema = z.object({
   name: z.string().min(2, {
     message: "Name must be at least 2 characters.",
   }),
-  description: z.string().optional(),
-  image_url: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal("")),
-  website: z.string().url().optional().or(z.literal("")),
-  rating: z.number().min(0).max(5).optional(),
+  description: z.string().nullable().optional(),
+  image_url: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  email: z.string().email().optional().or(z.literal("")).or(z.null()),
+  website: z.string().url().optional().or(z.literal("")).or(z.null()),
+  rating: z.number().min(0).max(5).nullable().optional(),
   is_verified: z.boolean().default(false),
-  location_id: z.number().optional(),
+  location_id: z.number().nullable().optional(),
   operating_hours: z.object({
     monday: dayHoursSchema,
     tuesday: dayHoursSchema,
@@ -27,13 +27,14 @@ export const petFriendlyPlaceSchema = z.object({
     friday: dayHoursSchema,
     saturday: dayHoursSchema,
     sunday: dayHoursSchema
-  }).optional(),
-  amenities: z.array(z.string()).optional(),
-  pet_policy: z.string().optional(),
+  }).nullable().optional(),
+  amenities: z.array(z.string()).nullable().optional(),
+  pet_policy: z.string().nullable().optional(),
   // Location fields for creating a new location
-  address: z.string().optional(),
-  latitude: z.string().optional(),
-  longitude: z.string().optional(),
+  address: z.string().nullable().optional(),
+  latitude: z.string().nullable().optional(),
+  longitude: z.string().nullable().optional(),
+  service_provider_id: z.number().nullable().optional(),
   show_publicly: z.boolean().default(true),
 })
 

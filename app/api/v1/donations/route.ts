@@ -30,14 +30,14 @@ export async function POST(request: NextRequest) {
   const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
-  const { rescue_centre_id, title, description, monthly_target, visible = true, expires_at } = await request.json();
+  const { rescue_centre_id, title, description, monthly_target, visible = true, expires_at, bank_name, account_number, account_type, branch_code_swift } = await request.json();
   if (!rescue_centre_id || !title || !monthly_target) {
     return NextResponse.json({ error: 'Rescue centre, title, and monthly target are required' }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from('donation_campaigns')
-    .insert([{ rescue_centre_id, title, description, monthly_target, visible, expires_at }])
+    .insert([{ rescue_centre_id, title, description, monthly_target, visible, expires_at, bank_name, account_number, account_type, branch_code_swift }])
     .select()
     .single();
 

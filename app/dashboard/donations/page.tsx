@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-type RescueCentreOption = { rescue_centre_id: number; name: string };
+type RescueCentreOption = { rescue_centre_id: number; name: string; type?: string };
 type DonationCampaign = {
   campaign_id: number;
   rescue_centre_id: number;
@@ -22,6 +22,10 @@ type DonationCampaign = {
   monthly_target: number;
   visible: boolean;
   expires_at?: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_type?: string | null;
+  branch_code_swift?: string | null;
   rescue_centres?: { name?: string | null } | null;
   created_at?: string;
   updated_at?: string;
@@ -34,6 +38,10 @@ const emptyForm = {
   monthly_target: "",
   visible: true,
   expires_at: "",
+  bank_name: "",
+  account_number: "",
+  account_type: "Checking/Current",
+  branch_code_swift: "",
 };
 
 export default function DonationsPage() {
@@ -68,16 +76,27 @@ export default function DonationsPage() {
 
       if (campaignsError) throw campaignsError;
 
-      // Load rescue centres for dropdown
-      const { data: centresData, error: centresError } = await supabase
+      // Load rescue centres table data
+      const { data: centresData } = await supabase
         .from("rescue_centres")
         .select("rescue_centre_id, name")
         .order("name");
 
-      if (centresError) throw centresError;
+      // Also pull Service Providers that act as Rescue/Shelter centres
+      const { data: providerShelters } = await supabase
+        .from("service_providers")
+        .select("service_provider_id, name")
+        .or("is_deleted.eq.false,is_deleted.is.null")
+        .ilike("name", "%rescue%")
+        .order("name");
+
+      const combinedOptions: RescueCentreOption[] = [
+        ...(centresData || []).map((c) => ({ rescue_centre_id: c.rescue_centre_id, name: c.name, type: "Rescue Centre" })),
+        ...(providerShelters || []).map((p) => ({ rescue_centre_id: p.service_provider_id, name: `${p.name} (Service Provider)`, type: "Provider Shelter" })),
+      ];
 
       setCampaigns(campaignsData || []);
-      setRescueCentres(centresData || []);
+      setRescueCentres(combinedOptions);
     } catch (error) {
       console.error("Error loading donations page:", error);
       toast.error("Failed to load donation data");
@@ -101,6 +120,10 @@ export default function DonationsPage() {
       monthly_target: String(campaign.monthly_target ?? ""),
       visible: Boolean(campaign.visible),
       expires_at: campaign.expires_at ? String(campaign.expires_at).slice(0, 10) : "",
+      bank_name: campaign.bank_name || "",
+      account_number: campaign.account_number || "",
+      account_type: campaign.account_type || "Checking/Current",
+      branch_code_swift: campaign.branch_code_swift || "",
     });
     setFormOpen(true);
   }
@@ -116,6 +139,10 @@ export default function DonationsPage() {
         monthly_target: Number(form.monthly_target),
         visible: form.visible,
         expires_at: form.expires_at || null,
+        bank_name: form.bank_name || null,
+        account_number: form.account_number || null,
+        account_type: form.account_type || null,
+        branch_code_swift: form.branch_code_swift || null,
       };
 
       if (isEditing && selected) {
@@ -236,9 +263,17 @@ export default function DonationsPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-3 text-sm">
                 <div>{campaign.description || "No description"}</div>
-                <div className="flex flex-wrap gap-4 text-muted-foreground">
+                {campaign.bank_name && (
+                  <div className="rounded border bg-muted/30 p-2.5 text-xs grid grid-cols-2 gap-2">
+                    <div><span className="font-semibold">Bank:</span> {campaign.bank_name}</div>
+                    <div><span className="font-semibold">Account #:</span> {campaign.account_number || "N/A"}</div>
+                    <div><span className="font-semibold">Type:</span> {campaign.account_type || "N/A"}</div>
+                    <div><span className="font-semibold">SWIFT/Branch:</span> {campaign.branch_code_swift || "N/A"}</div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-4 text-muted-foreground pt-1">
                   <span>Target: R{campaign.monthly_target.toLocaleString()}</span>
                   <span>Status: {campaign.visible ? "Visible" : "Hidden"}</span>
                   <span>Expires: {campaign.expires_at ? new Date(campaign.expires_at).toLocaleDateString() : "No expiry"}</span>
@@ -250,7 +285,7 @@ export default function DonationsPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Campaign" : "Add Campaign"}</DialogTitle>
             <DialogDescription>
@@ -299,6 +334,51 @@ export default function DonationsPage() {
               <div className="space-y-2">
                 <Label htmlFor="expires_at">Expires At</Label>
                 <Input id="expires_at" type="date" value={form.expires_at} onChange={(e) => setForm((prev) => ({ ...prev, expires_at: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Banking Details Section */}
+            <div className="rounded-md border p-3.5 space-y-3 bg-muted/20">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <span>🏦 Banking Details for Direct Donations</span>
+              </h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="bank_name">Bank Name</Label>
+                  <Input
+                    id="bank_name"
+                    placeholder="e.g. Standard Bank / FNB / HDFC"
+                    value={form.bank_name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, bank_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="account_number">Account Number</Label>
+                  <Input
+                    id="account_number"
+                    placeholder="e.g. 6284910294"
+                    value={form.account_number}
+                    onChange={(e) => setForm((prev) => ({ ...prev, account_number: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="account_type">Account Type</Label>
+                  <Input
+                    id="account_type"
+                    placeholder="Checking / Savings / Current"
+                    value={form.account_type}
+                    onChange={(e) => setForm((prev) => ({ ...prev, account_type: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="branch_code_swift">Branch Code / SWIFT / IBAN</Label>
+                  <Input
+                    id="branch_code_swift"
+                    placeholder="e.g. 250655 or SBZA"
+                    value={form.branch_code_swift}
+                    onChange={(e) => setForm((prev) => ({ ...prev, branch_code_swift: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">

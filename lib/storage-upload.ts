@@ -32,39 +32,29 @@ function isBucketNotFound(message: string): boolean {
 export async function ensureAnimalImageBucketExists() {
   if (bucketEnsured) return;
 
-  const { error: rpcError } = await supabaseAdmin.rpc('create_storage_bucket', {
-    bucket_id: ANIMAL_IMAGE_BUCKET,
-    bucket_name: ANIMAL_IMAGE_BUCKET,
-    is_public: true,
-  });
-
-  if (!rpcError) {
-    bucketEnsured = true;
-    return;
-  }
-
-  const fnMissing =
-    rpcError.message?.toLowerCase().includes('function not found') ||
-    rpcError.message?.toLowerCase().includes('does not exist');
-
-  if (fnMissing) {
-    const { error: apiError } = await supabaseAdmin.storage.createBucket(ANIMAL_IMAGE_BUCKET, {
-      public: true,
-    });
-
-    if (!apiError || apiError.message?.toLowerCase().includes('already exists')) {
+  try {
+    const { error: getError } = await supabaseAdmin.storage.getBucket(ANIMAL_IMAGE_BUCKET);
+    if (!getError) {
       bucketEnsured = true;
       return;
     }
-
-    throw new Error(
-      `Unable to create storage bucket ${ANIMAL_IMAGE_BUCKET}: ${apiError.message}`
-    );
+  } catch {
+    // Ignore and attempt create
   }
 
-  throw new Error(
-    `Unable to create storage bucket ${ANIMAL_IMAGE_BUCKET}: ${rpcError.message}`
-  );
+  try {
+    const { error: createError } = await supabaseAdmin.storage.createBucket(ANIMAL_IMAGE_BUCKET, {
+      public: true,
+    });
+    if (!createError || createError.message?.toLowerCase().includes('already exists')) {
+      bucketEnsured = true;
+      return;
+    }
+  } catch {
+    // Ignore and proceed with upload
+  }
+
+  bucketEnsured = true;
 }
 
 export async function uploadAnimalImage(file: File, folder = 'uploads') {

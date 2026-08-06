@@ -54,6 +54,8 @@ const DEFAULT_OPERATING_HOURS = {
 export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendlyPlaceFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [amenityInput, setAmenityInput] = useState("")
+  const [providers, setProviders] = useState<any[]>([])
+  const [fetchingProviders, setFetchingProviders] = useState(false)
   const isEditing = !!place
 
   const form = useForm<PetFriendlyPlace>({
@@ -68,6 +70,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       rating: place.rating || 0,
       is_verified: (place as any).is_verified ?? false,
       location_id: place.location_id,
+      service_provider_id: (place as any).service_provider_id,
       address: place.location?.address || "",
       latitude: place.location?.latitude || "",
       longitude: place.location?.longitude || "",
@@ -85,6 +88,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       rating: 0,
       is_verified: false,
       location_id: undefined,
+      service_provider_id: undefined,
       address: "",
       latitude: "",
       longitude: "",
@@ -94,6 +98,54 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       pet_policy: "",
     },
   })
+
+  useEffect(() => {
+    async function loadProviders() {
+      setFetchingProviders(true)
+      try {
+        const { data } = await supabase
+          .from("service_providers")
+          .select("*, location:locations(*)")
+          .or("is_deleted.eq.false,is_deleted.is.null")
+          .order("name")
+        if (data) setProviders(data)
+      } catch (err) {
+        console.error("Error loading service providers:", err)
+      } finally {
+        setFetchingProviders(false)
+      }
+    }
+    loadProviders()
+  }, [])
+
+  const handleProviderSelect = (providerIdStr: string) => {
+    if (!providerIdStr || providerIdStr === "none") {
+      form.setValue("service_provider_id", undefined)
+      return
+    }
+
+    const providerId = Number(providerIdStr)
+    const selected = providers.find((p) => p.service_provider_id === providerId)
+    if (!selected) return
+
+    form.setValue("service_provider_id", providerId)
+    if (selected.name) form.setValue("name", selected.name)
+    if (selected.description) form.setValue("description", selected.description)
+    if (selected.phone) form.setValue("phone", selected.phone)
+    if (selected.email) form.setValue("email", selected.email)
+    if (selected.website) form.setValue("website", selected.website)
+    if (selected.image_url) form.setValue("image_url", selected.image_url)
+    if (selected.operating_hours) form.setValue("operating_hours", selected.operating_hours)
+
+    if (selected.location) {
+      if (selected.location.address) form.setValue("address", selected.location.address)
+      if (selected.location.latitude) form.setValue("latitude", selected.location.latitude.toString())
+      if (selected.location.longitude) form.setValue("longitude", selected.location.longitude.toString())
+      if (selected.location.location_id) form.setValue("location_id", selected.location.location_id)
+    }
+
+    toast.success(`Linked & auto-filled details from "${selected.name}"`)
+  }
 
   async function onSubmit(data: PetFriendlyPlace) {
     setIsLoading(true)
@@ -105,6 +157,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
 
       if (validationError) {
         toast.error(validationError);
+        setIsLoading(false);
         return;
       }
 
@@ -113,6 +166,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
           type: "manual",
           message: "A pet friendly place with this name already exists"
         });
+        setIsLoading(false);
         return;
       }
 
@@ -128,13 +182,25 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
         locationId = locationData.location_id
       }
 
-      // Defensively extract location form fields + any stray joined location
-      const { address, latitude, longitude, show_publicly, location, ...placeData } = data as any
+      // Defensively extract location form fields + system columns + joined objects
+      const { 
+        address, 
+        latitude, 
+        longitude, 
+        show_publicly, 
+        location, 
+        pet_friendly_place_id,
+        created_at,
+        updated_at,
+        views,
+        is_deleted,
+        ...cleanPlaceData 
+      } = data as any;
 
       const payload = {
-        ...placeData,
+        ...cleanPlaceData,
         location_id: locationId,
-      }
+      };
 
       // Ensure operating_hours defaults if not set
       if (!payload.operating_hours) {
@@ -163,17 +229,55 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       }
 
       onSuccess()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving pet friendly place:", error)
-      toast.error("Failed to save pet friendly place")
+      toast.error(error?.message || "Failed to save pet friendly place")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const onInvalid = (errors: any) => {
+    console.error("Form validation errors:", errors);
+    const firstKey = Object.keys(errors)[0];
+    if (firstKey) {
+      const errMsg = errors[firstKey]?.message || `Please check the ${firstKey} field`;
+      toast.error(`Validation Error (${firstKey}): ${errMsg}`);
+    }
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
+        {/* Option to Link Existing Service Provider */}
+        <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-semibold flex items-center gap-1.5">
+              <span>🔗 Link Existing Service Provider (Optional)</span>
+            </label>
+            {fetchingProviders && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Select an existing service provider to link it directly and auto-fill details to avoid duplicate entry:
+          </p>
+          <Select
+            value={form.watch("service_provider_id")?.toString() || "none"}
+            onValueChange={handleProviderSelect}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select an existing Service Provider..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">-- Create Standalone Place (No Link) --</SelectItem>
+              {providers.map((p) => (
+                <SelectItem key={p.service_provider_id} value={p.service_provider_id.toString()}>
+                  {p.name} {p.location?.address ? `(${p.location.address})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FormField
           control={form.control}
           name="name"

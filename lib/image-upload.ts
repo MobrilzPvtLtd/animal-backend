@@ -70,35 +70,26 @@ export class ImageUploadService {
         }
       }
 
-      const urlResponse = await fetch('/api/v1/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: processedFile.name,
-          fileType: processedFile.type,
-          folder,
-        }),
-      });
-
-      const urlPayload = await urlResponse.json();
-
-      if (!urlResponse.ok) {
-        throw new Error(urlPayload.error || 'Failed to get upload URL');
+      const formData = new FormData();
+      formData.append('file', processedFile);
+      if (folder) {
+        formData.append('folder', folder);
       }
 
-      const uploadResponse = await fetch(urlPayload.uploadUrl, {
-        method: 'PUT',
-        body: processedFile,
-        headers: { 'Content-Type': processedFile.type },
+      const response = await fetch('/api/v1/upload-image', {
+        method: 'POST',
+        body: formData,
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload file to storage');
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to upload image');
       }
 
       return {
-        url: urlPayload.publicUrl,
-        path: urlPayload.path,
+        url: payload.url,
+        path: payload.path,
       };
     } catch (error) {
       console.error('Image upload error:', error);
