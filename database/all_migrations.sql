@@ -529,14 +529,20 @@ create table if not exists public.service_categories (
   constraint service_categories_pkey primary key (service_category_id)
 ) TABLESPACE pg_default;
 
--- Add some sample data for testing
-INSERT INTO public.service_categories (name, description, icon, color, sort_order) VALUES
-('Veterinary Services', 'Medical care and health services for animals', 'ðŸ¥', '#10B981', 1),
-('Pet Grooming', 'Professional grooming and styling services', 'âœ‚ï¸', '#3B82F6', 2),
-('Pet Training', 'Behavioral training and obedience classes', 'ðŸŽ“', '#8B5CF6', 3),
-('Pet Boarding', 'Temporary care and accommodation services', 'ðŸ ', '#F59E0B', 4),
-('Pet Transportation', 'Safe transport services for pets', 'ðŸš—', '#EF4444', 5),
-('Pet Photography', 'Professional photography services', 'ðŸ“¸', '#EC4899', 6);
+-- Add sample data for testing (only if not already present)
+INSERT INTO public.service_categories (name, description, icon, color, sort_order)
+SELECT v.name, v.description, v.icon, v.color, v.sort_order
+FROM (VALUES
+('Veterinary Services', 'Medical care and health services for animals', '🏥', '#10B981', 1),
+('Pet Grooming', 'Professional grooming and styling services', '✂️', '#3B82F6', 2),
+('Pet Training', 'Behavioral training and obedience classes', '🎓', '#8B5CF6', 3),
+('Pet Boarding', 'Temporary care and accommodation services', '🏨', '#F59E0B', 4),
+('Pet Transportation', 'Safe transport services for pets', '🚚', '#EF4444', 5),
+('Pet Photography', 'Professional photography services', '📷', '#EC4899', 6)
+) AS v(name, description, icon, color, sort_order)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.service_categories sc WHERE sc.name = v.name
+);
 
 
 
