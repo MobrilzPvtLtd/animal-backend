@@ -74,7 +74,7 @@ export function PlacesAutocomplete({
   const onChangeRef = useRef(onChange)
   const lastKnownLatLng = useRef({ lat: 0, lng: 0 })
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API 
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
   useEffect(() => {
     setInputValue(value)
@@ -167,25 +167,27 @@ export function PlacesAutocomplete({
   }
 
   const inputField = (
-    <div className="relative">
-      <Input
-        ref={inputRef}
-        value={inputValue}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="pr-10"
-      />
-      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        ) : (
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-        )}
+    <div className="space-y-2">
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          value={inputValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="pr-10"
+        />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : (
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
       </div>
-      {loadError && <p className="mt-2 text-sm text-destructive">{loadError}</p>}
-      {isReady && !loadError && <p className="mt-2 text-sm text-muted-foreground">Search for a city, hotel, landmark, or address from Google Maps.</p>}
+      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+      {isReady && !loadError && <p className="text-sm text-muted-foreground">Search for a city, hotel, landmark, or address from Google Maps.</p>}
     </div>
   )
 
