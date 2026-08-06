@@ -39,6 +39,7 @@ import {
   CreditCard,
   Zap,
   Package,
+  MessageSquare,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -118,7 +119,7 @@ const data = {
       roles: ["Owner", "Admin", "Manager", "Provider"],
       items: [],
     },
-    
+
     {
       title: "Pet Friendly Places",
       url: "/dashboard/pet-friendly-places",
@@ -163,6 +164,12 @@ const data = {
       url: "/dashboard/community",
       icon: GroupIcon,
       roles: ["Owner", "Admin", "Manager", "Subscriber"]
+    },
+    {
+      title: "Community Comments",
+      url: "/dashboard/community-comments",
+      icon: MessageSquare,
+      roles: ["Owner", "Admin", "Manager"]
     },
     {
       title: "Users",
@@ -250,8 +257,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canAccessNavItem = (item: any) => {
     const matchesPermission = Array.isArray(item.permissions)
       ? item.permissions.some((permissionName: string) =>
-          hasPermission(permissionName),
-        )
+        hasPermission(permissionName),
+      )
       : false;
     const matchesRole = Array.isArray(item.roles)
       ? item.roles.some((roleName: string) => hasRole(roleName))
@@ -309,11 +316,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           roles.length === 0
             ? data.navMain.filter((item) => item.title === "Dashboard")
             : data.navMain.filter(
-                (item) =>
-                  isOwner ||
-                  !item.roles ||
-                  item.roles.some((roleName: string) => hasRole(roleName)),
-              );
+              (item) =>
+                isOwner ||
+                !item.roles ||
+                item.roles.some((roleName: string) => hasRole(roleName)),
+            );
         setMainNavData(
           filteredNavMain.length > 0
             ? filteredNavMain
