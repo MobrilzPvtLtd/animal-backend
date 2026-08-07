@@ -13,7 +13,6 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [resetLink, setResetLink] = useState<string | null>(null);
   const { toast } = useToast();
 
   async function handleResetRequest(e: React.FormEvent) {
@@ -51,14 +50,9 @@ export default function ForgotPasswordPage() {
 
       setIsLoading(false);
       setIsSubmitted(true);
-      if (json.reset_link) {
-        setResetLink(json.reset_link);
-      }
       toast({
         title: "Success",
-        description: json.reset_link
-          ? "Password reset link generated successfully!"
-          : "Password reset link sent to your email.",
+        description: "Password reset email sent",
       });
     } catch (err: any) {
       setIsLoading(false);
@@ -104,32 +98,15 @@ export default function ForgotPasswordPage() {
               <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                 We have sent a password reset link to <strong className="text-foreground">{email}</strong>. Please check your inbox and follow the instructions.
               </p>
-              {resetLink ? (
-                <div className="pt-2 space-y-3">
-                  <a href={resetLink} className="block">
-                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-                      Click Here to Reset Password
-                    </Button>
-                  </a>
-                  <Button
-                    variant="outline"
-                    onClick={() => { setIsSubmitted(false); setResetLink(null); }}
-                    className="w-full"
-                  >
-                    Try Another Email
-                  </Button>
-                </div>
-              ) : (
-                <div className="pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsSubmitted(false)}
-                    className="w-full"
-                  >
-                    Resend Link
-                  </Button>
-                </div>
-              )}
+              <div className="pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsSubmitted(false)}
+                  className="w-full"
+                >
+                  Resend Link
+                </Button>
+              </div>
             </div>
           ) : (
             <>

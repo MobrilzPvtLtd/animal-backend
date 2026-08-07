@@ -26,8 +26,7 @@ export async function POST(request: NextRequest) {
       supabaseServer.auth.resetPasswordForEmail(email, { redirectTo }).catch(() => {});
 
       return NextResponse.json({
-        message: 'Password reset link generated successfully',
-        reset_link: adminData.properties.action_link,
+        message: 'Password reset email sent',
       });
     }
 
