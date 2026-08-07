@@ -6,6 +6,7 @@ type AnimalTypePayload = {
   name?: unknown;
   image_url?: unknown;
   imageUrl?: unknown;
+  images?: unknown;
   file?: unknown;
 };
 
@@ -19,6 +20,7 @@ async function readPayload(request: NextRequest): Promise<AnimalTypePayload> {
       name: formData.get('name'),
       image_url: formData.get('image_url') ?? formData.get('file'),
       imageUrl: formData.get('imageUrl'),
+      images: formData.get('images'),
       file: formData.get('file'),
     };
   }
@@ -58,7 +60,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  const result = (data || []).map((type: any) => ({
+    ...type,
+    images: Array.isArray(type.images) && type.images.length > 0 ? type.images : (type.image_url ? [type.image_url] : []),
+  }));
+
+  return NextResponse.json({ data: result });
 }
 
 export async function POST(request: NextRequest) {
@@ -70,9 +77,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
+  let images: string[] = [];
+  if (Array.isArray(body.images)) {
+    images = body.images.filter((img): img is string => typeof img === 'string');
+  } else if (typeof body.images === 'string') {
+    try {
+      const parsed = JSON.parse(body.images);
+      if (Array.isArray(parsed)) images = parsed;
+    } catch {
+      images = [body.images];
+    }
+  }
+
+  if (images.length === 0 && image_url) {
+    images = [image_url];
+  }
+
   const { data, error } = await supabaseAdmin
     .from('animal_types')
-    .insert([{ name, image_url }])
+    .insert([{ name, image_url: images[0] || image_url || null, images }])
     .select()
     .single();
 

@@ -6,6 +6,7 @@ export const animalTypeSchema = z.object({
     message: "Name must be at least 2 characters.",
   }),
   image_url: z.string().optional(),
+  images: z.array(z.string()).optional(),
 })
 
 export type AnimalType = z.infer<typeof animalTypeSchema> & {

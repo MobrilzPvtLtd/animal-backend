@@ -7,6 +7,7 @@ async function readPayload(request: NextRequest): Promise<{
   title?: unknown;
   description?: unknown;
   image_url?: unknown;
+  images?: unknown;
   file?: unknown;
   is_active?: unknown;
 }> {
@@ -19,6 +20,7 @@ async function readPayload(request: NextRequest): Promise<{
       title: formData.get('title'),
       description: formData.get('description'),
       image_url: formData.get('image_url'),
+      images: formData.get('images'),
       file: formData.get('file'),
       is_active: formData.get('is_active'),
     };
@@ -68,7 +70,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  const result = (data || []).map((entry: any) => ({
+    ...entry,
+    images: Array.isArray(entry.images) && entry.images.length > 0 ? entry.images : (entry.image_url ? [entry.image_url] : []),
+  }));
+
+  return NextResponse.json({ data: result });
 }
 
 export async function POST(request: NextRequest) {
@@ -85,6 +92,22 @@ export async function POST(request: NextRequest) {
   const description = typeof payload.description === 'string' ? payload.description.trim() : null;
   const image_url = await resolveImageUrl(payload.image_url, payload.file);
   const is_active = payload.is_active === true || payload.is_active === 'true' || payload.is_active === '1';
+
+  let images: string[] = [];
+  if (Array.isArray(payload.images)) {
+    images = payload.images.filter((img): img is string => typeof img === 'string');
+  } else if (typeof payload.images === 'string') {
+    try {
+      const parsed = JSON.parse(payload.images);
+      if (Array.isArray(parsed)) images = parsed;
+    } catch {
+      images = [payload.images];
+    }
+  }
+
+  if (images.length === 0 && image_url) {
+    images = [image_url];
+  }
 
   const { data: existing } = await supabaseAdmin
     .from('whats_new')
@@ -104,7 +127,8 @@ export async function POST(request: NextRequest) {
     .insert([{
       title,
       description: description || null,
-      image_url,
+      image_url: images[0] || image_url || null,
+      images,
       is_active,
       created_by: auth.user.internalUserId,
     }])

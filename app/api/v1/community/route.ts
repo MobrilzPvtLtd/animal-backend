@@ -8,6 +8,7 @@ type CommunityPayload = {
   body?: unknown;
   image_url?: unknown;
   imageUrl?: unknown;
+  images?: unknown;
   file?: unknown;
 };
 
@@ -21,6 +22,7 @@ async function readPayload(request: NextRequest): Promise<CommunityPayload> {
       body: formData.get('body'),
       image_url: formData.get('image_url'),
       imageUrl: formData.get('imageUrl'),
+      images: formData.get('images'),
       file: formData.get('file'),
     };
   }
@@ -30,6 +32,23 @@ async function readPayload(request: NextRequest): Promise<CommunityPayload> {
   } catch {
     return {};
   }
+}
+
+function normalizeImages(imagesInput: unknown, fallbackUrl?: string | null): string[] {
+  if (Array.isArray(imagesInput)) {
+    return imagesInput.filter((img): img is string => typeof img === 'string' && Boolean(img.trim()));
+  }
+  if (typeof imagesInput === 'string' && imagesInput.trim()) {
+    try {
+      const parsed = JSON.parse(imagesInput);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((img): img is string => typeof img === 'string' && Boolean(img.trim()));
+      }
+    } catch {
+      return [imagesInput.trim()];
+    }
+  }
+  return fallbackUrl ? [fallbackUrl] : [];
 }
 
 function normalizeImageUrl(value: unknown): string | null | undefined {
@@ -80,6 +99,7 @@ export async function GET(request: NextRequest) {
 
     return {
       ...post,
+      images: Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []),
       likes_count: likes.filter((item) => item.reaction === 'like').length,
       dislikes_count: likes.filter((item) => item.reaction === 'dislike').length,
       comments_count: Array.isArray(post.community_comments) ? post.community_comments.length : 0,
@@ -102,16 +122,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Post body is required' }, { status: 400 });
   }
 
-  const image_url = await resolveImageUrl(payload);
+  const singleImageUrl = await resolveImageUrl(payload);
+  const imagesList = normalizeImages(payload.images, singleImageUrl);
+  const finalPrimaryImage = imagesList[0] || singleImageUrl || null;
+
   const insertPayload: Record<string, unknown> = {
     user_id: user.internalUserId,
     title: title || null,
     body,
+    image_url: finalPrimaryImage,
+    images: imagesList,
   };
-
-  if (image_url !== undefined) {
-    insertPayload.image_url = image_url;
-  }
 
   const { data, error } = await supabaseAdmin
     .from('community_posts')
@@ -140,7 +161,7 @@ export async function PATCH(request: NextRequest) {
   const payload = await readPayload(request);
   const canEdit = await supabaseAdmin
     .from('community_posts')
-    .select('user_id, image_url')
+    .select('user_id, image_url, images')
     .eq('post_id', postId)
     .single();
 
@@ -162,8 +183,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const resolvedImageUrl = await resolveImageUrl(payload);
-  if (resolvedImageUrl !== undefined) {
-    updates.image_url = resolvedImageUrl;
+  if (payload.images !== undefined || resolvedImageUrl !== undefined) {
+    const imagesList = normalizeImages(payload.images, resolvedImageUrl);
+    updates.images = imagesList;
+    updates.image_url = imagesList[0] || resolvedImageUrl || null;
   }
 
   const { data, error } = await supabaseAdmin
@@ -175,19 +198,6 @@ export async function PATCH(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const previousImageUrl = canEdit.data.image_url;
-  if (
-    typeof previousImageUrl === 'string' &&
-    previousImageUrl &&
-    previousImageUrl !== resolvedImageUrl
-  ) {
-    try {
-      await deleteAnimalImageByUrl(previousImageUrl);
-    } catch (cleanupError) {
-      console.warn('Failed to clean up previous community image:', cleanupError);
-    }
   }
 
   return NextResponse.json({ post: data });

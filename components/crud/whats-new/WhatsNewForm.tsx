@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { validateWhatsNewTitle } from "@/lib/name-validation"
@@ -36,10 +36,17 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
 
   const form = useForm<WhatsNew>({
     resolver: zodResolver(whatsNewSchema),
-    defaultValues: whatsNew || {
+    defaultValues: whatsNew ? {
+      title: whatsNew.title,
+      description: whatsNew.description || "",
+      image_url: whatsNew.image_url || "",
+      images: (whatsNew as any).images || (whatsNew.image_url ? [whatsNew.image_url] : []),
+      is_active: whatsNew.is_active ?? true,
+    } : {
       title: "",
       description: "",
       image_url: "",
+      images: [],
       is_active: true,
     },
   })
@@ -51,6 +58,7 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
             title: whatsNew.title,
             description: whatsNew.description || "",
             image_url: whatsNew.image_url || "",
+            images: (whatsNew as any).images || (whatsNew.image_url ? [whatsNew.image_url] : []),
             is_active: whatsNew.is_active ?? true,
             whats_new_id: whatsNew.whats_new_id,
             created_at: whatsNew.created_at,
@@ -61,6 +69,7 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
             title: "",
             description: "",
             image_url: "",
+            images: [],
             is_active: true,
           }
     )
@@ -87,10 +96,13 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
         return
       }
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
+
       const payload = {
         title: data.title,
         description: data.description || null,
-        image_url: data.image_url?.trim() || null,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         is_active: data.is_active,
       }
 
@@ -168,16 +180,22 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  label="Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="whats-new"
-                  placeholder="Upload image or enter URL"
+                  label="Images"
                 />
               </FormControl>
               <FormMessage />

@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { validateAnimalTypeName } from "@/lib/name-validation"
@@ -32,9 +32,14 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
   // Initialize form with default values or existing animal type data
   const form = useForm<AnimalType>({
     resolver: zodResolver(animalTypeSchema),
-    defaultValues: animalType || {
+    defaultValues: animalType ? {
+      name: animalType.name,
+      image_url: animalType.image_url || "",
+      images: (animalType as any).images || (animalType.image_url ? [animalType.image_url] : []),
+    } : {
       name: "",
       image_url: "",
+      images: [],
     },
   })
 
@@ -44,10 +49,12 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
         ? {
             name: animalType.name,
             image_url: animalType.image_url || "",
+            images: (animalType as any).images || (animalType.image_url ? [animalType.image_url] : []),
           }
         : {
             name: "",
             image_url: "",
+            images: [],
           }
     )
   }, [animalType, form])
@@ -74,9 +81,12 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
         return;
       }
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
+
       const payload = {
         name: data.name,
-        image_url: data.image_url?.trim() || null,
+        image_url: imagesList[0] || null,
+        images: imagesList,
       }
 
       if (isEditing) {
@@ -135,16 +145,22 @@ export function AnimalTypeForm({ animalType, onSuccess, onCancel }: AnimalTypeFo
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  label="Animal Type Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="animal-types"
-                  placeholder="Upload animal type image or enter URL"
+                  label="Animal Type Images"
                 />
               </FormControl>
               <FormMessage />

@@ -3333,6 +3333,26 @@ ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
 -- ============================================================
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pet_friendly_places') THEN
+        ALTER TABLE public.pet_friendly_places ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'animal_types') THEN
+        ALTER TABLE public.animal_types ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'breeds') THEN
+        ALTER TABLE public.breeds ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'whats_new') THEN
+        ALTER TABLE public.whats_new ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'community_posts') THEN
+        ALTER TABLE public.community_posts ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vets') THEN
         ALTER TABLE public.vets ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
     END IF;
@@ -3347,10 +3367,6 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'service_providers') THEN
         ALTER TABLE public.service_providers ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
-    END IF;
-
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pet_friendly_places') THEN
-        ALTER TABLE public.pet_friendly_places ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
     END IF;
 END $$;
 

@@ -11,13 +11,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
-import { ImageUpload } from "@/components/ui/image-upload";
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload";
 
 type CommunityPost = {
   post_id: number;
   title?: string | null;
   body: string;
   image_url?: string | null;
+  images?: string[];
   created_at: string;
   user_id: number;
   updated_at?: string;
@@ -44,12 +45,14 @@ type CommunityFormState = {
   title: string;
   body: string;
   image_url: string;
+  images: string[];
 };
 
 const emptyForm: CommunityFormState = {
   title: "",
   body: "",
   image_url: "",
+  images: [],
 };
 
 export default function CommunityPage() {
@@ -159,6 +162,7 @@ export default function CommunityPage() {
       title: post.title || "",
       body: post.body || "",
       image_url: post.image_url || "",
+      images: (post as any).images || (post.image_url ? [post.image_url] : []),
     });
     setFormOpen(true);
   }
@@ -248,6 +252,7 @@ export default function CommunityPage() {
       if (form.image_url) {
         formData.append('image_url', form.image_url);
       }
+      formData.append('images', JSON.stringify(form.images));
 
       const endpoint = isEditing && selected
         ? `/api/v1/community?post_id=${selected.post_id}`
@@ -509,12 +514,21 @@ export default function CommunityPage() {
               />
             </div>
             <div>
-              <ImageUpload
-                value={form.image_url}
-                onChange={(url) => setForm((prev) => ({ ...prev, image_url: url }))}
-                label="Post Image (Optional)"
+              <MultipleImageUpload
+                value={(form.images && form.images.length > 0 ? form.images : (form.image_url ? [form.image_url] : [])).map((url, index) => ({
+                  image_url: url,
+                  order: index + 1,
+                }))}
+                onChange={(newImages: ServiceProviderImage[]) => {
+                  const urls = newImages.map(img => img.image_url);
+                  setForm((prev) => ({
+                    ...prev,
+                    images: urls,
+                    image_url: urls[0] || "",
+                  }));
+                }}
+                label="Post Images (Optional)"
                 folder="community_posts"
-                placeholder="Upload post image or paste image link"
               />
             </div>
             <div className="space-y-2">
