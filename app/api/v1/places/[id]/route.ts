@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const { data: place, error } = await supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, location:locations(*)`)
+    .select(`*, place_groups(group:groups(*))`)
     .eq('pet_friendly_place_id', params.id)
     .single();
 

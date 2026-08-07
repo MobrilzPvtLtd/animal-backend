@@ -18,7 +18,6 @@ export const petFriendlyPlaceSchema = z.object({
   website: z.string().url().optional().or(z.literal("")).or(z.null()),
   rating: z.number().min(0).max(5).nullable().optional(),
   is_verified: z.boolean().default(false),
-  location_id: z.number().nullable().optional(),
   operating_hours: z.object({
     monday: dayHoursSchema,
     tuesday: dayHoursSchema,
@@ -30,7 +29,7 @@ export const petFriendlyPlaceSchema = z.object({
   }).nullable().optional(),
   amenities: z.array(z.string()).nullable().optional(),
   pet_policy: z.string().nullable().optional(),
-  // Location fields for creating a new location
+  // Location fields stored directly on pet_friendly_places
   address: z.string().nullable().optional(),
   latitude: z.string().nullable().optional(),
   longitude: z.string().nullable().optional(),
@@ -44,11 +43,4 @@ export type PetFriendlyPlace = z.infer<typeof petFriendlyPlaceSchema> & {
   is_deleted: boolean
   created_at: string
   updated_at: string
-  location?: {
-    location_id: number
-    address: string
-    latitude: string
-    longitude: string
-    show_publicly: boolean
-  } | null
 }

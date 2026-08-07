@@ -1,20 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { PetFriendlyPlace } from "./schema"
 import { columns } from "./columns"
 import { DataTable } from "../DataTable"
-import { PetFriendlyPlaceForm } from "./PetFriendlyPlaceForm"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, Loader2 } from "lucide-react"
-import {
-  Dialog,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { ScrollableDialogContent } from "@/components/ui/scrollable-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,10 +21,9 @@ import {
 import { toast } from "sonner"
 
 export function PetFriendlyPlacesCrud() {
+  const router = useRouter()
   const [places, setPlaces] = useState<PetFriendlyPlace[]>([])
   const [loading, setLoading] = useState(true)
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedPlace, setSelectedPlace] = useState<PetFriendlyPlace | null>(null)
 
@@ -44,7 +36,7 @@ export function PetFriendlyPlacesCrud() {
     try {
       const { data: placesData, error: placesError } = await supabase
         .from("pet_friendly_places")
-        .select(`*, location:locations(*)`)
+        .select(`*, place_groups(group:groups(*))`)
         .eq("is_deleted", false)
         .order("name")
 
@@ -60,12 +52,11 @@ export function PetFriendlyPlacesCrud() {
   }
 
   const handleAddPlace = () => {
-    setIsAddDialogOpen(true)
+    router.push("/dashboard/pet-friendly-places/add")
   }
 
   const handleEditPlace = (place: PetFriendlyPlace) => {
-    setSelectedPlace(place)
-    setIsEditDialogOpen(true)
+    router.push(`/dashboard/pet-friendly-places/${place.pet_friendly_place_id}/edit`)
   }
 
   const handleDeletePlace = (place: PetFriendlyPlace) => {
@@ -83,8 +74,7 @@ export function PetFriendlyPlacesCrud() {
         .eq("pet_friendly_place_id", selectedPlace.pet_friendly_place_id)
 
       if (error) throw error
-      
-      // Update the local state to remove the deleted place
+
       setPlaces(places.filter(p => p.pet_friendly_place_id !== selectedPlace.pet_friendly_place_id))
       toast.success("Pet friendly place deleted successfully")
     } catch (error) {
@@ -135,7 +125,12 @@ export function PetFriendlyPlacesCrud() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Pet Friendly Places Management</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Pet Friendly Places Management</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage pet friendly locations and brand group branch locations.
+          </p>
+        </div>
         <Button onClick={handleAddPlace}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Add Place
@@ -151,55 +146,9 @@ export function PetFriendlyPlacesCrud() {
           columns={enhancedColumns}
           data={places}
           filterKey="name"
-          filterPlaceholder="Filter places..."
-          // onAdd={handleAddPlace}
+          filterPlaceholder="Filter places by name..."
         />
       )}
-
-      {/* Add Place Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <ScrollableDialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Add New Pet Friendly Place</DialogTitle>
-            <DialogDescription>
-              Fill in the details to add a new pet friendly place.
-            </DialogDescription>
-          </DialogHeader>
-          <PetFriendlyPlaceForm
-            onSuccess={() => {
-              setIsAddDialogOpen(false)
-              fetchPlaces()
-            }}
-            onCancel={() => setIsAddDialogOpen(false)}
-          />
-        </ScrollableDialogContent>
-      </Dialog>
-
-      {/* Edit Place Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <ScrollableDialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit Pet Friendly Place</DialogTitle>
-            <DialogDescription>
-              Update the pet friendly place details.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedPlace && (
-            <PetFriendlyPlaceForm
-              place={selectedPlace}
-              onSuccess={() => {
-                setIsEditDialogOpen(false)
-                setSelectedPlace(null)
-                fetchPlaces()
-              }}
-              onCancel={() => {
-                setIsEditDialogOpen(false)
-                setSelectedPlace(null)
-              }}
-            />
-          )}
-        </ScrollableDialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

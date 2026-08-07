@@ -493,13 +493,22 @@ CREATE TABLE IF NOT EXISTS public.pet_friendly_places (
     name TEXT NOT NULL,
     description TEXT,
     address TEXT,
+    latitude FLOAT NULL,
+    longitude FLOAT NULL,
+    show_publicly BOOLEAN DEFAULT TRUE,
     phone TEXT,
     email TEXT,
     website TEXT,
-    place_type TEXT,
-    price_range TEXT,
+    operating_hours JSONB,
+    amenities JSONB,
+    pet_policy TEXT,
+    rating INTEGER DEFAULT 0,
+    image_url TEXT,
     is_verified BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    views INTEGER DEFAULT 0,
     user_id BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
+    service_provider_id BIGINT REFERENCES public.service_providers(service_provider_id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -3293,5 +3302,30 @@ CREATE POLICY "Allow public select community_comments"
 DROP POLICY IF EXISTS "Allow authenticated write community_comments" ON public.community_comments;
 CREATE POLICY "Allow authenticated write community_comments"
   ON public.community_comments FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- Migration: 043_add_location_fields_to_pet_friendly_places.sql
+-- ============================================================
+
+-- 1. TRUNCATE pet_friendly_places table to clear existing test data
+TRUNCATE TABLE public.pet_friendly_places CASCADE;
+
+-- 2. Drop location_id column from pet_friendly_places
+ALTER TABLE public.pet_friendly_places
+DROP COLUMN IF EXISTS location_id;
+
+-- 3. Add direct location columns to pet_friendly_places
+ALTER TABLE public.pet_friendly_places
+ADD COLUMN IF NOT EXISTS latitude FLOAT NULL,
+ADD COLUMN IF NOT EXISTS longitude FLOAT NULL,
+ADD COLUMN IF NOT EXISTS show_publicly BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS operating_hours JSONB,
+ADD COLUMN IF NOT EXISTS amenities JSONB,
+ADD COLUMN IF NOT EXISTS pet_policy TEXT,
+ADD COLUMN IF NOT EXISTS image_url TEXT,
+ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
+
 
 

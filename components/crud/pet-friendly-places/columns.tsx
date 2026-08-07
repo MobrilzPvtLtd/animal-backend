@@ -5,14 +5,8 @@ import { PetFriendlyPlace } from "./schema"
 import { DataTableColumnHeader } from "../DataTableColumnHeader"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Button } from "@/components/ui/button"
-import { Clock, MapPin, Phone, Star, ShieldCheck } from "lucide-react"
+import { Clock, MapPin, Phone } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-const DAY_LABELS: Record<string, string> = {
-  monday: "Mon", tuesday: "Tue", wednesday: "Wed",
-  thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun"
-}
 
 function OperatingHoursBadge({ operating_hours }: { operating_hours?: any }) {
   if (!operating_hours) return <span className="text-muted-foreground">Not set</span>
@@ -82,6 +76,24 @@ export const columns: ColumnDef<PetFriendlyPlace>[] = [
     },
   },
   {
+    id: "group",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Parent Group" />
+    ),
+    cell: ({ row }) => {
+      const place = row.original as any
+      const groupName = place.place_groups?.[0]?.group?.name || place.group?.name
+      if (!groupName) {
+        return <Badge variant="secondary" className="text-xs">Standalone</Badge>
+      }
+      return (
+        <Badge variant="outline" className="text-xs font-medium border-primary/40 text-primary bg-primary/5">
+          🏢 {groupName}
+        </Badge>
+      )
+    },
+  },
+  {
     id: "operating_hours",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Hours" />
@@ -89,67 +101,6 @@ export const columns: ColumnDef<PetFriendlyPlace>[] = [
     cell: ({ row }) => {
       const place = row.original
       return <OperatingHoursBadge operating_hours={(place as any).operating_hours} />
-    },
-  },
-  {
-    id: "amenities",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Amenities" />
-    ),
-    cell: ({ row }) => {
-      const amenities = (row.original as any).amenities as string[] | undefined
-      if (!amenities || amenities.length === 0) return <span className="text-muted-foreground">None</span>
-      return (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
-          {amenities.slice(0, 3).map((a, i) => (
-            <Badge key={i} variant="outline" className="text-xs">
-              {a}
-            </Badge>
-          ))}
-          {amenities.length > 3 && (
-            <Badge variant="secondary" className="text-xs">
-              +{amenities.length - 3}
-            </Badge>
-          )}
-        </div>
-      )
-    },
-  },
-  {
-    id: "pet_policy",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Pet Policy" />
-    ),
-    cell: ({ row }) => {
-      const petPolicy = (row.original as any).pet_policy as string | undefined
-      if (!petPolicy) return <span className="text-muted-foreground">Not set</span>
-      return (
-        <div className="flex items-center gap-1 max-w-[200px]">
-          <ShieldCheck className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="truncate text-sm">{petPolicy}</span>
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "rating",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Rating" />
-    ),
-    cell: ({ row }) => {
-      const rating = row.getValue("rating") as number | undefined
-      return (
-        <div className="flex items-center">
-          {rating ? (
-            <div className="flex items-center">
-              <Star className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
-              <span>{rating}</span>
-            </div>
-          ) : (
-            <span className="text-muted-foreground">No rating</span>
-          )}
-        </div>
-      )
     },
   },
   {
@@ -180,12 +131,13 @@ export const columns: ColumnDef<PetFriendlyPlace>[] = [
     ),
     cell: ({ row }) => {
       const place = row.original
+      const displayAddress = place.address || (place as any).location?.address
       return (
         <div className="flex items-center">
-          {place.location?.address ? (
+          {displayAddress ? (
             <div className="flex items-center">
-              <MapPin className="mr-1 h-4 w-4 text-muted-foreground" />
-              <span className="truncate max-w-[200px]">{place.location.address}</span>
+              <MapPin className="mr-1 h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="truncate max-w-[200px]">{displayAddress}</span>
             </div>
           ) : (
             <span className="text-muted-foreground">No location</span>
@@ -205,18 +157,6 @@ export const columns: ColumnDef<PetFriendlyPlace>[] = [
         <Badge variant={isVerified ? "default" : "secondary"}>
           {isVerified ? "Verified" : "Unverified"}
         </Badge>
-      )
-    },
-  },
-  {
-    accessorKey: "views",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Views" />
-    ),
-    cell: ({ row }) => {
-      const views = row.getValue("views") as number
-      return (
-        <div className="font-medium">{views?.toLocaleString()}</div>
       )
     },
   },

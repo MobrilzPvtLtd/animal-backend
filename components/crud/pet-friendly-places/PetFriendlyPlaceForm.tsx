@@ -18,9 +18,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ImageUpload } from "@/components/ui/image-upload"
-import { Loader2 } from "lucide-react"
+import { Loader2, X, Plus, Building2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { upsertLocation } from "@/lib/locations-api"
 import { toast } from "sonner"
 import { validatePetFriendlyPlaceName } from "@/lib/name-validation"
 import { PlacesAutocomplete } from "@/components/ui/places-autocomplete"
@@ -32,8 +31,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus } from "lucide-react"
 import { OperatingHoursTab } from "@/components/crud/service-providers/OperatingHoursTab"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface PetFriendlyPlaceFormProps {
   place?: PetFriendlyPlace
@@ -54,9 +60,18 @@ const DEFAULT_OPERATING_HOURS = {
 export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendlyPlaceFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [amenityInput, setAmenityInput] = useState("")
-  const [providers, setProviders] = useState<any[]>([])
-  const [fetchingProviders, setFetchingProviders] = useState(false)
+  const [groups, setGroups] = useState<any[]>([])
+  const [fetchingGroups, setFetchingGroups] = useState(false)
+  const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(
+    (place as any)?.place_groups?.[0]?.group_id || (place as any)?.group_id || undefined
+  )
   const isEditing = !!place
+
+  // Quick Group Creation State
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState("")
+  const [newGroupDesc, setNewGroupDesc] = useState("")
+  const [isSavingGroup, setIsSavingGroup] = useState(false)
 
   const form = useForm<PetFriendlyPlace>({
     resolver: zodResolver(petFriendlyPlaceSchema),
@@ -69,12 +84,10 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       website: (place as any).website || "",
       rating: place.rating || 0,
       is_verified: (place as any).is_verified ?? false,
-      location_id: place.location_id,
-      service_provider_id: (place as any).service_provider_id,
-      address: place.location?.address || "",
-      latitude: place.location?.latitude || "",
-      longitude: place.location?.longitude || "",
-      show_publicly: place.location?.show_publicly ?? true,
+      address: place.address || "",
+      latitude: place.latitude ? place.latitude.toString() : "",
+      longitude: place.longitude ? place.longitude.toString() : "",
+      show_publicly: place.show_publicly ?? true,
       operating_hours: (place as any).operating_hours || DEFAULT_OPERATING_HOURS,
       amenities: (place as any).amenities || [],
       pet_policy: (place as any).pet_policy || "",
@@ -87,8 +100,6 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       website: "",
       rating: 0,
       is_verified: false,
-      location_id: undefined,
-      service_provider_id: undefined,
       address: "",
       latitude: "",
       longitude: "",
@@ -96,55 +107,95 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       operating_hours: DEFAULT_OPERATING_HOURS,
       amenities: [],
       pet_policy: "",
-    },
+    }
   })
 
+  // Fetch linked group if editing
   useEffect(() => {
-    async function loadProviders() {
-      setFetchingProviders(true)
-      try {
+    async function loadPlaceGroup() {
+      if (place?.pet_friendly_place_id) {
         const { data } = await supabase
-          .from("service_providers")
-          .select("*, location:locations(*)")
-          .or("is_deleted.eq.false,is_deleted.is.null")
-          .order("name")
-        if (data) setProviders(data)
-      } catch (err) {
-        console.error("Error loading service providers:", err)
-      } finally {
-        setFetchingProviders(false)
+          .from("place_groups")
+          .select("group_id")
+          .eq("place_id", place.pet_friendly_place_id)
+          .maybeSingle()
+        if (data?.group_id) {
+          setSelectedGroupId(data.group_id)
+        }
       }
     }
-    loadProviders()
+    loadPlaceGroup()
+  }, [place])
+
+  // Load groups from `groups` table
+  useEffect(() => {
+    async function loadGroups() {
+      setFetchingGroups(true)
+      try {
+        const { data, error } = await supabase
+          .from("groups")
+          .select("*")
+          .eq("is_active", true)
+          .order("name")
+        if (data) setGroups(data)
+      } catch (err) {
+        console.error("Error loading place groups:", err)
+      } finally {
+        setFetchingGroups(false)
+      }
+    }
+    loadGroups()
   }, [])
 
-  const handleProviderSelect = (providerIdStr: string) => {
-    if (!providerIdStr || providerIdStr === "none") {
-      form.setValue("service_provider_id", undefined)
+  // Create new Group in `groups` table
+  const handleCreateNewGroup = async () => {
+    if (!newGroupName.trim()) {
+      toast.error("Group name is required")
       return
     }
 
-    const providerId = Number(providerIdStr)
-    const selected = providers.find((p) => p.service_provider_id === providerId)
-    if (!selected) return
+    setIsSavingGroup(true)
+    try {
+      const { data: newGroup, error } = await supabase
+        .from("groups")
+        .insert({
+          name: newGroupName.trim(),
+          description: newGroupDesc.trim() || null,
+          is_active: true,
+        })
+        .select("*")
+        .single()
 
-    form.setValue("service_provider_id", providerId)
-    if (selected.name) form.setValue("name", selected.name)
-    if (selected.description) form.setValue("description", selected.description)
-    if (selected.phone) form.setValue("phone", selected.phone)
-    if (selected.email) form.setValue("email", selected.email)
-    if (selected.website) form.setValue("website", selected.website)
-    if (selected.image_url) form.setValue("image_url", selected.image_url)
-    if (selected.operating_hours) form.setValue("operating_hours", selected.operating_hours)
+      if (error) throw error
 
-    if (selected.location) {
-      if (selected.location.address) form.setValue("address", selected.location.address)
-      if (selected.location.latitude) form.setValue("latitude", selected.location.latitude.toString())
-      if (selected.location.longitude) form.setValue("longitude", selected.location.longitude.toString())
-      if (selected.location.location_id) form.setValue("location_id", selected.location.location_id)
+      setGroups((prev) => [newGroup, ...prev])
+      setSelectedGroupId(newGroup.group_id)
+      toast.success(`Group "${newGroup.name}" created and selected!`)
+
+      // Reset mini form
+      setNewGroupName("")
+      setNewGroupDesc("")
+      setIsQuickCreateOpen(false)
+    } catch (err: any) {
+      console.error("Error creating group:", err)
+      toast.error(err?.message || "Failed to create group")
+    } finally {
+      setIsSavingGroup(false)
+    }
+  }
+
+  const handleGroupSelect = (groupIdStr: string) => {
+    if (!groupIdStr || groupIdStr === "none") {
+      setSelectedGroupId(undefined)
+      return
     }
 
-    toast.success(`Linked & auto-filled details from "${selected.name}"`)
+    const groupId = Number(groupIdStr)
+    const selected = groups.find((g) => g.group_id === groupId)
+    if (!selected) return
+
+    setSelectedGroupId(groupId)
+    toast.success(`Selected parent group "${selected.name}"`)
   }
 
   async function onSubmit(data: PetFriendlyPlace) {
@@ -170,36 +221,26 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
         return;
       }
 
-      let locationId = data.location_id
-
-      if (data.address) {
-        const locationData = await upsertLocation({
-          address: data.address,
-          latitude: data.latitude || null,
-          longitude: data.longitude || null,
-          show_publicly: data.show_publicly,
-        })
-        locationId = locationData.location_id
-      }
-
-      // Defensively extract location form fields + system columns + joined objects
+      // Defensively extract system columns + joined objects
       const { 
-        address, 
-        latitude, 
-        longitude, 
-        show_publicly, 
         location, 
+        location_id,
         pet_friendly_place_id,
         created_at,
         updated_at,
         views,
         is_deleted,
+        place_groups,
+        service_provider,
         ...cleanPlaceData 
       } = data as any;
 
       const payload = {
         ...cleanPlaceData,
-        location_id: locationId,
+        address: data.address || null,
+        latitude: data.latitude ? parseFloat(data.latitude.toString()) : null,
+        longitude: data.longitude ? parseFloat(data.longitude.toString()) : null,
+        show_publicly: data.show_publicly ?? true,
       };
 
       // Ensure operating_hours defaults if not set
@@ -207,14 +248,16 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
         payload.operating_hours = DEFAULT_OPERATING_HOURS
       }
 
+      let savedPlaceId: number | undefined
+
       if (isEditing) {
+        savedPlaceId = place.pet_friendly_place_id
         const { error } = await supabase
           .from("pet_friendly_places")
           .update(payload)
-          .eq("pet_friendly_place_id", place.pet_friendly_place_id)
+          .eq("pet_friendly_place_id", savedPlaceId)
 
         if (error) throw error
-
         toast.success("Pet friendly place updated successfully")
       } else {
         const { data: newPlace, error } = await supabase
@@ -224,8 +267,25 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
           .single()
 
         if (error) throw error
-
+        savedPlaceId = newPlace.pet_friendly_place_id
         toast.success("Pet friendly place created successfully")
+      }
+
+      // Save Group mapping in `place_groups` table
+      if (savedPlaceId) {
+        await supabase
+          .from("place_groups")
+          .delete()
+          .eq("place_id", savedPlaceId)
+
+        if (selectedGroupId) {
+          await supabase
+            .from("place_groups")
+            .insert({
+              place_id: savedPlaceId,
+              group_id: selectedGroupId,
+            })
+        }
       }
 
       onSuccess()
@@ -249,34 +309,99 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
-        {/* Option to Link Existing Service Provider */}
-        <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-semibold flex items-center gap-1.5">
-              <span>🔗 Link Existing Service Provider (Optional)</span>
+        {/* Parent Group Selection Card */}
+        <div className="p-4 border rounded-xl bg-gradient-to-r from-muted/50 to-muted/20 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+              <Building2 className="h-4 w-4 text-primary" />
+              <span>Parent Group</span>
             </label>
-            {fetchingProviders && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <div className="flex items-center gap-2">
+              {fetchingGroups && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => setIsQuickCreateOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create New Group</span>
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Select an existing service provider to link it directly and auto-fill details to avoid duplicate entry:
+            Group multiple places under a single Group (using <code>groups</code> & <code>place_groups</code> tables). Select an existing Group or create a new one.
           </p>
           <Select
-            value={form.watch("service_provider_id")?.toString() || "none"}
-            onValueChange={handleProviderSelect}
+            value={selectedGroupId?.toString() || "none"}
+            onValueChange={handleGroupSelect}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Select an existing Service Provider..." />
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Select a Group..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">-- Create Standalone Place (No Link) --</SelectItem>
-              {providers.map((p) => (
-                <SelectItem key={p.service_provider_id} value={p.service_provider_id.toString()}>
-                  {p.name} {p.location?.address ? `(${p.location.address})` : ""}
+              <SelectItem value="none">-- Standalone Place (No Group) --</SelectItem>
+              {groups.map((g) => (
+                <SelectItem key={g.group_id} value={g.group_id.toString()}>
+                  🏢 {g.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        {/* Quick Create Group Dialog */}
+        <Dialog open={isQuickCreateOpen} onOpenChange={setIsQuickCreateOpen}>
+          <DialogContent className="sm:max-w-[450px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <span>Create New Group</span>
+              </DialogTitle>
+              <DialogDescription>
+                Add a new Parent Group to <code>groups</code> table. Once created, you can add multiple branch places under it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Group Name *</label>
+                <Input
+                  placeholder="e.g. Bark & Bite Group"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Description (Optional)</label>
+                <Textarea
+                  placeholder="Brief description of the group"
+                  className="resize-none"
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsQuickCreateOpen(false)}
+                disabled={isSavingGroup}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateNewGroup}
+                disabled={isSavingGroup}
+              >
+                {isSavingGroup && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create & Select Group
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <FormField
           control={form.control}
@@ -319,10 +444,8 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
               <FormControl>
                 <ImageUpload
                   value={field.value || ""}
-                  onChange={field.onChange}
+                  onChange={(url: string) => field.onChange(url)}
                   label="Place Image"
-                  folder="pet-friendly-places"
-                  placeholder="Upload place image or enter URL"
                 />
               </FormControl>
               <FormMessage />
@@ -330,7 +453,84 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        {/* Location Section */}
+        <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
+          <h3 className="font-semibold text-sm">Location Details</h3>
+          <FormField
+            control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Address</FormLabel>
+                <FormControl>
+                  <PlacesAutocomplete
+                    value={field.value || ""}
+                    onChange={(address: string, lat: number, lng: number) => {
+                      field.onChange(address);
+                      if (lat) form.setValue("latitude", lat.toString());
+                      if (lng) form.setValue("longitude", lng.toString());
+                    }}
+                    placeholder="Search address or type location..."
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="latitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Latitude</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. 28.6139" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="longitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Longitude</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. 77.2090" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="show_publicly"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">Show Location Publicly</FormLabel>
+                  <FormDescription>
+                    Display address and map coordinates on the public listing.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Contact Info */}
+        <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="phone"
@@ -338,13 +538,12 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
               <FormItem>
                 <FormLabel>Phone</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter phone number" {...field} value={field.value || ""} />
+                  <Input placeholder="Phone number" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="email"
@@ -352,15 +551,12 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="email@example.com" type="email" {...field} value={field.value || ""} />
+                  <Input placeholder="Email address" type="email" {...field} value={field.value || ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="website"
@@ -368,74 +564,45 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
               <FormItem>
                 <FormLabel>Website</FormLabel>
                 <FormControl>
-                  <Input placeholder="https://example.com" {...field} value={field.value || ""} />
+                  <Input placeholder="https://..." {...field} value={field.value || ""} />
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="rating"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Rating</FormLabel>
-                <Select
-                  onValueChange={(value) => field.onChange(parseInt(value))}
-                  defaultValue={field.value?.toString() || "0"}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a rating" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {[0, 1, 2, 3, 4, 5].map((rating) => (
-                      <SelectItem key={rating} value={rating.toString()}>
-                        {rating === 0 ? "No Rating" : `${rating} Star${rating !== 1 ? "s" : ""}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
 
-        <div className="space-y-2">
+        {/* Pet Policy */}
+        <FormField
+          control={form.control}
+          name="pet_policy"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Pet Policy</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. Dogs allowed indoors, leash required" {...field} value={field.value || ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Amenities Section */}
+        <div className="space-y-3">
           <FormLabel>Amenities</FormLabel>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {form.watch("amenities")?.map((amenity, index) => (
-              <Badge key={index} variant="secondary">
-                {amenity}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-4 w-4 p-0 ml-1"
-                  onClick={() => {
-                    const current = form.getValues("amenities") || []
-                    form.setValue("amenities", current.filter((_, i) => i !== index))
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </Badge>
-            ))}
-          </div>
           <div className="flex gap-2">
             <Input
-              placeholder="Add an amenity..."
+              placeholder="Add amenity (e.g. WiFi, Water Bowl, Outdoor Seating)..."
               value={amenityInput}
               onChange={(e) => setAmenityInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault()
-                  const trimmed = amenityInput.trim()
-                  if (trimmed) {
+                  if (amenityInput.trim()) {
                     const current = form.getValues("amenities") || []
-                    form.setValue("amenities", [...current, trimmed])
+                    if (!current.includes(amenityInput.trim())) {
+                      form.setValue("amenities", [...current, amenityInput.trim()])
+                    }
                     setAmenityInput("")
                   }
                 }
@@ -444,141 +611,53 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
             <Button
               type="button"
               variant="outline"
-              size="icon"
               onClick={() => {
-                const trimmed = amenityInput.trim()
-                if (trimmed) {
+                if (amenityInput.trim()) {
                   const current = form.getValues("amenities") || []
-                  form.setValue("amenities", [...current, trimmed])
+                  if (!current.includes(amenityInput.trim())) {
+                    form.setValue("amenities", [...current, amenityInput.trim()])
+                  }
                   setAmenityInput("")
                 }
               }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 mr-1" /> Add
             </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {(form.watch("amenities") || []).map((amenity: string, idx: number) => (
+              <Badge key={idx} variant="secondary" className="px-3 py-1 text-sm flex items-center gap-1.5">
+                <span>{amenity}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = form.getValues("amenities") || []
+                    form.setValue("amenities", current.filter((_, i) => i !== idx))
+                  }}
+                  className="hover:text-destructive text-muted-foreground transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
           </div>
         </div>
 
-        <FormField
-          control={form.control}
-          name="pet_policy"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Pet Policy</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Describe the pet policy (e.g., leashed pets allowed, weight limits, fees...)"
-                  className="resize-none"
-                  rows={3}
-                  {...field}
-                  value={field.value || ""}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <OperatingHoursTab form={form} />
-
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <PlacesAutocomplete
-              value={field.value || ""}
-              onChange={(address, lat, lng) => {
-                field.onChange(address)
-                form.setValue("latitude", lat.toString())
-                form.setValue("longitude", lng.toString())
-              }}
-              label="Address"
-              placeholder="Search for an address..."
-              description="Search an address to fetch the location from Google Maps and fill coordinates automatically."
-              error={form.formState.errors.address?.message}
-            />
-          )}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="latitude"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Latitude</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter latitude" {...field} value={field.value || ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="longitude"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Longitude</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter longitude" {...field} value={field.value || ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* Operating Hours */}
+        <div className="space-y-2 border rounded-lg p-4 bg-muted/20">
+          <FormLabel className="text-base font-semibold">Operating Hours</FormLabel>
+          <OperatingHoursTab form={form} />
         </div>
 
-        <FormField
-          control={form.control}
-          name="show_publicly"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">Show Location Publicly</FormLabel>
-                <FormDescription>
-                  Allow users to see the exact location
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="is_verified"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">Verified</FormLabel>
-                <FormDescription>
-                  Mark this place as verified
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        <div className="flex justify-end space-x-4">
-          <Button variant="outline" onClick={onCancel} type="button">
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="button" onClick={() => form.handleSubmit(onSubmit, onInvalid)()} disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? "Update" : "Create"} Pet Friendly Place
+            {isEditing ? "Update Place" : "Create Place"}
           </Button>
         </div>
       </form>

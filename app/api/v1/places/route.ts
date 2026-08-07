@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, location:locations(*), service_provider:service_providers(*)`)
+    .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*)`)
     .order('name');
 
   if (!includeDeleted) {
@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
     website: website || null,
     rating: finalRating,
     is_verified: finalIsVerified,
+    address: address || null,
     location_id: resolvedLocationId ?? null,
     operating_hours: operating_hours || null,
     amenities: finalAmenities,
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
 
   const { data: createdPlace } = await supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, location:locations(*)`)
+    .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*)`)
     .eq('pet_friendly_place_id', data.pet_friendly_place_id)
     .single();
 
@@ -280,7 +281,7 @@ export async function PATCH(request: NextRequest) {
 
   const { data: updatedPlace } = await supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, location:locations(*)`)
+    .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*)`)
     .eq('pet_friendly_place_id', placeId)
     .single();
 
