@@ -13,6 +13,7 @@ export const petFriendlyPlaceSchema = z.object({
   }),
   description: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  images: z.array(z.string()).nullable().optional(),
   phone: z.string().nullable().optional(),
   email: z.string().email().optional().or(z.literal("")).or(z.null()),
   website: z.string().url().optional().or(z.literal("")).or(z.null()),

@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { Loader2, X, Plus, Building2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
@@ -79,6 +79,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       name: place.name,
       description: place.description || "",
       image_url: place.image_url || "",
+      images: (place as any).images || (place.image_url ? [place.image_url] : []),
       phone: place.phone || "",
       email: (place as any).email || "",
       website: (place as any).website || "",
@@ -95,6 +96,7 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
       name: "",
       description: "",
       image_url: "",
+      images: [],
       phone: "",
       email: "",
       website: "",
@@ -235,8 +237,11 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
         ...cleanPlaceData 
       } = data as any;
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
       const payload = {
         ...cleanPlaceData,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         address: data.address || null,
         latitude: data.latitude ? parseFloat(data.latitude.toString()) : null,
         longitude: data.longitude ? parseFloat(data.longitude.toString()) : null,
@@ -438,14 +443,22 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
 
         <FormField
           control={form.control}
-          name="image_url"
+          name="images"
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={(url: string) => field.onChange(url)}
-                  label="Place Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
+                  folder="pet-friendly-places"
+                  label="Place Images"
                 />
               </FormControl>
               <FormMessage />

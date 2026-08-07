@@ -28,45 +28,42 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ places: data || [] });
 }
 
-function parseFormValue(value: any): any {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (trimmed === '') return undefined;
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  if (/^-?\d+$/.test(trimmed)) return parseInt(trimmed, 10);
-  if (/^-?\d+\.\d+$/.test(trimmed)) return parseFloat(trimmed);
-  try { return JSON.parse(trimmed); } catch { }
-  return trimmed;
-}
-
 export async function POST(request: NextRequest) {
   const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
   if ('status' in auth) return auth;
 
-  let body: any;
+  let body: any = {};
+  const uploadedUrls: string[] = [];
   const contentType = request.headers.get('content-type') || '';
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
-    body = {};
-    Array.from(formData.entries()).forEach(([key, value]) => {
-      body[key] = value;
-    });
+    for (const [key, value] of Array.from(formData.entries())) {
+      if (typeof value === 'object' && (value as any) instanceof File) {
+        try {
+          const { url } = await uploadAnimalImage(value, 'pet-friendly-places');
+          uploadedUrls.push(url);
+        } catch (e) {
+          console.error('File upload error in places POST:', e);
+        }
+      } else {
+        body[key] = value;
+      }
+    }
   } else {
-    body = await request.json();
+    body = await request.json().catch(() => ({}));
   }
 
   const {
     name,
     description,
     image_url,
+    images,
     phone,
     email,
     website,
     rating = 0,
     is_verified = false,
-    location_id,
     operating_hours,
     amenities,
     pet_policy,
@@ -74,58 +71,48 @@ export async function POST(request: NextRequest) {
     latitude,
     longitude,
     show_publicly = true,
+    group_id,
+    service_provider_id,
   } = body;
 
   if (!name) {
     return NextResponse.json({ error: 'Place name is required' }, { status: 400 });
   }
 
-  // Upload image file if provided
-  let finalImageUrl = image_url;
-  if (typeof image_url === 'object' && image_url instanceof File) {
+  // Parse images array from body if provided
+  let imageList: string[] = [];
+  if (Array.isArray(images)) {
+    imageList = images.filter((img): img is string => typeof img === 'string');
+  } else if (typeof images === 'string') {
     try {
-      const { url } = await uploadAnimalImage(image_url, 'pet-friendly-places');
-      finalImageUrl = url;
-    } catch (uploadError: any) {
-      return NextResponse.json({ error: uploadError?.message || 'Image upload failed' }, { status: 500 });
+      const parsed = JSON.parse(images);
+      if (Array.isArray(parsed)) {
+        imageList = parsed.filter((img): img is string => typeof img === 'string');
+      } else {
+        imageList = [images];
+      }
+    } catch {
+      imageList = images.split(',').map(s => s.trim()).filter(Boolean);
     }
   }
 
-  // Coerce types that might come as strings from form-data
+  // Append any uploaded file URLs
+  if (uploadedUrls.length > 0) {
+    imageList = [...imageList, ...uploadedUrls];
+  }
+
+  // Fallback to image_url if imageList is empty
+  if (imageList.length === 0 && typeof image_url === 'string' && image_url.trim()) {
+    imageList = [image_url.trim()];
+  }
+
+  const finalImageUrl = imageList[0] || (typeof image_url === 'string' ? image_url : null);
+
+  // Coerce types
   const finalRating = typeof rating === 'string' ? parseInt(rating, 10) || 0 : (rating ?? 0);
   const finalIsVerified = is_verified === true || is_verified === 'true' || is_verified === 1;
   const finalShowPublicly = show_publicly === true || show_publicly === 'true' || show_publicly === 1;
 
-  // Upsert location: find by address, reuse if exists, otherwise create
-  let resolvedLocationId = location_id ?? undefined;
-  if (address) {
-    const { data: existingLocation } = await supabaseAdmin
-      .from('locations')
-      .select('location_id')
-      .eq('address', address)
-      .maybeSingle();
-
-    if (existingLocation) {
-      await supabaseAdmin
-        .from('locations')
-        .update({ latitude, longitude, show_publicly: finalShowPublicly })
-        .eq('location_id', existingLocation.location_id);
-      resolvedLocationId = existingLocation.location_id;
-    } else {
-      const { data: newLocation, error: locationError } = await supabaseAdmin
-        .from('locations')
-        .insert([{ address, latitude, longitude, show_publicly: finalShowPublicly }])
-        .select('location_id')
-        .single();
-
-      if (locationError) {
-        return NextResponse.json({ error: locationError.message }, { status: 500 });
-      }
-      resolvedLocationId = newLocation.location_id;
-    }
-  }
-
-  // Ensure amenities is an array (not a raw string)
   let finalAmenities = amenities ?? null;
   if (typeof finalAmenities === 'string') {
     finalAmenities = finalAmenities.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -133,39 +120,61 @@ export async function POST(request: NextRequest) {
     finalAmenities = null;
   }
 
+  let finalHours = operating_hours ?? null;
+  if (typeof finalHours === 'string') {
+    try { finalHours = JSON.parse(finalHours); } catch {}
+  }
+
   const insertData: any = {
     name,
     description: description || null,
     image_url: finalImageUrl || null,
+    images: imageList,
     phone: phone || null,
     email: email || null,
     website: website || null,
     rating: finalRating,
     is_verified: finalIsVerified,
     address: address || null,
-    location_id: resolvedLocationId ?? null,
-    operating_hours: operating_hours || null,
+    latitude: latitude ? parseFloat(latitude.toString()) : null,
+    longitude: longitude ? parseFloat(longitude.toString()) : null,
+    show_publicly: finalShowPublicly,
+    operating_hours: finalHours,
     amenities: finalAmenities,
     pet_policy: pet_policy || null,
+    service_provider_id: service_provider_id ? Number(service_provider_id) : null,
   };
 
   const { data, error } = await supabaseAdmin
     .from('pet_friendly_places')
     .insert([insertData])
-    .select()
+    .select('pet_friendly_place_id')
     .single();
 
   if (error || !data) {
     return NextResponse.json({ error: error?.message || 'Failed to create place' }, { status: 500 });
   }
 
+  const placeId = data.pet_friendly_place_id;
+
+  // Insert group mapping if group_id provided
+  if (group_id) {
+    await supabaseAdmin
+      .from('place_groups')
+      .insert([{ place_id: placeId, group_id: Number(group_id) }]);
+  }
+
   const { data: createdPlace } = await supabaseAdmin
     .from('pet_friendly_places')
     .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*)`)
-    .eq('pet_friendly_place_id', data.pet_friendly_place_id)
+    .eq('pet_friendly_place_id', placeId)
     .single();
 
   return NextResponse.json({ place: createdPlace });
+}
+
+export async function PUT(request: NextRequest) {
+  return PATCH(request);
 }
 
 export async function PATCH(request: NextRequest) {
@@ -177,23 +186,33 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'place_id is required' }, { status: 400 });
   }
 
-  let body: any;
+  let body: any = {};
+  const uploadedUrls: string[] = [];
   const contentType = request.headers.get('content-type') || '';
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
-    body = {};
-    Array.from(formData.entries()).forEach(([key, value]) => {
-      body[key] = value;
-    });
+    for (const [key, value] of Array.from(formData.entries())) {
+      if (typeof value === 'object' && (value as any) instanceof File) {
+        try {
+          const { url } = await uploadAnimalImage(value, 'pet-friendly-places');
+          uploadedUrls.push(url);
+        } catch (e) {
+          console.error('File upload error in places PATCH:', e);
+        }
+      } else {
+        body[key] = value;
+      }
+    }
   } else {
-    body = await request.json();
+    body = await request.json().catch(() => ({}));
   }
 
   const {
     name,
     description,
     image_url,
+    images,
     phone,
     email,
     website,
@@ -206,28 +225,68 @@ export async function PATCH(request: NextRequest) {
     latitude,
     longitude,
     show_publicly,
+    group_id,
+    service_provider_id,
   } = body;
-
-  // Upload image file if provided
-  if (typeof image_url === 'object' && image_url instanceof File) {
-    try {
-      const { url } = await uploadAnimalImage(image_url, 'pet-friendly-places');
-      body.image_url = url;
-    } catch (uploadError: any) {
-      return NextResponse.json({ error: uploadError?.message || 'Image upload failed' }, { status: 500 });
-    }
-  }
 
   const updates: any = {};
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
-  if (body.image_url !== undefined) updates.image_url = typeof body.image_url === 'string' ? body.image_url : null;
+
+  // Process images
+  if (images !== undefined || uploadedUrls.length > 0 || image_url !== undefined) {
+    let imageList: string[] = [];
+    if (Array.isArray(images)) {
+      imageList = images.filter((img): img is string => typeof img === 'string');
+    } else if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        if (Array.isArray(parsed)) {
+          imageList = parsed.filter((img): img is string => typeof img === 'string');
+        } else {
+          imageList = [images];
+        }
+      } catch {
+        imageList = images.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (uploadedUrls.length > 0) {
+      imageList = [...imageList, ...uploadedUrls];
+    }
+
+    if (imageList.length === 0 && typeof image_url === 'string' && image_url.trim()) {
+      imageList = [image_url.trim()];
+    }
+
+    updates.images = imageList;
+    if (imageList.length > 0) {
+      updates.image_url = imageList[0];
+    } else if (image_url !== undefined) {
+      updates.image_url = typeof image_url === 'string' ? image_url : null;
+    }
+  }
+
   if (phone !== undefined) updates.phone = phone;
   if (email !== undefined) updates.email = email;
   if (website !== undefined) updates.website = website;
   if (rating !== undefined) updates.rating = typeof rating === 'string' ? parseInt(rating, 10) || 0 : rating;
   if (is_verified !== undefined) updates.is_verified = is_verified === true || is_verified === 'true' || is_verified === 1;
-  if (operating_hours !== undefined) updates.operating_hours = operating_hours;
+
+  if (operating_hours !== undefined) {
+    let finalHours = operating_hours;
+    if (typeof finalHours === 'string') {
+      try { finalHours = JSON.parse(finalHours); } catch {}
+    }
+    updates.operating_hours = finalHours;
+  }
+
+  if (address !== undefined) updates.address = address;
+  if (latitude !== undefined) updates.latitude = latitude ? parseFloat(latitude.toString()) : null;
+  if (longitude !== undefined) updates.longitude = longitude ? parseFloat(longitude.toString()) : null;
+  if (show_publicly !== undefined) updates.show_publicly = show_publicly === true || show_publicly === 'true' || show_publicly === 1;
+  if (service_provider_id !== undefined) updates.service_provider_id = service_provider_id ? Number(service_provider_id) : null;
+
   if (amenities !== undefined) {
     updates.amenities = typeof amenities === 'string'
       ? amenities.split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -235,48 +294,27 @@ export async function PATCH(request: NextRequest) {
   }
   if (pet_policy !== undefined) updates.pet_policy = pet_policy;
 
-  // Handle location: upsert — reuse existing address or create new
-  if (address) {
-    const finalShowPublicly = show_publicly === true || show_publicly === 'true' || show_publicly === 1;
-
-    const { data: existingLocation } = await supabaseAdmin
-      .from('locations')
-      .select('location_id')
-      .eq('address', address)
-      .maybeSingle();
-
-    if (existingLocation) {
-      await supabaseAdmin
-        .from('locations')
-        .update({ latitude, longitude, show_publicly: finalShowPublicly })
-        .eq('location_id', existingLocation.location_id);
-      updates.location_id = existingLocation.location_id;
-    } else if (body.location_id) {
-      await supabaseAdmin
-        .from('locations')
-        .update({ address, latitude, longitude, show_publicly: finalShowPublicly })
-        .eq('location_id', body.location_id);
-      updates.location_id = body.location_id;
-    } else {
-      const { data: newLocation } = await supabaseAdmin
-        .from('locations')
-        .insert([{ address, latitude, longitude, show_publicly: finalShowPublicly }])
-        .select('location_id')
-        .single();
-
-      if (newLocation) updates.location_id = newLocation.location_id;
-    }
-  }
-
-  const { data, error } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from('pet_friendly_places')
     .update(updates)
-    .eq('pet_friendly_place_id', placeId)
-    .select()
-    .single();
+    .eq('pet_friendly_place_id', placeId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Update place_groups if group_id provided
+  if (group_id !== undefined) {
+    await supabaseAdmin
+      .from('place_groups')
+      .delete()
+      .eq('place_id', placeId);
+
+    if (group_id) {
+      await supabaseAdmin
+        .from('place_groups')
+        .insert([{ place_id: Number(placeId), group_id: Number(group_id) }]);
+    }
   }
 
   const { data: updatedPlace } = await supabaseAdmin
@@ -306,5 +344,5 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, message: 'Place deleted successfully' });
 }

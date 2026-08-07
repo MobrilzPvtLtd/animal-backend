@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { PlacesAutocomplete } from "@/components/ui/places-autocomplete"
 import {
   Select,
@@ -197,17 +197,22 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  label="Veterinarian Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="veterinarians"
-                  placeholder="Upload veterinarian image or enter URL"
-                  variant="avatar"
+                  label="Veterinarian Images"
                 />
               </FormControl>
               <FormMessage />

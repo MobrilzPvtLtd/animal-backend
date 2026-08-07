@@ -7,6 +7,7 @@ export const breederSchema = z.object({
   }),
   bio: z.string().optional(),
   image_url: z.string().optional(),
+  images: z.array(z.string()).optional(),
   rating: z.number().min(0).max(5).optional(),
   is_verified: z.boolean().default(false),
   phone: z.string().optional(),

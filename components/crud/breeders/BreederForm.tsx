@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
@@ -198,17 +198,22 @@ export function BreederForm({ breeder, onSuccess, onCancel }: BreederFormProps) 
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  label="Breeder Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="breeders"
-                  placeholder="Upload breeder image or enter URL"
-                  variant="avatar"
+                  label="Breeder Images"
                 />
               </FormControl>
               <FormMessage />

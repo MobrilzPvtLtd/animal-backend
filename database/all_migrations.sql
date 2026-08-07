@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS public.pet_friendly_places (
     pet_policy TEXT,
     rating INTEGER DEFAULT 0,
     image_url TEXT,
+    images JSONB DEFAULT '[]',
     is_verified BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE,
     views INTEGER DEFAULT 0,
@@ -3326,6 +3327,34 @@ ADD COLUMN IF NOT EXISTS image_url TEXT,
 ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
+
+-- ============================================================
+-- Migration: 045_add_images_to_all_entities.sql
+-- ============================================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vets') THEN
+        ALTER TABLE public.vets ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'breeders') THEN
+        ALTER TABLE public.breeders ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'events') THEN
+        ALTER TABLE public.events ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'service_providers') THEN
+        ALTER TABLE public.service_providers ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pet_friendly_places') THEN
+        ALTER TABLE public.pet_friendly_places ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+    END IF;
+END $$;
+
+
 
 
 

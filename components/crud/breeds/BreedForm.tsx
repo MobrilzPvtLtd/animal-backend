@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import {
   Select,
   SelectContent,
@@ -42,10 +42,17 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
   // Initialize form with default values or existing breed data
   const form = useForm<Breed>({
     resolver: zodResolver(breedSchema),
-    defaultValues: breed || {
+    defaultValues: breed ? {
+      name: breed.name,
+      description: breed.description || "",
+      image_url: breed.image_url || "",
+      images: (breed as any).images || (breed.image_url ? [breed.image_url] : []),
+      animal_type_id: breed.animal_type_id,
+    } : {
       name: "",
       description: "",
       image_url: "",
+      images: [],
       animal_type_id: undefined,
     },
   })
@@ -57,6 +64,7 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
             name: breed.name,
             description: breed.description || "",
             image_url: breed.image_url || "",
+            images: (breed as any).images || (breed.image_url ? [breed.image_url] : []),
             animal_type_id: breed.animal_type_id,
             breed_id: breed.breed_id,
             created_at: breed.created_at,
@@ -66,6 +74,7 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
             name: "",
             description: "",
             image_url: "",
+            images: [],
             animal_type_id: undefined,
           }
     )
@@ -111,10 +120,13 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
         return;
       }
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
+
       const payload = {
         name: data.name,
         description: data.description || null,
-        image_url: data.image_url?.trim() || null,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         animal_type_id: data.animal_type_id,
       }
 
@@ -193,16 +205,22 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  label="Breed Image"
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="breeds"
-                  placeholder="Upload breed image or enter URL"
+                  label="Breed Images"
                 />
               </FormControl>
               <FormMessage />
@@ -218,39 +236,41 @@ export function BreedForm({ breed, onSuccess, onCancel }: BreedFormProps) {
               <FormLabel>Animal Type</FormLabel>
               <Select
                 onValueChange={(value) => field.onChange(parseInt(value))}
-                defaultValue={field.value?.toString()}
+                value={field.value ? field.value.toString() : ""}
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select an animal type" />
+                    <SelectValue placeholder="Select animal type" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {animalTypes.map((animalType) => (
+                  {animalTypes.map((type) => (
                     <SelectItem
-                      key={animalType.animal_type_id}
-                      value={animalType.animal_type_id.toString()}
+                      key={type.animal_type_id}
+                      value={type.animal_type_id.toString()}
                     >
-                      {animalType.name}
+                      {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <FormDescription>
-                The type of animal this breed belongs to
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex justify-end space-x-4">
-          <Button variant="outline" onClick={onCancel} type="button">
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isLoading}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? "Update" : "Create"} Breed
+            {isEditing ? "Update Breed" : "Create Breed"}
           </Button>
         </div>
       </form>

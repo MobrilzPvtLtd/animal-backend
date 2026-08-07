@@ -16,6 +16,7 @@ export const eventSchema = z.object({
   longitude: z.string().optional(),
   show_publicly: z.boolean().default(true),
   image_url: z.string().optional(),
+  images: z.array(z.string()).optional(),
   price: z.number().min(0, {
     message: "Price must be 0 or greater.",
   }).optional(),

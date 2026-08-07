@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { ServiceProviderSelector } from "./ServiceProviderSelector"
 import { EventCategorySelector } from "./EventCategorySelector"
 import { AdditionalInfoBuilder } from "./AdditionalInfoBuilder"
@@ -475,23 +475,24 @@ export function EventForm({ event, onSuccess, onCancel }: EventFormProps) {
 
         <FormField
           control={form.control}
-          name="image_url"
+          name={"images" as any}
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <ImageUpload
-                  value={field.value}
-                  onChange={field.onChange}
+                <MultipleImageUpload
+                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
+                    image_url: url,
+                    order: index + 1
+                  }))}
+                  onChange={(newImages: ServiceProviderImage[]) => {
+                    const urls = newImages.map(img => img.image_url);
+                    field.onChange(urls);
+                    form.setValue("image_url", urls[0] || "");
+                  }}
                   folder="events"
-                  label="Event Image"
-                  placeholder="Upload an event image or enter URL"
-                  variant="card"
-                  maxSize={20}
+                  label="Event Images"
                 />
               </FormControl>
-              <FormDescription>
-                Upload an image for the event or provide a URL. Images will be stored in the animalclickposts bucket.
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
