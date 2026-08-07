@@ -165,9 +165,11 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       }
 
       const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
+      const categoryIds: number[] = (submissionValues as any).category_ids || (submissionValues.service_category_id ? [submissionValues.service_category_id] : [])
+      const primaryCategoryId = categoryIds[0] || submissionValues.service_category_id || null
 
       const providerData = {
-        service_category_id: submissionValues.service_category_id,
+        service_category_id: primaryCategoryId,
         name: submissionValues.name,
         description: submissionValues.description || null,
         bio: submissionValues.bio || null,
@@ -193,6 +195,15 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       if (error) throw error
 
       const serviceProviderId = providerResult.service_provider_id
+
+      // Sync service_provider_categories
+      if (categoryIds.length > 0) {
+        const categoryData = categoryIds.map((catId: number) => ({
+          service_provider_id: serviceProviderId,
+          service_category_id: catId,
+        }))
+        await supabase.from("service_provider_categories").insert(categoryData)
+      }
 
       // Save services if any
       if (services.length > 0) {

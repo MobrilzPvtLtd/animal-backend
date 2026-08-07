@@ -183,7 +183,8 @@ export function ServiceProvidersCrud() {
         .select(`
           *,
           location:locations(*),
-          service_category:service_categories!service_providers_service_category_id_fkey(*)
+          service_category:service_categories!service_providers_service_category_id_fkey(*),
+          service_provider_categories(service_category:service_categories(*))
         `)
         .or("is_deleted.eq.false,is_deleted.is.null")
         .order("name")
@@ -381,7 +382,6 @@ export function ServiceProvidersCrud() {
           placeholder="Filter providers..."
           secondaryFilterKey="location"
           secondaryPlaceholder="Filter location..."
-          onAdd={handleAddProvider}
         />
         <div className="rounded-md border">
           <Table>
@@ -443,7 +443,7 @@ export function ServiceProvidersCrud() {
             <ServicesAndBreedsManager
               serviceProviderId={selectedProvider.service_provider_id}
               providerName={selectedProvider.name}
-              serviceCategoryId={selectedProvider.service_category_id}
+              serviceCategoryId={selectedProvider.service_category_id || 0}
             />
           )}
         </ScrollableDialogContent>

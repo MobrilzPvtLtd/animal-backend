@@ -425,7 +425,6 @@ export function ServiceProvidersByCategoryCrud({
           placeholder="Filter providers..."
           secondaryFilterKey="location"
           secondaryPlaceholder="Filter location..."
-          onAdd={handleAddProvider}
         />
         <div className="rounded-md border">
           <Table>

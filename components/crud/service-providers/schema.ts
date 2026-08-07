@@ -1,9 +1,8 @@
 import { z } from "zod"
 
 export const serviceProviderSchema = z.object({
-  service_category_id: z.number({
-    required_error: "Please select a service category.",
-  }),
+  service_category_id: z.number().optional(),
+  category_ids: z.array(z.number()).optional(),
   name: z.string().min(2, {
     message: "Name must be at least 2 characters.",
   }),

@@ -330,24 +330,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return;
       }
 
-      // Create dynamic navigation items for service categories as children of Service Providers
-      const serviceCategoryNavItems =
-        serviceCategories?.map((category) => ({
-          title: category.name,
-          url: `/dashboard/service-providers/${category.service_category_id}`,
-          icon: category.icon || "🏢",
-        })) || [];
-
-      // Update the Service Providers item with the service categories as children
-      const updatedNavMain = data.navMain.map((item) => {
-        if (item.title === "Service Providers") {
-          return {
-            ...item,
-            items: serviceCategoryNavItems,
-          };
-        }
-        return item;
-      });
+      const updatedNavMain = data.navMain;
 
       const filteredNavMain =
         roles.length === 0

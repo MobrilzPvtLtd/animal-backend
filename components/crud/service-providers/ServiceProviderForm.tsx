@@ -86,7 +86,27 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
 
   useEffect(() => {
     fetchCategories()
-  }, [])
+    if (provider?.service_provider_id) {
+      fetchProviderCategories(provider.service_provider_id)
+    }
+  }, [provider])
+
+  const fetchProviderCategories = async (providerId: number) => {
+    try {
+      const { data } = await supabase
+        .from("service_provider_categories")
+        .select("service_category_id")
+        .eq("service_provider_id", providerId)
+
+      const linkedIds = (data || []).map((item: any) => item.service_category_id)
+      const initialIds = Array.from(new Set([...linkedIds, provider?.service_category_id].filter(Boolean))) as number[]
+      if (initialIds.length > 0) {
+        form.setValue("category_ids" as any, initialIds)
+      }
+    } catch (err) {
+      console.error("Error fetching provider categories:", err)
+    }
+  }
 
   const fetchCategories = async () => {
     try {
@@ -166,9 +186,11 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       }
 
       const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
+      const categoryIds: number[] = (submissionValues as any).category_ids || (submissionValues.service_category_id ? [submissionValues.service_category_id] : [])
+      const primaryCategoryId = categoryIds[0] || submissionValues.service_category_id || null
 
       const providerData = {
-        service_category_id: submissionValues.service_category_id,
+        service_category_id: primaryCategoryId,
         name: submissionValues.name,
         description: submissionValues.description || null,
         bio: submissionValues.bio || null,
@@ -194,6 +216,20 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
           .eq("service_provider_id", provider.service_provider_id)
 
         if (error) throw error
+
+        // Sync service_provider_categories
+        await supabase
+          .from("service_provider_categories")
+          .delete()
+          .eq("service_provider_id", provider.service_provider_id)
+
+        if (categoryIds.length > 0) {
+          const categoryData = categoryIds.map((catId: number) => ({
+            service_provider_id: provider.service_provider_id,
+            service_category_id: catId,
+          }))
+          await supabase.from("service_provider_categories").insert(categoryData)
+        }
 
         // Update services - always delete existing first, then insert new ones if any
         await supabase
@@ -315,6 +351,15 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         if (error) throw error
 
         const serviceProviderId = providerResult.service_provider_id
+
+        // Sync service_provider_categories
+        if (categoryIds.length > 0) {
+          const categoryData = categoryIds.map((catId: number) => ({
+            service_provider_id: serviceProviderId,
+            service_category_id: catId,
+          }))
+          await supabase.from("service_provider_categories").insert(categoryData)
+        }
 
         // Save services if any
         if (services.length > 0) {

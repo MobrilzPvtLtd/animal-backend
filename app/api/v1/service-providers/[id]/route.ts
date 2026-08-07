@@ -17,6 +17,7 @@ export async function GET(
       *,
       location:locations(*),
       service_category:service_categories!service_providers_service_category_id_fkey(*),
+      service_provider_categories(service_category:service_categories(*)),
       service_provider_images(*),
       services(*)
     `)

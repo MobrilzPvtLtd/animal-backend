@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DataTableColumnHeader } from "../DataTableColumnHeader"
 import { ServiceProvider } from "./schema"
-import { Star } from "lucide-react"
 
 export const columns: ColumnDef<ServiceProvider>[] = [
   {
@@ -23,34 +22,46 @@ export const columns: ColumnDef<ServiceProvider>[] = [
               {provider.name.split(' ').map(n => n[0]).join('').toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <div className="font-medium">{provider.name}</div>
-            {provider.service_category && (
-              <div className="text-sm text-muted-foreground flex items-center">
-                {provider.service_category.icon && (
-                  <span className="mr-1">{provider.service_category.icon}</span>
-                )}
-                {provider.service_category.name}
-              </div>
-            )}
-          </div>
+          <div className="font-medium">{provider.name}</div>
         </div>
       )
     },
   },
   {
-    accessorKey: "rating",
+    accessorKey: "service_category",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Rating" />
+      <DataTableColumnHeader column={column} title="Category" />
     ),
-    cell: ({ row }) => {
-      const rating = row.getValue("rating") as number
-      const totalReviews = row.original.total_reviews
+    accessorFn: (row: any) => {
+      if (Array.isArray(row.service_provider_categories) && row.service_provider_categories.length > 0) {
+        return row.service_provider_categories
+          .map((spc: any) => spc.service_category?.name)
+          .filter(Boolean)
+          .join(", ")
+      }
+      return row.service_category?.name || "Uncategorized"
+    },
+    cell: ({ row }: any) => {
+      const provider = row.original
+      const linkedCategories = Array.isArray(provider.service_provider_categories)
+        ? provider.service_provider_categories.map((spc: any) => spc.service_category?.name).filter(Boolean)
+        : []
+
+      const categoryNames = linkedCategories.length > 0 
+        ? linkedCategories 
+        : (provider.service_category?.name ? [provider.service_category.name] : [])
+
+      if (categoryNames.length === 0) {
+        return <span className="text-muted-foreground text-xs">Uncategorized</span>
+      }
+
       return (
-        <div className="flex items-center space-x-1">
-          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-          <span className="font-medium">{rating.toFixed(1)}</span>
-          <span className="text-sm text-muted-foreground">({totalReviews})</span>
+        <div className="flex flex-wrap gap-1 max-w-[220px]">
+          {categoryNames.map((catName: string, idx: number) => (
+            <Badge key={idx} variant="outline" className="text-xs font-normal bg-slate-50 border-slate-300">
+              {catName}
+            </Badge>
+          ))}
         </div>
       )
     },
@@ -99,20 +110,6 @@ export const columns: ColumnDef<ServiceProvider>[] = [
     },
   },
   {
-    accessorKey: "featured",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Featured" />
-    ),
-    cell: ({ row }) => {
-      const featured = row.getValue("featured") as boolean
-      return featured ? (
-        <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-          Featured
-        </Badge>
-      ) : null
-    },
-  },
-  {
     accessorKey: "is_active",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
@@ -124,22 +121,6 @@ export const columns: ColumnDef<ServiceProvider>[] = [
           {isActive ? "Active" : "Inactive"}
         </Badge>
       )
-    },
-  },
-  {
-    accessorKey: "views",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Views" />
-    ),
-  },
-  {
-    accessorKey: "created_at",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Created" />
-    ),
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"))
-      return <div>{date.toLocaleDateString()}</div>
     },
   },
 ]
