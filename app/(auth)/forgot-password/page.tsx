@@ -27,7 +27,6 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(true);
-    setResetLink(null);
 
     try {
       const response = await fetch("/api/v1/auth/password-reset", {

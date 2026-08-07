@@ -41,14 +41,9 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    session: {
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-      expires_in: data.session.expires_in,
-      expires_at: data.session.expires_at,
-      token_type: data.session.token_type,
-    },
-    user: data.user ?? null,
-    raw: data,
+    message: 'Token refreshed successfully',
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_in: data.session.expires_in,
   });
 }
