@@ -185,6 +185,22 @@ async function handleSignup(
     fullName = email ? email.split('@')[0] : 'User';
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Check email uniqueness first
+  const { data: existingEmailUser } = await supabaseAdmin
+    .from('users')
+    .select('user_id')
+    .eq('email', cleanEmail)
+    .maybeSingle();
+
+  if (existingEmailUser) {
+    return NextResponse.json(
+      { error: 'An account with this email address already exists' },
+      { status: 409 }
+    );
+  }
+
   // 2. Split full_name into name and surname
   const nameParts = fullName.trim().split(/\s+/);
   const name = nameParts[0];
@@ -278,6 +294,12 @@ async function handleSignup(
   if (error || !result?.data) {
     const errMsg = error?.message || 'User creation failed';
     console.error('Auth error:', errMsg);
+    if (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('already exists')) {
+      return NextResponse.json(
+        { error: 'An account with this email address already exists' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: errMsg }, { status: 400 });
   }
 
@@ -285,7 +307,10 @@ async function handleSignup(
   const createdUser = 'user' in resultData ? resultData.user : resultData;
   const userId = createdUser?.id;
   if (!userId) {
-    return NextResponse.json({ error: 'User creation returned no user id' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'An account with this email address already exists' },
+      { status: 409 }
+    );
   }
 
   // 6. Insert into public.users (use upsert since the trigger may have already inserted a row)
