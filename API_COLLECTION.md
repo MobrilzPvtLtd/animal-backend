@@ -1039,3 +1039,30 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-reminder' \
   }
 }
 ```
+
+---
+
+### 14.2 Get Event Reminder Status by `event_id`
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-reminder?event_id=5`
+* **Headers:**
+  - `Authorization: Bearer <user_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-reminder?event_id=5' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "is_reminder_set": true,
+  "reminder": {
+    "reminder_id": 1,
+    "event_id": 5,
+    "user_id": 12,
+    "created_at": "2026-08-10T12:18:00.000Z"
+  }
+}
+```

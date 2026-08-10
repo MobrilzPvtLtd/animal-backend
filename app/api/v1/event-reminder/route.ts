@@ -2,6 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { getUserFromRequest } from '@/lib/server-auth';
 
+// GET /api/v1/event-reminder?event_id=5
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user || !user.internalUserId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const event_id = searchParams.get('event_id');
+
+    if (!event_id || isNaN(Number(event_id))) {
+      return NextResponse.json({ error: 'Valid event_id query parameter is required' }, { status: 400 });
+    }
+
+    const userId = Number(user.internalUserId);
+
+    const { data: reminder, error } = await supabaseAdmin
+      .from('event_reminders')
+      .select('reminder_id, event_id, user_id, created_at')
+      .eq('event_id', Number(event_id))
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      is_reminder_set: !!reminder,
+      reminder: reminder || null,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Failed to fetch event reminder' }, { status: 500 });
+  }
+}
+
 // POST /api/v1/event-reminder
 export async function POST(request: NextRequest) {
   try {
