@@ -1006,4 +1006,36 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
 --header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
 ```
 
+---
 
+## 14. Event Reminder API
+
+### 14.1 Set Event Reminder
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-reminder`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-reminder' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "event_id": 5
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "message": "Event reminder set successfully",
+  "reminder": {
+    "reminder_id": 1,
+    "event_id": 5,
+    "user_id": 12,
+    "created_at": "2026-08-10T12:18:00.000Z"
+  }
+}
+```
