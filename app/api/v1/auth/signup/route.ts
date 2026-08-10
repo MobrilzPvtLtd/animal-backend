@@ -377,10 +377,21 @@ async function handleSignup(
 
   // 8. Obtain session and store token hash
   let session = 'session' in resultData ? resultData.session ?? null : null;
-  if (!session) {
+  if (!session && userId) {
     try {
+      await supabaseAdmin.auth.admin.updateUserById(userId, { email_confirm: true });
       const login = await supabaseAdmin.auth.signInWithPassword({ email, password });
       session = login.data.session ?? null;
+
+      if (!session) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseAnon = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        const anonLogin = await supabaseAnon.auth.signInWithPassword({ email, password });
+        session = anonLogin.data.session ?? null;
+      }
     } catch (err) {
       console.warn('Could not create session after signup:', err);
     }
