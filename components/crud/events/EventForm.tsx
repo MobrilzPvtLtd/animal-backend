@@ -61,6 +61,7 @@ export function EventForm({ event, onSuccess, onCancel }: EventFormProps) {
       longitude: event?.location?.longitude || "",
       show_publicly: event?.location?.show_publicly ?? true,
       image_url: event?.image_url || "",
+      images: (event as any)?.images || (event?.image_url ? [event.image_url] : []),
       price: event?.price || 0,
       max_attendees: event?.max_attendees || undefined,
       current_attendees: event?.current_attendees || 0,
@@ -144,8 +145,12 @@ export function EventForm({ event, onSuccess, onCancel }: EventFormProps) {
 
       const { address, latitude, longitude, show_publicly, ...eventValues } = values
 
+      const imagesList = values.images && values.images.length > 0 ? values.images : (values.image_url ? [values.image_url] : []);
+
       const submitData = {
         ...eventValues,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         venue: values.address || values.venue || 'TBD',
         additional_info: additionalInfo,
         location_id: locationId,

@@ -49,6 +49,7 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
       name: vet.name,
       bio: vet.bio || "",
       image_url: vet.image_url || "",
+      images: (vet as any)?.images || (vet.image_url ? [vet.image_url] : []),
       phone: vet.phone || "",
       emergency_number: vet.emergency_number || "",
       rating: vet.rating || 0,
@@ -62,6 +63,7 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
       name: "",
       bio: "",
       image_url: "",
+      images: [],
       phone: "",
       emergency_number: "",
       rating: 0,
@@ -119,11 +121,14 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
         }
       }
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
+
       // Prepare vet data without location fields
       const vetData = {
         name: data.name,
         bio: data.bio,
-        image_url: data.image_url,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         phone: data.phone,
         emergency_number: data.emergency_number,
         rating: data.rating,

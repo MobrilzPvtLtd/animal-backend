@@ -71,19 +71,21 @@ export async function POST(request: NextRequest) {
     let full_name = '';
     let location: string | undefined = undefined;
     let profile_image_url: string | undefined = undefined;
+    let phone: string | undefined = undefined;
     let roleName = 'Guest';
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const body = await request.json().catch(() => ({}));
       email = body?.email?.toString() || '';
-      usernameInput = body?.username?.toString() || '';
+      usernameInput = body?.username?.toString() || body?.user_name?.toString() || '';
       password = body?.password?.toString() || '';
-      confirm_password = body?.confirm_password?.toString() || password;
-      full_name = body?.full_name?.toString() || (email ? email.split('@')[0] : '');
+      confirm_password = body?.confirm_password?.toString() || body?.confirmPassword?.toString() || password;
+      full_name = body?.full_name?.toString() || body?.name?.toString() || body?.fullName?.toString() || (email ? email.split('@')[0] : '');
       location = body?.location?.toString() || undefined;
+      phone = body?.phone?.toString() || body?.phone_number?.toString() || body?.mobile?.toString() || undefined;
 
-      const rawImage = body?.profile_image_url;
+      const rawImage = body?.profile_image_url || body?.image_url || body?.imagePath || body?.image || body?.avatar;
       if (isSerializedFileObject(rawImage)) {
         return NextResponse.json(
           { error: 'profile_image_url must be a valid image URL string. Use multipart/form-data to upload a file.' },
@@ -92,17 +94,18 @@ export async function POST(request: NextRequest) {
       }
       profile_image_url = rawImage?.toString() || undefined;
 
-      roleName = body?.roleName?.toString() || 'Guest';
+      roleName = body?.roleName?.toString() || body?.role?.toString() || body?.user_type?.toString() || 'Guest';
     } else {
       const formData = await request.formData();
       email = formData.get('email')?.toString() || '';
-      usernameInput = formData.get('username')?.toString() || '';
+      usernameInput = formData.get('username')?.toString() || formData.get('user_name')?.toString() || '';
       password = formData.get('password')?.toString() || '';
-      confirm_password = formData.get('confirm_password')?.toString() || '';
-      full_name = formData.get('full_name')?.toString() || '';
+      confirm_password = formData.get('confirm_password')?.toString() || formData.get('confirmPassword')?.toString() || password;
+      full_name = formData.get('full_name')?.toString() || formData.get('name')?.toString() || formData.get('fullName')?.toString() || (email ? email.split('@')[0] : '');
       location = formData.get('location')?.toString() || undefined;
+      phone = formData.get('phone')?.toString() || formData.get('phone_number')?.toString() || formData.get('mobile')?.toString() || undefined;
 
-      const profileImageField = formData.get('profile_image_url');
+      const profileImageField = formData.get('imagePath') || formData.get('profile_image_url') || formData.get('image') || formData.get('file') || formData.get('avatar') || formData.get('profile_image');
       if (profileImageField instanceof File) {
         if (!profileImageField.type.startsWith('image/')) {
           return NextResponse.json({ error: 'Profile image must be an image file' }, { status: 400 });
@@ -122,14 +125,9 @@ export async function POST(request: NextRequest) {
         }
       } else if (profileImageField && profileImageField.toString() !== '[object File]') {
         profile_image_url = profileImageField.toString();
-      } else if (profileImageField) {
-        return NextResponse.json(
-          { error: 'profile_image_url must be a valid image file or URL string' },
-          { status: 400 }
-        );
       }
 
-      roleName = formData.get('roleName')?.toString() || 'Guest';
+      roleName = formData.get('roleName')?.toString() || formData.get('role')?.toString() || formData.get('user_type')?.toString() || 'Guest';
     }
 
     // Basic validation
@@ -153,7 +151,8 @@ export async function POST(request: NextRequest) {
       full_name,
       location,
       profile_image_url,
-      roleName
+      roleName,
+      phone
     );
   } catch (error: any) {
     console.error('Signup POST error:', error);
@@ -178,11 +177,12 @@ async function handleSignup(
   fullName: string,
   location: string | undefined,
   profileImageUrl: string | undefined,
-  roleName: string = 'Guest'
+  roleNameInput: string = 'Guest',
+  phone?: string
 ) {
   // 1. Validate required fields
   if (!fullName || fullName.trim() === '') {
-    return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
+    fullName = email ? email.split('@')[0] : 'User';
   }
 
   // 2. Split full_name into name and surname
@@ -228,13 +228,12 @@ async function handleSignup(
   const { latitude, longitude } = await geocodeLocation(location || '');
   const staticLocation = location?.trim() || null;
 
-  // 4. Check allowed roles
-  if (!PUBLIC_SIGNUP_ROLE_NAMES.includes(roleName as any)) {
-    return NextResponse.json(
-      { error: 'Selected role is not available for public signup' },
-      { status: 400 }
-    );
-  }
+  // 4. Check allowed roles (case-insensitive normalization & default fallback)
+  const normalizedRoleInput = (roleNameInput && roleNameInput.trim() !== '') ? roleNameInput.trim() : 'Guest';
+  const matchedRole = PUBLIC_SIGNUP_ROLE_NAMES.find(
+    (r) => r.toLowerCase() === normalizedRoleInput.toLowerCase()
+  ) || 'Guest';
+  const roleName = matchedRole;
 
   // 5. Create user in Supabase Auth
   let result;
@@ -305,6 +304,8 @@ async function handleSignup(
       await supabaseAdmin
         .from('users')
         .update({
+          user_name: finalUsername,
+          phone: phone || null,
           profile_image_url: profileImageUrl || null,
           static_location: staticLocation,
           latitude,
@@ -320,8 +321,10 @@ async function handleSignup(
         .insert({
           auth_user_id: userId,
           email,
+          user_name: finalUsername,
           name,
           surname,
+          phone: phone || null,
           profile_image_url: profileImageUrl || null,
           user_type: roleName,
           static_location: staticLocation,
@@ -386,15 +389,27 @@ async function handleSignup(
     await setCurrentTokenHashes(userId, session.access_token, session.refresh_token);
   }
 
-  // 9. Build auth profile
-  const authProfile = await buildAuthProfile({
-    id: userId,
-    email,
-    roleNames: [roleName],
-  });
-
   return NextResponse.json(
-    { user: createdUser, session, ...authProfile },
+    {
+      success: true,
+      message: 'User registered successfully',
+      user: {
+        user_id: internalUserId,
+        auth_user_id: userId,
+        email,
+        user_name: finalUsername,
+        name,
+        surname,
+        full_name: fullName,
+        profile_image_url: profileImageUrl || null,
+        user_type: roleName,
+        phone: phone || null,
+        location: staticLocation,
+        latitude,
+        longitude,
+      },
+      session,
+    },
     { status: 201 }
   );
 }

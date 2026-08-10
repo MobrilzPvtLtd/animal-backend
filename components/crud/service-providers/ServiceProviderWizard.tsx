@@ -165,6 +165,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       }
 
       const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
+      const allImageUrls = images.map(img => img.image_url)
       const categoryIds: number[] = (submissionValues as any).category_ids || (submissionValues.service_category_id ? [submissionValues.service_category_id] : [])
       const primaryCategoryId = categoryIds[0] || submissionValues.service_category_id || null
 
@@ -174,6 +175,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         description: submissionValues.description || null,
         bio: submissionValues.bio || null,
         image_url: profileImage,
+        images: allImageUrls.length > 0 ? allImageUrls : (profileImage ? [profileImage] : []),
         phone: submissionValues.phone || null,
         emergency_number: submissionValues.emergency_number || null,
         number_2: submissionValues.number_2 || null,

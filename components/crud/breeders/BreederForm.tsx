@@ -40,6 +40,7 @@ export function BreederForm({ breeder, onSuccess, onCancel }: BreederFormProps) 
       name: breeder.name,
       bio: breeder.bio || "",
       image_url: breeder.image_url || "",
+      images: (breeder as any)?.images || (breeder.image_url ? [breeder.image_url] : []),
       rating: breeder.rating || 0,
       is_verified: breeder.is_verified || false,
       phone: breeder.phone || "",
@@ -52,6 +53,7 @@ export function BreederForm({ breeder, onSuccess, onCancel }: BreederFormProps) 
       name: "",
       bio: "",
       image_url: "",
+      images: [],
       rating: 0,
       is_verified: false,
       phone: "",
@@ -121,11 +123,14 @@ export function BreederForm({ breeder, onSuccess, onCancel }: BreederFormProps) 
         }
       }
 
+      const imagesList = data.images && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []);
+
       // Prepare breeder data without location fields
       const breederData = {
         name: data.name,
         bio: data.bio,
-        image_url: data.image_url,
+        image_url: imagesList[0] || null,
+        images: imagesList,
         rating: data.rating,
         is_verified: data.is_verified,
         phone: data.phone,

@@ -55,26 +55,40 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
 --data '{
   "email": "user@example.com",
   "password": "Password@123",
-  "confirmPassword": "Password@123",
-  "name": "Jane Doe",
+  "confirm_password": "Password@123",
+  "full_name": "Jane Doe",
   "username": "janedoe",
-  "location": "Durban, South Africa",
-  "imagePath": "https://example.com/images/profile.jpg"
+  "location": "Noida",
+  "roleName": "Guest",
+  "profile_image_url": "https://example.com/images/profile.jpg"
 }'
 ```
 
 **Example JSON Response Body:**
 ```json
 {
-  "message": "Registration successful",
+  "success": true,
+  "message": "User registered successfully",
   "user": {
-    "user_id": 3,
+    "user_id": 15,
+    "auth_user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "email": "user@example.com",
-    "username": "janedoe",
-    "name": "Jane Doe",
-    "location": "Durban, South Africa",
-    "imagePath": "https://animal-backend-nine.vercel.app/images/profile.jpg",
-    "roles": [7]
+    "user_name": "janedoe",
+    "name": "Jane",
+    "surname": "Doe",
+    "full_name": "Jane Doe",
+    "profile_image_url": "https://example.com/images/profile.jpg",
+    "user_type": "Guest",
+    "phone": null,
+    "location": "Noida",
+    "latitude": 28.5355,
+    "longitude": 77.3910
+  },
+  "session": {
+    "access_token": "eyJhbGciOi...",
+    "refresh_token": "v1.mc...",
+    "expires_in": 3600,
+    "token_type": "bearer"
   }
 }
 ```
