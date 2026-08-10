@@ -125,17 +125,22 @@ export async function POST(request: NextRequest) {
       try { additional_info = JSON.parse(addInfo as string); } catch { additional_info = addInfo; }
     }
 
-    const file = formData.get('file');
-    if (file instanceof File && file.size > 0) {
-      if (!file.type.startsWith('image/')) {
-        return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
+    const formEntries = Array.from(formData.entries());
+    const uploadedUrls: string[] = [];
+
+    for (const [key, value] of formEntries) {
+      if (value instanceof File && value.size > 0) {
+        if (!value.type.startsWith('image/')) {
+          return NextResponse.json({ error: `${value.name} is not an image` }, { status: 400 });
+        }
+        const result = await uploadAnimalImage(value, 'events');
+        uploadedUrls.push(result.url);
       }
-      const maxSize = 50 * 1024 * 1024;
-      if (file.size > maxSize) {
-        return NextResponse.json({ error: 'File size must be less than 50MB' }, { status: 400 });
-      }
-      const result = await uploadAnimalImage(file, 'events');
-      image_url = result.url;
+    }
+
+    if (uploadedUrls.length > 0) {
+      images = uploadedUrls;
+      if (!image_url) image_url = uploadedUrls[0];
     }
   } else {
     const body = await request.json();

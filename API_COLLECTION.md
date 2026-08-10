@@ -1,6 +1,6 @@
 # Animal Click - Complete API Documentation & cURL Collection
 
-**Total APIs: 48 Endpoints** across 12 Modules.
+**Total APIs: 57 Endpoints** across 13 Modules.
 
 * **Live Base URL:** `https://animal-backend-nine.vercel.app/api`
 * **Local Base URL:** `http://localhost:3000/api`
@@ -782,4 +782,214 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
   "success": true
 }
 ```
+
+---
+
+## 🚀 13. Boost Packages & Active Boosted Listings Module (9 APIs)
+
+### 13.1 Get Active Booster Packages List
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boost-packages?active_only=true`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/boost-packages?active_only=true'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "packages": [
+    {
+      "boost_package_id": 1,
+      "name": "Silver Boost (7 Days)",
+      "description": "Featured placement at the top of search results for 7 days",
+      "duration_days": 7,
+      "price": 199.00,
+      "is_active": true,
+      "created_at": "2026-01-10T00:00:00.000Z"
+    },
+    {
+      "boost_package_id": 2,
+      "name": "Gold Boost (30 Days)",
+      "description": "Premium homepage & category top banner placement for 30 days",
+      "duration_days": 30,
+      "price": 599.00,
+      "is_active": true,
+      "created_at": "2026-01-10T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### 13.2 Get All Booster Packages (Including Inactive)
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boost-packages`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/boost-packages'
+```
+
+### 13.3 Create New Booster Package
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boost-packages`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/boost-packages' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "name": "Platinum Lifetime Boost",
+  "description": "Top priority listing across all app categories",
+  "duration_days": 90,
+  "price": 1499.00,
+  "is_active": true
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "package": {
+    "boost_package_id": 3,
+    "name": "Platinum Lifetime Boost",
+    "description": "Top priority listing across all app categories",
+    "duration_days": 90,
+    "price": 1499.00,
+    "is_active": true,
+    "created_at": "2026-08-10T12:00:00.000Z"
+  }
+}
+```
+
+### 13.4 Update Booster Package
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boost-packages?boost_package_id=3`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/boost-packages?boost_package_id=3' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "price": 1299.00,
+  "is_active": true
+}'
+```
+
+### 13.5 Delete Booster Package (Soft Delete)
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boost-packages?boost_package_id=3`
+* **Headers:**
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/boost-packages?boost_package_id=3' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
+---
+
+### 13.6 Get Active Boosted Entities / Listings
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boosted?active_only=true`
+* **Query Parameters (Optional):**
+  - `active_only=true`: Sirf currently active boosts list karne ke liye
+  - `entity_type`: Filter by type (`service_provider`, `vet`, `breeder`, `pet_friendly_place`)
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/boosted?active_only=true'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "boosts": [
+    {
+      "entity_boost_id": 1,
+      "boost_package_id": 2,
+      "entity_type": "service_provider",
+      "service_provider_id": 5,
+      "start_date": "2026-08-01T00:00:00.000Z",
+      "end_date": "2026-08-31T23:59:59.000Z",
+      "is_active": true,
+      "boost_packages": {
+        "name": "Gold Boost (30 Days)",
+        "duration_days": 30,
+        "price": 599.00
+      },
+      "service_providers": {
+        "service_provider_id": 5,
+        "name": "Priyanka Pet Care & Grooming"
+      }
+    }
+  ]
+}
+```
+
+### 13.7 Apply Boost to an Entity (Service Provider, Vet, Breeder, Place)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boosted`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/boosted' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "boost_package_id": 2,
+  "entity_type": "service_provider",
+  "service_provider_id": 5
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "boost": {
+    "entity_boost_id": 2,
+    "boost_package_id": 2,
+    "entity_type": "service_provider",
+    "service_provider_id": 5,
+    "start_date": "2026-08-10T12:00:00.000Z",
+    "end_date": "2026-09-09T12:00:00.000Z",
+    "is_active": true,
+    "created_at": "2026-08-10T12:00:00.000Z"
+  }
+}
+```
+
+### 13.8 Update Boost Status / End Date
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boosted?entity_boost_id=2`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/boosted?entity_boost_id=2' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "is_active": false
+}'
+```
+
+### 13.9 Delete Boost Record
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/boosted?entity_boost_id=2`
+* **Headers:**
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/boosted?entity_boost_id=2' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
 
