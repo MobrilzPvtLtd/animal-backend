@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Loader2, Image as ImageIcon, Link as LinkIcon, FileUp, Check } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, Link as LinkIcon, FileUp, Check, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,7 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
   const [pastedUrl, setPastedUrl] = useState(value || '');
   const [imageLoadError, setImageLoadError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Sync pastedUrl with incoming value prop (for edit forms)
   useEffect(() => {
@@ -101,6 +102,14 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
     e.target.value = '';
   };
 
+  const handleCameraSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+    e.target.value = '';
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
@@ -128,6 +137,9 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
     setImageLoadError(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
     }
   };
 
@@ -188,20 +200,34 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
               </div>
 
               {activeTab === 'file' ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={disabled || isUploading}
-                  className="w-full"
-                >
-                  {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                  )}
-                  {isUploading ? 'Uploading...' : 'Upload Image'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={disabled || isUploading}
+                    className="gap-1.5 bg-primary text-xs"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    Camera
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={disabled || isUploading}
+                    className="gap-1.5 text-xs"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    Gallery
+                  </Button>
+                </div>
               ) : (
                 <div className="flex gap-2">
                   <Input
@@ -251,7 +277,7 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
               }`}
             >
               <FileUp className="h-3.5 w-3.5 inline mr-1.5" />
-              Upload File
+              Upload / Camera
             </button>
             <button
               type="button"
@@ -288,7 +314,6 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
           >
             {hasImage ? (
               <div className="relative inline-block">
@@ -322,14 +347,17 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
                 )}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {isUploading ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
                     <span className="text-sm font-medium">Uploading...</span>
                   </div>
                 ) : (
-                  <Upload className="h-8 w-8 mx-auto text-gray-400" />
+                  <div className="flex justify-center gap-2 text-gray-400">
+                    <Camera className="h-7 w-7" />
+                    <Upload className="h-7 w-7" />
+                  </div>
                 )}
                 <div>
                   <p className="text-sm font-medium">{placeholder}</p>
@@ -337,6 +365,39 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
                     PNG, JPG, GIF up to {maxSize}MB
                   </p>
                 </div>
+
+                {!isUploading && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="gap-1.5 bg-primary hover:bg-primary/90 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cameraInputRef.current?.click();
+                      }}
+                      disabled={disabled}
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      Take Photo (Camera)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={disabled}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Choose File (Gallery)
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -390,6 +451,7 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
 
       {renderImagePreview()}
 
+      {/* Hidden file input for gallery */}
       <input
         ref={fileInputRef}
         type="file"
@@ -398,10 +460,19 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
         className="hidden"
         disabled={disabled}
       />
+
+      {/* Hidden camera input for direct camera capture */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraSelect}
+        className="hidden"
+        disabled={disabled}
+      />
     </div>
   );
 }
 );
 ImageUpload.displayName = "ImageUpload";
-
-

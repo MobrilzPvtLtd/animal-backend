@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload, Link as LinkIcon, FileUp } from 'lucide-react';
+import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload, Link as LinkIcon, FileUp, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -161,6 +161,7 @@ export function MultipleImageUpload({
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [pastedUrl, setPastedUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -278,6 +279,14 @@ export function MultipleImageUpload({
     e.target.value = '';
   };
 
+  const handleCameraSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files);
+    }
+    e.target.value = '';
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
@@ -340,7 +349,7 @@ export function MultipleImageUpload({
           }`}
         >
           <FileUp className="h-3.5 w-3.5 inline mr-1.5" />
-          Upload Files
+          Upload / Camera
         </button>
         <button
           type="button"
@@ -365,24 +374,59 @@ export function MultipleImageUpload({
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onClick={() => !disabled && fileInputRef.current?.click()}
           >
-            <div className="space-y-2">
+            <div className="space-y-3">
               {uploadingCount > 0 ? (
-                <Upload className="h-8 w-8 mx-auto text-primary" />
+                <Upload className="h-8 w-8 mx-auto text-primary animate-pulse" />
               ) : (
-                <Plus className="h-8 w-8 mx-auto text-gray-400" />
+                <div className="flex justify-center gap-2 text-gray-400">
+                  <Camera className="h-7 w-7" />
+                  <Upload className="h-7 w-7" />
+                </div>
               )}
               <div>
                 <p className="text-sm font-medium">
                   {uploadingCount > 0
                     ? `Uploading ${uploadingCount} file(s)...`
-                    : 'Drop images here or click to upload'}
+                    : 'Take a photo or choose from device gallery'}
                 </p>
                 <p className="text-xs text-gray-500">
                   PNG, JPG, GIF up to {maxSize}MB ({totalSlots}/{maxImages} images)
                 </p>
               </div>
+
+              {!uploadingCount && (
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5 bg-primary hover:bg-primary/90 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cameraInputRef.current?.click();
+                    }}
+                    disabled={disabled}
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    Take Photo (Camera)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={disabled}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Choose Files (Gallery)
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -416,12 +460,24 @@ export function MultipleImageUpload({
         )
       )}
 
+      {/* Hidden file input for gallery */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         multiple
         onChange={handleFileSelect}
+        className="hidden"
+        disabled={disabled}
+      />
+
+      {/* Hidden camera input for direct camera capture */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraSelect}
         className="hidden"
         disabled={disabled}
       />
@@ -470,4 +526,3 @@ export function MultipleImageUpload({
     </div>
   );
 }
-
