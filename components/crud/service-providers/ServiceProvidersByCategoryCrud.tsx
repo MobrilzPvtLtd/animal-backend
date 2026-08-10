@@ -119,7 +119,7 @@ export function ServiceProvidersByCategoryCrud({
   useEffect(() => {
     const filter = searchParams.get('filter') || '';
     const page = Math.max(0, parseInt(searchParams.get('page') || '1') - 1);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const pageSize = parseInt(searchParams.get('pageSize') || '30');
     const sortBy = searchParams.get('sortBy');
     const sortOrder = searchParams.get('sortOrder');
 
@@ -373,7 +373,7 @@ export function ServiceProvidersByCategoryCrud({
       
       updateURL({
         page: newPagination.pageIndex === 0 ? null : (newPagination.pageIndex + 1).toString(),
-        pageSize: newPagination.pageSize === 10 ? null : newPagination.pageSize.toString(),
+        pageSize: newPagination.pageSize === 30 ? null : newPagination.pageSize.toString(),
       });
     },
     getCoreRowModel: getCoreRowModel(),
