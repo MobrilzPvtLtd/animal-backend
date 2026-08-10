@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
   let event_category_id: number | undefined;
   let service_provider_id: number | undefined;
   let image_url: string | undefined;
+  let images: string[] = [];
   let price: number | undefined;
   let max_attendees: number | undefined;
   let current_attendees: number = 0;
@@ -151,6 +152,9 @@ export async function POST(request: NextRequest) {
     event_category_id = body.event_category_id;
     service_provider_id = body.service_provider_id;
     image_url = body.image_url;
+    images = Array.isArray(body.images) ? body.images : (image_url ? [image_url] : []);
+    if (!image_url && images.length > 0) image_url = images[0];
+    if (image_url && images.length === 0) images = [image_url];
     price = body.price;
     max_attendees = body.max_attendees;
     current_attendees = body.current_attendees ?? 0;
@@ -223,6 +227,7 @@ export async function POST(request: NextRequest) {
         venue,
         expiry,
         image_url,
+        images,
         is_active: true,
         is_approved: false,
         user_id: user.internalUserId,

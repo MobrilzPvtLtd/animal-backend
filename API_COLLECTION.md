@@ -1,6 +1,6 @@
 # Animal Click - Complete API Documentation & cURL Collection
 
-**Total APIs: 38 Endpoints** across 11 Modules.
+**Total APIs: 48 Endpoints** across 12 Modules.
 
 * **Live Base URL:** `https://animal-backend-nine.vercel.app/api`
 * **Local Base URL:** `http://localhost:3000/api`
@@ -463,3 +463,323 @@ curl --location 'https://animal-backend-nine.vercel.app/api/permissions'
 ```bash
 curl --location 'https://animal-backend-nine.vercel.app/api/boost-packages'
 ```
+
+---
+
+## 🎉 12. Events & Event Categories Module (10 APIs)
+
+### 12.1 Get All Events (Upcoming & Past)
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events`
+* **Query Parameters (Optional):**
+  - `search`: Search events by title (`?search=dog`)
+  - `approved_only=true`: Filter approved events
+  - `active_only=true`: Filter active events
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/events?approved_only=true&active_only=true'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "upcoming": [
+    {
+      "event_id": 1,
+      "title": "Annual Pet Adoption Fair 2026",
+      "description": "Join us for a wonderful pet adoption day with free health checks.",
+      "event_date": "2026-09-15T10:00:00.000Z",
+      "end_date": "2026-09-15T17:00:00.000Z",
+      "venue": "Central Community Park",
+      "image_url": "https://example.com/images/event1.jpg",
+      "price": 0,
+      "max_attendees": 500,
+      "current_attendees": 120,
+      "is_active": true,
+      "is_approved": true,
+      "user_id": 1,
+      "event_category_id": 2,
+      "location": {
+        "location_id": 5,
+        "address": "Central Community Park, Main Street, Delhi",
+        "latitude": "28.6139",
+        "longitude": "77.2090"
+      },
+      "event_category": {
+        "event_category_id": 2,
+        "name": "Adoption Camp",
+        "icon": "Heart",
+        "color": "#FF5733"
+      }
+    }
+  ],
+  "past": []
+}
+```
+
+### 12.2 Get Single Event By ID
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events/1`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/events/1'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "event": {
+    "event_id": 1,
+    "title": "Annual Pet Adoption Fair 2026",
+    "description": "Join us for a wonderful pet adoption day with free health checks.",
+    "event_date": "2026-09-15T10:00:00.000Z",
+    "end_date": "2026-09-15T17:00:00.000Z",
+    "venue": "Central Community Park",
+    "image_url": "https://example.com/images/event1.jpg",
+    "price": 0,
+    "max_attendees": 500,
+    "current_attendees": 120,
+    "is_active": true,
+    "is_approved": true,
+    "location": {
+      "location_id": 5,
+      "address": "Central Community Park, Main Street, Delhi"
+    },
+    "event_category": {
+      "event_category_id": 2,
+      "name": "Adoption Camp"
+    }
+  }
+}
+```
+
+### 12.3 Create Event (JSON Request Body)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_access_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/events' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--data '{
+  "title": "Grand Dog Show 2026",
+  "description": "Showcase your dogs and win exciting prizes!",
+  "event_date": "2026-10-20T09:00:00Z",
+  "end_date": "2026-10-20T18:00:00Z",
+  "venue": "City Stadium",
+  "address": "City Stadium, MG Road, Mumbai",
+  "latitude": "19.0760",
+  "longitude": "72.8777",
+  "event_category_id": 1,
+  "price": 250,
+  "max_attendees": 300,
+  "image_url": "https://example.com/images/dogshow.jpg",
+  "images": [
+    "https://example.com/images/dogshow1.jpg",
+    "https://example.com/images/dogshow2.jpg"
+  ]
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "event": {
+    "event_id": 12,
+    "title": "Grand Dog Show 2026",
+    "description": "Showcase your dogs and win exciting prizes!",
+    "event_date": "2026-10-20T09:00:00Z",
+    "venue": "City Stadium",
+    "is_active": true,
+    "is_approved": false,
+    "user_id": 1,
+    "event_category_id": 1,
+    "location_id": 8,
+    "created_at": "2026-08-10T11:45:00.000Z"
+  }
+}
+```
+
+### 12.4 Create Event (Multipart Form-Data with Direct Image Upload)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events`
+* **Headers:**
+  - `Authorization: Bearer <user_access_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/events' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--form 'title="Pet Health & Vaccination Drive"' \
+--form 'description="Free rabies vaccination drive for dogs and cats."' \
+--form 'event_date="2026-11-05T10:00:00Z"' \
+--form 'venue="St. John School Ground"' \
+--form 'address="St. John School Ground, Sector 15, Gurgaon"' \
+--form 'event_category_id="3"' \
+--form 'file=@"/path/to/event_banner.jpg"'
+```
+
+### 12.5 Update Event
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events?event_id=12`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_or_owner_token>`
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/events?event_id=12' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "title": "Grand Dog & Cat Show 2026",
+  "is_approved": true,
+  "price": 300
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "event": {
+    "event_id": 12,
+    "title": "Grand Dog & Cat Show 2026",
+    "is_approved": true,
+    "price": 300,
+    "updated_at": "2026-08-10T11:46:00.000Z"
+  }
+}
+```
+
+### 12.6 Delete Event
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/events?event_id=12`
+* **Headers:**
+  - `Authorization: Bearer <admin_or_owner_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/events?event_id=12' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true
+}
+```
+
+### 12.7 Get All Event Categories
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-categories`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-categories'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "categories": [
+    {
+      "event_category_id": 1,
+      "name": "Pet Competitions & Shows",
+      "description": "Dog shows, agility contests, and cat beauty pageants",
+      "icon": "Trophy",
+      "color": "#FFC300",
+      "created_at": "2026-01-10T00:00:00.000Z"
+    },
+    {
+      "event_category_id": 2,
+      "name": "Adoption & Rescue Camps",
+      "description": "Find your new furry best friend",
+      "icon": "Heart",
+      "color": "#FF5733",
+      "created_at": "2026-01-10T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### 12.8 Create Event Category
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-categories`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-categories' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "name": "Pet Vaccination & Health Drive",
+  "description": "Medical drives and health checkups for animals",
+  "icon": "Stethoscope",
+  "color": "#28A745"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "category": {
+    "event_category_id": 5,
+    "name": "Pet Vaccination & Health Drive",
+    "description": "Medical drives and health checkups for animals",
+    "icon": "Stethoscope",
+    "color": "#28A745",
+    "created_at": "2026-08-10T11:47:00.000Z"
+  }
+}
+```
+
+### 12.9 Update Event Category
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-categories?event_category_id=5`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/event-categories?event_category_id=5' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "name": "Pet Health & Wellness Drive",
+  "color": "#17A2B8"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "category": {
+    "event_category_id": 5,
+    "name": "Pet Health & Wellness Drive",
+    "description": "Medical drives and health checkups for animals",
+    "icon": "Stethoscope",
+    "color": "#17A2B8"
+  }
+}
+```
+
+### 12.10 Delete Event Category
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/event-categories?event_category_id=5`
+* **Headers:**
+  - `Authorization: Bearer <admin_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/event-categories?event_category_id=5' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true
+}
+```
+
