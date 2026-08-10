@@ -25,6 +25,7 @@ export const eventSchema = z.object({
   }).optional(),
   current_attendees: z.number().min(0).default(0),
   is_active: z.boolean().default(true),
+  is_approved: z.boolean().default(false),
   event_category_id: z.number().optional(),
   additional_info: z.any().optional(), // JSONB field
 })

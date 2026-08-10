@@ -88,35 +88,35 @@ export const columns: ColumnDef<Event>[] = [
       return <div>{format(date, "PPP p")}</div>
     },
   },
-  {
-    accessorKey: "price",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Price" />
-    ),
-    cell: ({ row }) => {
-      const price = row.getValue("price") as number
-      return price ? (
-        <div className="font-medium">R{price.toFixed(2)}</div>
-      ) : (
-        <span className="text-muted-foreground">Free</span>
-      )
-    },
-  },
-  {
-    accessorKey: "current_attendees",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Attendees" />
-    ),
-    cell: ({ row }) => {
-      const current = row.getValue("current_attendees") as number
-      const max = row.original.max_attendees
-      return (
-        <div className="text-center">
-          {current || 0}{max ? `/${max}` : ''}
-        </div>
-      )
-    },
-  },
+  // {
+  //   accessorKey: "price",
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Price" />
+  //   ),
+  //   cell: ({ row }) => {
+  //     const price = row.getValue("price") as number
+  //     return price ? (
+  //       <div className="font-medium">R{price.toFixed(2)}</div>
+  //     ) : (
+  //       <span className="text-muted-foreground">Free</span>
+  //     )
+  //   },
+  // },
+  // {
+  //   accessorKey: "current_attendees",
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Attendees" />
+  //   ),
+  //   cell: ({ row }) => {
+  //     const current = row.getValue("current_attendees") as number
+  //     const max = row.original.max_attendees
+  //     return (
+  //       <div className="text-center">
+  //         {current || 0}{max ? `/${max}` : ''}
+  //       </div>
+  //     )
+  //   },
+  // },
   {
     accessorKey: "is_active",
     header: ({ column }) => (
@@ -132,13 +132,27 @@ export const columns: ColumnDef<Event>[] = [
     },
   },
   {
-    accessorKey: "created_at",
+    accessorKey: "is_approved",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Created" />
+      <DataTableColumnHeader column={column} title="Approval" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"))
-      return <div>{format(date, "PP")}</div>
+      const isApproved = (row.original as any).is_approved ?? false
+      return (
+        <Badge className={isApproved ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/50 dark:text-amber-300"}>
+          {isApproved ? "Approved" : "Pending Approval"}
+        </Badge>
+      )
     },
   },
+  // {
+  //   accessorKey: "created_at",
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Created" />
+  //   ),
+  //   cell: ({ row }) => {
+  //     const date = new Date(row.getValue("created_at"))
+  //     return <div>{format(date, "PP")}</div>
+  //   },
+  // },
 ]

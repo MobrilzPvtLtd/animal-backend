@@ -44,6 +44,9 @@ export function EventsCrud() {
   const [loading, setLoading] = useState(true)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [approvalTab, setApprovalTab] = useState<'all' | 'approved' | 'pending'>(
+    (searchParams.get('approval') as any) || 'all'
+  )
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '')
@@ -64,6 +67,7 @@ export function EventsCrud() {
     if (selectedEventCategory) params.set('event_category', selectedEventCategory.toString())
     if (showActiveOnly) params.set('active_only', 'true')
     if (eventType) params.set('type', eventType)
+    if (approvalTab !== 'all') params.set('approval', approvalTab)
     
     const newURL = params.toString() ? `?${params.toString()}` : ''
     router.replace(`/dashboard/events${newURL}`, { scroll: false })
@@ -77,7 +81,7 @@ export function EventsCrud() {
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [searchTerm, selectedServiceProvider, selectedEventCategory, showActiveOnly, eventType])
+  }, [searchTerm, selectedServiceProvider, selectedEventCategory, showActiveOnly, eventType, approvalTab])
 
   const fetchEvents = async () => {
     setLoading(true)
@@ -148,12 +152,30 @@ export function EventsCrud() {
     setSelectedEventCategory(undefined)
     setShowActiveOnly(false)
     setEventType('')
+    setApprovalTab('all')
   }
 
-  const hasActiveFilters = searchTerm || selectedServiceProvider || selectedEventCategory || showActiveOnly || eventType
+  const hasActiveFilters = searchTerm || selectedServiceProvider || selectedEventCategory || showActiveOnly || eventType || approvalTab !== 'all'
 
   const handleEditEvent = (event: Event) => {
     router.push(`/dashboard/events/${event.event_id}/edit`)
+  }
+
+  const handleApproveEvent = async (event: Event) => {
+    try {
+      const { error } = await supabase
+        .from("events")
+        .update({ is_approved: true })
+        .eq("event_id", event.event_id)
+
+      if (error) throw error
+
+      setEvents(events.map(e => e.event_id === event.event_id ? { ...e, is_approved: true } : e))
+      toast.success(`Event "${event.title}" approved successfully!`)
+    } catch (error) {
+      console.error("Error approving event:", error)
+      toast.error("Failed to approve event")
+    }
   }
 
   const handleDeleteEvent = (event: Event) => {
@@ -183,9 +205,28 @@ export function EventsCrud() {
     }
   }
 
-  // Enhanced columns with edit and delete actions
+  // Enhanced columns with approve, edit and delete actions
   const enhancedColumns = [
     ...columns,
+    {
+      id: "approve",
+      cell: ({ row }: { row: any }) => {
+        const event = row.original
+        if (event.is_approved) {
+          return null
+        }
+        return (
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"
+            onClick={() => handleApproveEvent(event)}
+          >
+            Approve
+          </Button>
+        )
+      },
+    },
     {
       id: "edit",
       cell: ({ row }: { row: any }) => {
@@ -219,7 +260,13 @@ export function EventsCrud() {
     },
   ]
 
-  const filteredEvents = events
+  const pendingCount = useMemo(() => events.filter(e => !e.is_approved).length, [events])
+  const approvedCount = useMemo(() => events.filter(e => e.is_approved).length, [events])
+  const filteredEvents = useMemo(() => {
+    if (approvalTab === 'approved') return events.filter(e => e.is_approved)
+    if (approvalTab === 'pending') return events.filter(e => !e.is_approved)
+    return events
+  }, [events, approvalTab])
 
   return (
     <div className="space-y-4">
@@ -254,6 +301,38 @@ export function EventsCrud() {
             Add Event
           </Button>
         </div>
+      </div>
+
+      {/* Approval Status Tab Switcher */}
+      <div className="flex items-center gap-2 border-b pb-3">
+        <Button
+          variant={approvalTab === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setApprovalTab('all')}
+        >
+          All Events ({events.length})
+        </Button>
+        <Button
+          variant={approvalTab === 'approved' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setApprovalTab('approved')}
+          className={approvalTab === 'approved' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+        >
+          Approved ({approvedCount})
+        </Button>
+        <Button
+          variant={approvalTab === 'pending' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setApprovalTab('pending')}
+          className={`relative ${approvalTab === 'pending' ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'border-amber-300 text-amber-700 dark:text-amber-400'}`}
+        >
+          Event Requests / Pending ({pendingCount})
+          {pendingCount > 0 && (
+            <span className="ml-1.5 rounded-full bg-amber-500 text-white text-xs px-2 py-0.5 font-bold animate-pulse">
+              {pendingCount}
+            </span>
+          )}
+        </Button>
       </div>
 
       {/* Filters */}

@@ -5,7 +5,8 @@ import { uploadAnimalImage } from '@/lib/storage-upload';
 
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get('search');
-  const approvedOnly = request.nextUrl.searchParams.get('approved_only') === 'true';
+  const approvedOnlyParam = request.nextUrl.searchParams.get('approved_only');
+  const approvedOnly = approvedOnlyParam !== 'false';
   const activeOnly = request.nextUrl.searchParams.get('active_only') === 'true';
 
   const now = new Date();

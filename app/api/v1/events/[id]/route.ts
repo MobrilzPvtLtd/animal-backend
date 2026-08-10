@@ -34,8 +34,11 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!data) {
-    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  const approvedOnlyParam = request.nextUrl.searchParams.get('approved_only');
+  const approvedOnly = approvedOnlyParam !== 'false';
+
+  if (!data || (approvedOnly && !data.is_approved)) {
+    return NextResponse.json({ error: 'Event not found or pending approval' }, { status: 404 });
   }
 
   return NextResponse.json({ event: data });
