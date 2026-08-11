@@ -1,0 +1,119 @@
+import nodemailer from 'nodemailer';
+
+export interface EventReminderEmailData {
+  to: string;
+  userName?: string;
+  eventTitle: string;
+  eventDate: string;
+  venue?: string;
+  address?: string;
+  description?: string;
+}
+
+export async function sendEventReminderEmail(data: EventReminderEmailData) {
+  const {
+    to,
+    userName = 'Valued Member',
+    eventTitle,
+    eventDate,
+    venue = 'Event Venue',
+    address = '',
+    description = '',
+  } = data;
+
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER || '';
+  const smtpPass = process.env.SMTP_PASS || '';
+
+  let rawFrom = process.env.SMTP_FROM || '';
+  let fromEmail = '';
+
+  if (rawFrom.includes('@')) {
+    fromEmail = rawFrom;
+  } else if (rawFrom.trim()) {
+    const senderEmail = process.env.SMTP_SENDER_EMAIL || 'noreply@animal.com';
+    fromEmail = `"${rawFrom.replace(/"/g, '').trim()}" <${senderEmail}>`;
+  } else {
+    fromEmail = `"Animal Click" <noreply@animal.com>`;
+  }
+
+  const formattedDate = new Date(eventDate).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(135deg, #f59e0b, #d97706); padding: 24px; text-align: center; color: white; }
+          .header h1 { margin: 0; font-size: 24px; }
+          .content { padding: 28px; color: #334155; }
+          .event-card { background: #fffbe6; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 6px; }
+          .event-title { font-size: 20px; font-weight: bold; color: #78350f; margin-bottom: 8px; }
+          .event-detail { font-size: 14px; margin: 4px 0; color: #92400e; }
+          .footer { background: #f8fafc; text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⏰ Event Tomorrow Reminder</h1>
+          </div>
+          <div class="content">
+            <p>Hi <strong>${userName}</strong>,</p>
+            <p>This is a quick reminder that your saved event is happening <strong>tomorrow</strong>!</p>
+            
+            <div class="event-card">
+              <div class="event-title">🎉 ${eventTitle}</div>
+              <div class="event-detail">📅 <strong>Date & Time:</strong> ${formattedDate}</div>
+              <div class="event-detail">📍 <strong>Venue:</strong> ${venue}${address ? `, ${address}` : ''}</div>
+              ${description ? `<div class="event-detail" style="margin-top:8px;">📝 ${description}</div>` : ''}
+            </div>
+
+            <p>We look forward to seeing you there!</p>
+            <p>Best regards,<br/><strong>Animal Click Team</strong></p>
+          </div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Animal Click. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  // If no SMTP credentials, log preview and return true for testing
+  if (!smtpUser || !smtpPass) {
+    console.log(`[Email Service Simulation] Sent Event Reminder to ${to} for "${eventTitle}" at ${formattedDate}`);
+    return { success: true, simulated: true };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
+
+  const mailOptions = {
+    from: fromEmail,
+    to,
+    subject: `⏰ Reminder: "${eventTitle}" is happening tomorrow!`,
+    html: htmlContent,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return { success: true, messageId: info.messageId };
+}

@@ -1066,3 +1066,23 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/event-reminder?ev
   }
 }
 ```
+
+---
+
+### 14.3 Automated Cron Job Worker (Runs Daily for 1-Day Before Event Mail)
+* **Method:** `GET` / `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/cron/event-reminders`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/cron/event-reminders'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "message": "Successfully processed 2 event reminders for tomorrow",
+  "reminders_found": 2,
+  "emails_sent": 2
+}
+```
