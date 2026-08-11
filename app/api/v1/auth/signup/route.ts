@@ -425,6 +425,14 @@ async function handleSignup(
     await setCurrentTokenHashes(userId, session.access_token, session.refresh_token);
   }
 
+  const formattedSession = session
+    ? {
+        ...session,
+        expires_in: 86400, // 1 day in seconds
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      }
+    : null;
+
   return NextResponse.json(
     {
       success: true,
@@ -444,7 +452,7 @@ async function handleSignup(
         latitude,
         longitude,
       },
-      session,
+      session: formattedSession,
     },
     { status: 201 }
   );

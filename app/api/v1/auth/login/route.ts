@@ -120,8 +120,16 @@ async function handleLogin(email: string, password: string) {
       console.warn('buildAuthProfile warning:', profileErr);
     }
 
+    const sessionObj = data.session
+      ? {
+          ...data.session,
+          expires_in: 86400, // 1 day (24 hours)
+          expires_at: Math.floor(Date.now() / 1000) + 86400,
+        }
+      : null;
+
     return NextResponse.json(
-      { user: data?.user ?? null, session: data?.session ?? null, ...(authProfile || {}) },
+      { user: data?.user ?? null, session: sessionObj, ...(authProfile || {}) },
       { status: 200 }
     );
   } catch (err: any) {

@@ -1086,3 +1086,144 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/cron/event-remind
   "emails_sent": 2
 }
 ```
+
+---
+
+## 15. Donation Campaigns APIs
+
+### 15.1 Get Donation Campaigns
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/donations`
+* **Query Params:**
+  - `visible_only` (Optional, e.g. `true`)
+  - `search` (Optional, e.g. `Rescue`)
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/donations?visible_only=true'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "campaigns": [
+    {
+      "campaign_id": 1,
+      "rescue_centre_id": 2,
+      "title": "Help Stray Paws Winter Medical Fund",
+      "description": "Providing medical care, food, and shelter for street animals.",
+      "monthly_target": 50000.00,
+      "visible": true,
+      "expires_at": "2026-12-31T23:59:59.000Z",
+      "bank_name": "HDFC Bank",
+      "account_number": "50100234567890",
+      "account_type": "Savings",
+      "branch_code_swift": "HDFC0001234",
+      "created_at": "2026-08-10T10:00:00.000Z",
+      "rescue_centres": {
+        "rescue_centre_id": 2,
+        "name": "Paws Rescue Care",
+        "phone": "9876543210"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 15.2 Create Donation Campaign
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/donations`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_or_owner_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/donations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "rescue_centre_id": 2,
+  "title": "Help Stray Paws Winter Medical Fund",
+  "description": "Providing medical care, food, and shelter for street animals.",
+  "monthly_target": 50000,
+  "visible": true,
+  "expires_at": "2026-12-31T23:59:59Z",
+  "bank_name": "HDFC Bank",
+  "account_number": "50100234567890",
+  "account_type": "Savings",
+  "branch_code_swift": "HDFC0001234"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "campaign": {
+    "campaign_id": 1,
+    "rescue_centre_id": 2,
+    "title": "Help Stray Paws Winter Medical Fund",
+    "description": "Providing medical care, food, and shelter for street animals.",
+    "monthly_target": 50000,
+    "visible": true,
+    "expires_at": "2026-12-31T23:59:59.000Z",
+    "bank_name": "HDFC Bank",
+    "account_number": "50100234567890",
+    "account_type": "Savings",
+    "branch_code_swift": "HDFC0001234",
+    "created_at": "2026-08-11T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 15.3 Update Donation Campaign
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/donations?campaign_id=1`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_or_owner_token>`
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/donations?campaign_id=1' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "monthly_target": 75000,
+  "visible": true
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "campaign": {
+    "campaign_id": 1,
+    "rescue_centre_id": 2,
+    "title": "Help Stray Paws Winter Medical Fund",
+    "monthly_target": 75000,
+    "visible": true
+  }
+}
+```
+
+---
+
+### 15.4 Delete Donation Campaign
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/donations?campaign_id=1`
+* **Headers:**
+  - `Authorization: Bearer <admin_or_owner_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/donations?campaign_id=1' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true
+}
+```
