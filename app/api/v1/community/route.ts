@@ -97,6 +97,11 @@ async function resolveCommunityImages(payload: CommunityPayload): Promise<string
 }
 
 export async function GET(request: NextRequest) {
+  const currentUser = await getUserFromRequest(request);
+  if (!currentUser || !currentUser.internalUserId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const search = request.nextUrl.searchParams.get('search');
   const userIdParam = request.nextUrl.searchParams.get('user_id');
 
@@ -105,11 +110,21 @@ export async function GET(request: NextRequest) {
     .select('*, post_likes(reaction), community_comments(user_id,comment,created_at,updated_at,users ( name )), users!user_id ( profile_image_url,user_name )')
     .order('created_at', { ascending: false });
 
-  if (userIdParam === 'me') {
-    const user = await getUserFromRequest(request);
-    if (user?.internalUserId) {
-      query = query.eq('user_id', user.internalUserId);
+  // Filter out posts from users blocked by current user
+  const { data: blockedRows } = await supabaseAdmin
+    .from('user_blocks')
+    .select('blocked_user_id')
+    .eq('user_id', currentUser.internalUserId);
+
+  if (blockedRows && blockedRows.length > 0) {
+    const blockedUserIds = Array.from(new Set(blockedRows.map((r: any) => r.blocked_user_id).filter(Boolean)));
+    if (blockedUserIds.length > 0) {
+      query = query.not('user_id', 'in', `(${blockedUserIds.join(',')})`);
     }
+  }
+
+  if (userIdParam === 'me') {
+    query = query.eq('user_id', currentUser.internalUserId);
   } else if (userIdParam && !isNaN(Number(userIdParam))) {
     query = query.eq('user_id', Number(userIdParam));
   }

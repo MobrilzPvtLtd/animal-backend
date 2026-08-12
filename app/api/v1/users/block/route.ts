@@ -12,11 +12,10 @@ export async function GET(request: NextRequest) {
 
     const { data: blockedList, error } = await supabaseAdmin
       .from('user_blocks')
-      .select('block_id, blocked_user_id, created_at, blocked_user:users!blocked_user_id(user_id, user_name, name, profile_image_url)')
-      .eq('blocker_user_id', user.internalUserId);
+      .select('user_id, blocked_user_id, created_at, blocked_user:users!blocked_user_id(user_id, user_name, name, surname, profile_image_url)')
+      .eq('user_id', user.internalUserId);
 
     if (error) {
-      // Fallback if column name is user_id instead of blocker_user_id
       const { data: fallbackList, error: fallbackError } = await supabaseAdmin
         .from('user_blocks')
         .select('*')
@@ -35,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/v1/users/block - Block or Unblock another user
+// POST /api/v1/users/block - Block or Unblock user via post_id or blocked_user_id
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -44,11 +43,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const blockedUserId = body?.blocked_user_id || body?.user_id;
+    let blockedUserId = body?.blocked_user_id || body?.user_id;
+    const postId = body?.post_id;
     const action = body?.action || 'block'; // 'block' or 'unblock'
 
+    // If post_id is passed, get the author (user_id) of the community post
+    if (postId && !isNaN(Number(postId)) && (!blockedUserId || isNaN(Number(blockedUserId)))) {
+      const { data: post, error: postErr } = await supabaseAdmin
+        .from('community_posts')
+        .select('user_id, title')
+        .eq('post_id', Number(postId))
+        .maybeSingle();
+
+      if (postErr || !post) {
+        return NextResponse.json({ error: 'Community post not found' }, { status: 404 });
+      }
+
+      blockedUserId = post.user_id;
+    }
+
     if (!blockedUserId || isNaN(Number(blockedUserId))) {
-      return NextResponse.json({ error: 'Valid blocked_user_id is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Valid post_id or blocked_user_id is required' }, { status: 400 });
     }
 
     const blockerId = Number(user.internalUserId);
@@ -61,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Check if target user exists
     const { data: targetUser, error: targetError } = await supabaseAdmin
       .from('users')
-      .select('user_id, user_name, name')
+      .select('user_id, user_name, name, surname')
       .eq('user_id', targetId)
       .maybeSingle();
 
@@ -69,11 +84,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User to block not found' }, { status: 404 });
     }
 
-    // Check existing block
+    // Check existing block by (user_id, blocked_user_id)
     const { data: existingBlock } = await supabaseAdmin
       .from('user_blocks')
-      .select('block_id')
-      .or(`and(blocker_user_id.eq.${blockerId},blocked_user_id.eq.${targetId}),and(user_id.eq.${blockerId},blocked_user_id.eq.${targetId})`)
+      .select('user_id, blocked_user_id')
+      .eq('user_id', blockerId)
+      .eq('blocked_user_id', targetId)
       .maybeSingle();
 
     if (action === 'unblock') {
@@ -81,13 +97,15 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('user_blocks')
           .delete()
-          .eq('block_id', existingBlock.block_id);
+          .eq('user_id', blockerId)
+          .eq('blocked_user_id', targetId);
       }
 
       return NextResponse.json({
         success: true,
         message: `User ${targetUser.user_name || targetUser.name || targetId} unblocked successfully`,
         is_blocked: false,
+        unblocked_user_id: targetId,
       });
     }
 
@@ -97,20 +115,20 @@ export async function POST(request: NextRequest) {
         success: true,
         message: `User ${targetUser.user_name || targetUser.name || targetId} is already blocked`,
         is_blocked: true,
+        blocked_user_id: targetId,
       });
     }
 
-    const insertData: Record<string, unknown> = {
-      blocker_user_id: blockerId,
-      blocked_user_id: targetId,
-      user_id: blockerId,
-    };
-
     const { data: newBlock, error: insertError } = await supabaseAdmin
       .from('user_blocks')
-      .insert([insertData])
+      .insert([
+        {
+          user_id: blockerId,
+          blocked_user_id: targetId,
+        },
+      ])
       .select()
-      .single();
+      .maybeSingle();
 
     if (insertError) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
@@ -118,8 +136,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `User ${targetUser.user_name || targetUser.name || targetId} blocked successfully`,
+      message: `User ${targetUser.user_name || targetUser.name || targetId} blocked successfully from community post`,
       is_blocked: true,
+      blocked_user_id: targetId,
       block: newBlock,
     });
   } catch (error: any) {

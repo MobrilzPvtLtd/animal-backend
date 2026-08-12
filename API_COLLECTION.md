@@ -18,7 +18,7 @@
   - `refresh-token: <refresh_token>`
 
 ```bash
-curl --location 'https://animal-backend-nine.vercel.app/api/auth/login' \
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/auth/login' \
 --header 'Content-Type: application/json' \
 --data '{
   "email": "superadmin@animal.com",
@@ -1276,13 +1276,18 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community' \
 ### 16.2 Get All Community Posts / Get My Own Posts
 * **Method:** `GET`
 * **URL:** `https://animal-backend-nine.vercel.app/api/v1/community`
+* **Headers:**
+  - `Authorization: Bearer <user_token>`
 * **Query Params:**
-  - `user_id` (Optional: pass `me` with Auth header OR specific `user_id` e.g. `12` to fetch only that user's posts)
+  - `user_id` (Optional: pass `me` to fetch only current user's posts, or specific `user_id` e.g. `12`)
   - `search` (Optional: e.g. `adoption`)
 
+> **Note:** Authorization Header (`Bearer <user_token>`) is mandatory so backend can identify the logged-in user and automatically exclude ALL posts created by users blocked by this user.
+
 ```bash
-# Get all posts
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/community'
+# Get all posts (excluding blocked users' posts)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
 
 # Get user's own posts
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/community?user_id=me' \
@@ -1394,15 +1399,26 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
 
 ---
 
-### 16.6 Block / Unblock User (User-Level Only)
+### 16.6 Block / Unblock User from Community Post (User-Level Only)
 * **Method:** `POST` / `GET`
-* **URL:** `https://animal-backend-nine.vercel.app/api/v1/users/block`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community/block` or `https://animal-backend-nine.vercel.app/api/v1/users/block`
 * **Headers:**
   - `Content-Type: application/json`
   - `Authorization: Bearer <user_token>`
 
+> **Note:** Jab koi user kisi community post se user ko block karta hai (`post_id` pass karke), toh backend automatically us post ke author ko block kar deta hai. Iske baad logged-in user ko `GET /api/v1/community` feed mein us blocked user ka koi bhi post kabhi dikhai nahi dega!
+
 ```bash
-# Block User
+# 1. Block User directly from Community Post (passes post_id)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/block' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "post_id": 5,
+  "action": "block"
+}'
+
+# 2. Block User by blocked_user_id
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN' \
@@ -1411,8 +1427,12 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
   "action": "block"
 }'
 
-# Unblock User
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
+# 3. Get Blocked Users List
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/block' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+
+# 4. Unblock User
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/block' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN' \
 --data '{
@@ -1421,11 +1441,12 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
 }'
 ```
 
-**Example JSON Response Body:**
+**Example JSON Response Body (Block from Post):**
 ```json
 {
   "success": true,
-  "message": "User John blocked successfully",
-  "is_blocked": true
+  "message": "User Developer blocked successfully from community post",
+  "is_blocked": true,
+  "blocked_user_id": 15
 }
 ```
