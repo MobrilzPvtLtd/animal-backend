@@ -4,12 +4,11 @@ import { deleteAnimalImageByUrl, uploadAnimalImage } from '@/lib/storage-upload'
 import { getUserFromRequest, requireRoles } from '@/lib/server-auth';
 
 type CommunityPayload = {
-  title?: unknown;
-  body?: unknown;
-  image_url?: unknown;
-  imageUrl?: unknown;
-  images?: unknown;
-  file?: unknown;
+  title?: string;
+  body?: string;
+  images?: string[];
+  image_url?: string;
+  formData?: FormData;
 };
 
 async function readPayload(request: NextRequest): Promise<CommunityPayload> {
@@ -17,71 +16,103 @@ async function readPayload(request: NextRequest): Promise<CommunityPayload> {
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await request.formData();
+    const titleVal = formData.get('title');
+    const bodyVal = formData.get('body');
+
     return {
-      title: formData.get('title'),
-      body: formData.get('body'),
-      image_url: formData.get('image_url'),
-      imageUrl: formData.get('imageUrl'),
-      images: formData.get('images'),
-      file: formData.get('file'),
+      title: typeof titleVal === 'string' ? titleVal.trim() : undefined,
+      body: typeof bodyVal === 'string' ? bodyVal.trim() : undefined,
+      formData,
     };
   }
 
   try {
-    return (await request.json()) as CommunityPayload;
+    const json = await request.json();
+    return {
+      title: typeof json.title === 'string' ? json.title.trim() : undefined,
+      body: typeof json.body === 'string' ? json.body.trim() : undefined,
+      images: Array.isArray(json.images) ? json.images : undefined,
+      image_url: typeof json.image_url === 'string' ? json.image_url : undefined,
+    };
   } catch {
     return {};
   }
 }
 
-function normalizeImages(imagesInput: unknown, fallbackUrl?: string | null): string[] {
-  if (Array.isArray(imagesInput)) {
-    return imagesInput.filter((img): img is string => typeof img === 'string' && Boolean(img.trim()));
-  }
-  if (typeof imagesInput === 'string' && imagesInput.trim()) {
-    try {
-      const parsed = JSON.parse(imagesInput);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((img): img is string => typeof img === 'string' && Boolean(img.trim()));
+async function resolveCommunityImages(payload: CommunityPayload): Promise<string[]> {
+  const uploadedUrls: string[] = [];
+
+  // 1. Process Form Data (Multiple file uploads or image strings)
+  if (payload.formData) {
+    const entries = Array.from(payload.formData.entries());
+
+    for (const [key, value] of entries) {
+      if (value instanceof File && value.size > 0) {
+        try {
+          const uploadResult = await uploadAnimalImage(value, 'community_posts');
+          if (uploadResult?.url) {
+            uploadedUrls.push(uploadResult.url);
+          }
+        } catch (uploadErr) {
+          console.error(`Failed to upload file key "${key}":`, uploadErr);
+        }
+      } else if (typeof value === 'string' && value.trim()) {
+        const trimmed = value.trim();
+        if (key === 'images' || key === 'image_url' || key === 'imageUrl') {
+          if (trimmed.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                for (const item of parsed) {
+                  if (typeof item === 'string' && item.trim()) {
+                    uploadedUrls.push(item.trim());
+                  }
+                }
+              }
+            } catch {
+              uploadedUrls.push(trimmed);
+            }
+          } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+            uploadedUrls.push(trimmed);
+          }
+        }
       }
-    } catch {
-      return [imagesInput.trim()];
     }
   }
-  return fallbackUrl ? [fallbackUrl] : [];
-}
 
-function normalizeImageUrl(value: unknown): string | null | undefined {
-  if (value === undefined) {
-    return undefined;
+  // 2. Process JSON Payload images
+  if (payload.images && Array.isArray(payload.images)) {
+    for (const item of payload.images) {
+      if (typeof item === 'string' && item.trim()) {
+        uploadedUrls.push(item.trim());
+      }
+    }
   }
 
-  if (typeof value !== 'string') {
-    return null;
+  if (payload.image_url && typeof payload.image_url === 'string' && payload.image_url.trim()) {
+    uploadedUrls.push(payload.image_url.trim());
   }
 
-  const trimmedValue = value.trim();
-  return trimmedValue || null;
-}
-
-async function resolveImageUrl(payload: CommunityPayload): Promise<string | null | undefined> {
-  const rawValue = payload.file ?? payload.image_url ?? payload.imageUrl;
-
-  if (rawValue instanceof File) {
-    const uploadResult = await uploadAnimalImage(rawValue, 'community_posts');
-    return uploadResult.url;
-  }
-
-  return normalizeImageUrl(rawValue);
+  return Array.from(new Set(uploadedUrls));
 }
 
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get('search');
+  const userIdParam = request.nextUrl.searchParams.get('user_id');
 
   let query = supabaseAdmin
     .from('community_posts')
     .select('*, post_likes(reaction), community_comments(user_id,comment,created_at,updated_at,users ( name )), users!user_id ( profile_image_url,user_name )')
     .order('created_at', { ascending: false });
+
+  if (userIdParam === 'me') {
+    const user = await getUserFromRequest(request);
+    if (user?.internalUserId) {
+      query = query.eq('user_id', user.internalUserId);
+    }
+  } else if (userIdParam && !isNaN(Number(userIdParam))) {
+    query = query.eq('user_id', Number(userIdParam));
+  }
 
   if (search) {
     query = query.ilike('title', `%${search}%`).or(`body.ilike.%${search}%`);
@@ -116,21 +147,20 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = await readPayload(request);
-  const title = typeof payload.title === 'string' ? payload.title.trim() : undefined;
-  const body = typeof payload.body === 'string' ? payload.body.trim() : '';
+  const title = payload.title;
+  const body = payload.body || '';
   if (!body) {
     return NextResponse.json({ error: 'Post body is required' }, { status: 400 });
   }
 
-  const singleImageUrl = await resolveImageUrl(payload);
-  const imagesList = normalizeImages(payload.images, singleImageUrl);
-  const finalPrimaryImage = imagesList[0] || singleImageUrl || null;
+  const imagesList = await resolveCommunityImages(payload);
+  const primaryImage = imagesList[0] || null;
 
   const insertPayload: Record<string, unknown> = {
     user_id: user.internalUserId,
     title: title || null,
     body,
-    image_url: finalPrimaryImage,
+    image_url: primaryImage,
     images: imagesList,
   };
 
@@ -144,7 +174,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ post: data });
+  return NextResponse.json({
+    post: {
+      ...data,
+      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []),
+    },
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -176,17 +211,16 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {};
   if (payload.title !== undefined) {
-    updates.title = typeof payload.title === 'string' ? payload.title.trim() || null : null;
+    updates.title = payload.title || null;
   }
   if (payload.body !== undefined) {
-    updates.body = typeof payload.body === 'string' ? payload.body.trim() : payload.body;
+    updates.body = payload.body;
   }
 
-  const resolvedImageUrl = await resolveImageUrl(payload);
-  if (payload.images !== undefined || resolvedImageUrl !== undefined) {
-    const imagesList = normalizeImages(payload.images, resolvedImageUrl);
+  const imagesList = await resolveCommunityImages(payload);
+  if (imagesList.length > 0) {
     updates.images = imagesList;
-    updates.image_url = imagesList[0] || resolvedImageUrl || null;
+    updates.image_url = imagesList[0] || null;
   }
 
   const { data, error } = await supabaseAdmin
@@ -200,7 +234,12 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ post: data });
+  return NextResponse.json({
+    post: {
+      ...data,
+      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.image_url ? [data.image_url] : []),
+    },
+  });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -216,7 +255,7 @@ export async function DELETE(request: NextRequest) {
 
   const canDelete = await supabaseAdmin
     .from('community_posts')
-    .select('user_id, image_url')
+    .select('user_id, image_url, images')
     .eq('post_id', postId)
     .single();
 
@@ -230,14 +269,18 @@ export async function DELETE(request: NextRequest) {
   }
 
   const postImageUrl = canDelete.data.image_url;
+  const postImages = Array.isArray(canDelete.data.images) ? canDelete.data.images : [];
+
   const { error } = await supabaseAdmin.from('community_posts').delete().eq('post_id', postId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (typeof postImageUrl === 'string' && postImageUrl) {
+  // Cleanup storage images
+  const allImageUrls = Array.from(new Set([postImageUrl, ...postImages].filter(Boolean))) as string[];
+  for (const imgUrl of allImageUrls) {
     try {
-      await deleteAnimalImageByUrl(postImageUrl);
+      await deleteAnimalImageByUrl(imgUrl);
     } catch (cleanupError) {
       console.warn('Failed to clean up deleted community post image:', cleanupError);
     }

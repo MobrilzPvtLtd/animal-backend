@@ -1227,3 +1227,205 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
   "success": true
 }
 ```
+
+---
+
+## 16. Community Module APIs
+
+### 16.1 Create Community Post (Multiple Images Support)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "title": "Adopt cute puppies!",
+  "body": "We have 3 healthy puppies ready for adoption. Please share!",
+  "images": [
+    "https://example.com/images/puppy1.jpg",
+    "https://example.com/images/puppy2.jpg"
+  ]
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "post": {
+    "post_id": 1,
+    "user_id": 12,
+    "title": "Adopt cute puppies!",
+    "body": "We have 3 healthy puppies ready for adoption. Please share!",
+    "image_url": "https://example.com/images/puppy1.jpg",
+    "images": [
+      "https://example.com/images/puppy1.jpg",
+      "https://example.com/images/puppy2.jpg"
+    ],
+    "created_at": "2026-08-12T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 16.2 Get All Community Posts / Get My Own Posts
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community`
+* **Query Params:**
+  - `user_id` (Optional: pass `me` with Auth header OR specific `user_id` e.g. `12` to fetch only that user's posts)
+  - `search` (Optional: e.g. `adoption`)
+
+```bash
+# Get all posts
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community'
+
+# Get user's own posts
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community?user_id=me' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "posts": [
+    {
+      "post_id": 1,
+      "user_id": 12,
+      "title": "Adopt cute puppies!",
+      "body": "We have 3 healthy puppies ready for adoption. Please share!",
+      "image_url": "https://example.com/images/puppy1.jpg",
+      "images": [
+        "https://example.com/images/puppy1.jpg",
+        "https://example.com/images/puppy2.jpg"
+      ],
+      "likes_count": 5,
+      "dislikes_count": 0,
+      "comments_count": 2,
+      "created_at": "2026-08-12T10:00:00.000Z",
+      "users": {
+        "user_name": "Developer",
+        "profile_image_url": "https://example.com/profile.jpg"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 16.3 Like / Dislike Post
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community/reactions`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_token>`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/reactions' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "post_id": 1,
+  "reaction": "like"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "likes_count": 6,
+  "dislikes_count": 0,
+  "reaction": "like"
+}
+```
+
+---
+
+### 16.4 Share Post API
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community/share`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_token>` (Optional)
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/share' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "post_id": 1
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "message": "Post shared successfully",
+  "post_id": 1,
+  "share_link": "https://animal-backend-nine.vercel.app/community/posts/1"
+}
+```
+
+---
+
+### 16.5 Delete Own Post
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community?post_id=1`
+* **Headers:**
+  - `Authorization: Bearer <user_token>`
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/community?post_id=1' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+### 16.6 Block / Unblock User (User-Level Only)
+* **Method:** `POST` / `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/users/block`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_token>`
+
+```bash
+# Block User
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "blocked_user_id": 15,
+  "action": "block"
+}'
+
+# Unblock User
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/users/block' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "blocked_user_id": 15,
+  "action": "unblock"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "message": "User John blocked successfully",
+  "is_blocked": true
+}
+```
