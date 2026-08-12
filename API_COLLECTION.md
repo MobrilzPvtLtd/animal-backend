@@ -1450,3 +1450,47 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/block' 
   "blocked_user_id": 15
 }
 ```
+
+---
+
+### 16.7 Get Blocked Community Posts List (for Unblocking)
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/community/blocked-posts`
+* **Headers:**
+  - `Authorization: Bearer <user_token>`
+
+> **Description:** Yeh API block kiye gaye saare **Community Posts ki List (`post_id`, `title`, `body`, `image_url`, `images`, `user`)** return karti hai.
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/blocked-posts' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "blocked_posts": [
+    {
+      "post_id": 1,
+      "user_id": 2,
+      "title": "Adopt cute puppies!",
+      "body": "We have 3 healthy puppies ready for adoption. Please share!",
+      "image_url": "https://ndqrrdhjqrhudydnuipd.supabase.co/storage/v1/object/public/animalclickposts/community_posts/1.jpg",
+      "images": [
+        "https://ndqrrdhjqrhudydnuipd.supabase.co/storage/v1/object/public/animalclickposts/community_posts/1.jpg"
+      ],
+      "created_at": "2026-08-12T10:00:00.000Z",
+      "blocked_at": "2026-08-12T09:20:35.927Z",
+      "user": {
+        "user_id": 2,
+        "user_name": "Subscriber Member",
+        "name": "Subscriber",
+        "surname": "Member",
+        "full_name": "Subscriber Member",
+        "profile_image_url": null
+      }
+    }
+  ]
+}
+```
