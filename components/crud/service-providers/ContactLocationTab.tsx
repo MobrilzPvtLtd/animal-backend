@@ -46,7 +46,7 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
 
   const handleDetectGps = () => {
     setIsDetectingGps(true)
-    toast.info("Detecting current location...")
+    toast.info("Detecting precise GPS location...")
 
     if (!("geolocation" in navigator)) {
       fallbackIpLocation().finally(() => setIsDetectingGps(false))
@@ -62,14 +62,31 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
         form.setValue("longitude", lng.toString(), { shouldValidate: true, shouldDirty: true })
 
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
-          )
-          const data = await response.json()
-          
-          if (data && data.display_name) {
-            form.setValue("address", data.display_name, { shouldValidate: true, shouldDirty: true })
-            toast.success("Location detected: " + data.display_name.split(',').slice(0, 3).join(','))
+          const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+          let address = ""
+
+          if (window.google?.maps?.Geocoder) {
+            const geocoder = new window.google.maps.Geocoder()
+            address = await new Promise((resolve) => {
+              geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+                if (status === "OK" && results?.[0]?.formatted_address) {
+                  resolve(results[0].formatted_address)
+                } else {
+                  resolve("")
+                }
+              })
+            })
+          } else if (apiKey) {
+            const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`)
+            const data = await response.json()
+            if (data.status === "OK" && data.results?.[0]?.formatted_address) {
+              address = data.results[0].formatted_address
+            }
+          }
+
+          if (address) {
+            form.setValue("address", address, { shouldValidate: true, shouldDirty: true })
+            toast.success("Location set: " + address.split(',').slice(0, 3).join(','))
           } else {
             const fallbackAddr = `Current Location (${lat.toFixed(5)}, ${lng.toFixed(5)})`
             form.setValue("address", fallbackAddr, { shouldValidate: true, shouldDirty: true })
@@ -94,7 +111,7 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
         }
         setIsDetectingGps(false)
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     )
   }
 
@@ -171,26 +188,8 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
       />
 
       <div className="border-t pt-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4">
           <h3 className="text-lg font-medium">Location</h3>
-          <button
-            type="button"
-            disabled={isDetectingGps}
-            onClick={handleDetectGps}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-all border border-primary/20 shadow-sm disabled:opacity-50"
-          >
-            {isDetectingGps ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Detecting GPS Location...</span>
-              </>
-            ) : (
-              <>
-                <MapPin className="h-3.5 w-3.5" />
-                <span>📍 Use Current Location (GPS)</span>
-              </>
-            )}
-          </button>
         </div>
         
         <FormField
