@@ -95,6 +95,48 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
 
 ---
 
+### 1.3 Fetch & Update Logged-In User Profile (`/api/v1/auth/me`)
+* **Method:** `GET` / `PATCH` / `PUT` / `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/auth/me`
+* **Headers:**
+  - `Authorization: Bearer <user_token>`
+
+> **Description:** 
+> - **`GET`**: Returns logged-in user profile, role names, permissions, and profile image.
+> - **`PATCH` / `PUT` / `POST`**: Updates user profile. Supports `name` (or `full_name`), `user_name` (or `username`), `surname`, `phone`, `bio`, `gender`, `static_location` (or `location` / `address`), and profile image file upload under key `avatar`, `profile_image_url`, `image`, or `file`.
+
+```bash
+# 1. Fetch Profile (GET)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+
+# 2. Update Profile (PATCH/PUT/POST JSON)
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "name": "Yash",
+  "username": "yash_tyagi",
+  "phone": "1234567890",
+  "bio": "Hi there!",
+  "address": "Ghaziabad",
+  "gender": "Male"
+}'
+
+# 3. Update Profile with Avatar Image Upload (Multipart Form-Data)
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--form 'name="Yash"' \
+--form 'username="yash_tyagi"' \
+--form 'phone="1234567890"' \
+--form 'bio="Hi there!"' \
+--form 'address="Ghaziabad"' \
+--form 'gender="Male"' \
+--form 'avatar=@"/path/to/image.jpg"'
+```
+
+---
+
 ## 🗺️ 2. Google Places Module (2 APIs)
 
 ### 2.1 Places Autocomplete Search
