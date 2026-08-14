@@ -18,7 +18,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { validateWhatsNewTitle } from "@/lib/name-validation"
@@ -178,30 +177,7 @@ export function WhatsNewForm({ whatsNew, onSuccess, onCancel }: WhatsNewFormProp
           )}
         />
 
-        <FormField
-          control={form.control}
-          name={"images" as any}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <MultipleImageUpload
-                  value={((field.value && field.value.length > 0 ? field.value : (form.watch("image_url") ? [form.watch("image_url")] : [])) as string[]).map((url: string, index: number) => ({
-                    image_url: url,
-                    order: index + 1
-                  }))}
-                  onChange={(newImages: ServiceProviderImage[]) => {
-                    const urls = newImages.map(img => img.image_url);
-                    field.onChange(urls);
-                    form.setValue("image_url", urls[0] || "");
-                  }}
-                  folder="whats-new"
-                  label="Images"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+
 
         <FormField
           control={form.control}
