@@ -123,8 +123,8 @@ async function handleLogin(email: string, password: string) {
     const sessionObj = data.session
       ? {
           ...data.session,
-          expires_in: 86400, // 1 day (24 hours)
-          expires_at: Math.floor(Date.now() / 1000) + 86400,
+          expires_in: 2592000, // 30 days (720 hours)
+          expires_at: Math.floor(Date.now() / 1000) + 2592000,
         }
       : null;
 

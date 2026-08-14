@@ -8,20 +8,20 @@ export function generateTokens(payload: object) {
   const token = jwt.sign(
     { ...payload, token_type: 'access' },
     JWT_SECRET,
-    { expiresIn: '1d' }
+    { expiresIn: '30d' }
   );
 
   const refresh_token = jwt.sign(
     { ...payload, token_type: 'refresh' },
     REFRESH_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '90d' }
   );
 
   return {
     token,
     refresh_token,
     token_type: 'Bearer',
-    expires_in: 86400, // 1 day in seconds (24 hours)
+    expires_in: 2592000, // 30 days in seconds (720 hours)
   };
 }
 

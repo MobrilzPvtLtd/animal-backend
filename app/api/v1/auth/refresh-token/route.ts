@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     message: 'Token refreshed successfully',
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
-    expires_in: 86400, // 1 day (24 hours)
-    expires_at: Math.floor(Date.now() / 1000) + 86400,
+    expires_in: 2592000, // 30 days (720 hours)
+    expires_at: Math.floor(Date.now() / 1000) + 2592000,
   });
 }

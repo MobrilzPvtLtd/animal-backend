@@ -142,37 +142,38 @@ export default function AuthProvider({ children }: any) {
     }
   }, [loading, session, path, router]);
 
-  // Proactively redirect to login when token expires
+  // Proactively refresh token before it expires (or logout if refresh fails)
   useEffect(() => {
     if (!session?.expires_at) return;
 
     const expiresAtMs = session.expires_at * 1000;
     const timeUntilExpiry = expiresAtMs - Date.now();
 
-    if (timeUntilExpiry <= 0) {
-      setSession(null);
-      setUserDetails(null);
-      setRoles([]);
-      setSelected_vendor(null);
-      setSelected_roles([]);
-      setPermissions([]);
-      setSelected_vendor_location_id(null);
-      storage.clear();
-      localStorage.clear();
-      return;
-    }
+    // Refresh 1 minute before token expires
+    const refreshTime = Math.max(timeUntilExpiry - 60000, 1000);
 
-    const timeout = setTimeout(() => {
-      setSession(null);
-      setUserDetails(null);
-      setRoles([]);
-      setSelected_vendor(null);
-      setSelected_roles([]);
-      setPermissions([]);
-      setSelected_vendor_location_id(null);
-      storage.clear();
-      localStorage.clear();
-    }, timeUntilExpiry - 10000);
+    const timeout = setTimeout(async () => {
+      if (session?.refresh_token) {
+        const refreshed = await refreshSessionFromServer(session);
+        if (refreshed) {
+          setSession(refreshed);
+          return;
+        }
+      }
+      
+      // If refresh failed and token is expired, clear session
+      if (timeUntilExpiry <= 0) {
+        setSession(null);
+        setUserDetails(null);
+        setRoles([]);
+        setSelected_vendor(null);
+        setSelected_roles([]);
+        setPermissions([]);
+        setSelected_vendor_location_id(null);
+        storage.clear();
+        localStorage.clear();
+      }
+    }, refreshTime);
 
     return () => clearTimeout(timeout);
   }, [session?.access_token, session?.expires_at]);
