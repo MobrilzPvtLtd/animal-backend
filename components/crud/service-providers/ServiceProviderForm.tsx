@@ -445,9 +445,19 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
     }
   }
 
+  const handleFormError = (errors: any) => {
+    console.error("Form validation errors:", errors)
+    const errorKeys = Object.keys(errors)
+    if (errorKeys.length > 0) {
+      const firstField = errorKeys[0]
+      const firstError = errors[firstField]?.message || "Please check required fields"
+      toast.error(`Validation Error: ${firstError} (${firstField})`)
+    }
+  }
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, handleFormError)} className="space-y-6">
         <Tabs defaultValue="basic" className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>

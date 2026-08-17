@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { supabase } from "@/lib/supabase"
 import { createLocation, fetchLocations } from "@/lib/locations-api"
+import { validateServiceProviderName } from "@/lib/name-validation"
 import { serviceProviderSchema } from "./schema"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
@@ -49,6 +50,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
     resolver: zodResolver(serviceProviderSchema),
     defaultValues: {
       service_category_id: preselectedCategoryId ? parseInt(preselectedCategoryId) : 0,
+      category_ids: preselectedCategoryId ? [parseInt(preselectedCategoryId)] : [],
       name: "",
       description: "",
       bio: "",
@@ -111,19 +113,42 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
     const values = form.getValues()
     
     switch (currentStep) {
-      case 1:
-        // Validate basic info
-        if (!values.service_category_id || !values.name.trim()) {
-          toast.error("Please fill in all required fields")
+      case 1: {
+        // Validate basic info (Category & Name)
+        const isNameValid = await form.trigger("name")
+        const categoryIds = (values as any).category_ids || []
+        const hasCategory = (categoryIds && categoryIds.length > 0) || (values.service_category_id && values.service_category_id > 0)
+        
+        if (!hasCategory) {
+          form.setError("category_ids" as any, {
+            type: "manual",
+            message: "Please select at least one category"
+          })
+          toast.error("Please select at least one category")
+          return false
+        } else {
+          form.clearErrors("category_ids" as any)
+        }
+
+        if (!isNameValid || !values.name?.trim()) {
+          toast.error("Please enter a provider name (at least 2 characters)")
           return false
         }
         break
+      }
       case 2:
-        // Contact info is optional, so always valid
+        // Images are optional
         break
-      case 3:
-        // Settings have defaults, so always valid
+      case 3: {
+        // Validate contact & location formats
+        const isEmailValid = await form.trigger("email")
+        const isWebsiteValid = await form.trigger("website")
+        if (!isEmailValid || !isWebsiteValid) {
+          toast.error("Please fix errors in Contact & Location details")
+          return false
+        }
         break
+      }
     }
     return true
   }
@@ -145,11 +170,51 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
     router.push("/dashboard/service-providers")
   }
 
+  const handleFormError = (errors: any) => {
+    console.error("Form validation errors:", errors)
+    const errorKeys = Object.keys(errors)
+    if (errorKeys.length > 0) {
+      const firstField = errorKeys[0]
+      const firstError = errors[firstField]?.message || "Please check required fields"
+      toast.error(`Validation Error (${firstField}): ${firstError}`)
+      
+      // Auto-navigate to step containing the error
+      if (["service_category_id", "category_ids", "name", "description", "bio"].includes(firstField)) {
+        setCurrentStep(1)
+      } else if (["image_url"].includes(firstField)) {
+        setCurrentStep(2)
+      } else if (["phone", "emergency_number", "number_2", "email", "website", "address", "latitude", "longitude"].includes(firstField)) {
+        setCurrentStep(3)
+      } else if (["operating_hours"].includes(firstField)) {
+        setCurrentStep(4)
+      } else if (["is_verified", "is_active", "featured"].includes(firstField)) {
+        setCurrentStep(5)
+      }
+    }
+  }
+
   const onSubmit = async (values: any) => {
     setIsLoading(true)
     try {
       const currentFormValues = form.getValues()
       const submissionValues = { ...currentFormValues }
+
+      // Validate provider name uniqueness
+      if (submissionValues.name) {
+        const { isUnique, error: nameValError } = await validateServiceProviderName(submissionValues.name)
+        if (nameValError) {
+          toast.error(nameValError)
+          setIsLoading(false)
+          return
+        }
+        if (!isUnique) {
+          toast.error("A service provider with this name already exists")
+          setCurrentStep(1)
+          form.setError("name", { type: "manual", message: "Name already exists" })
+          setIsLoading(false)
+          return
+        }
+      }
 
       let locationId = submissionValues.location_id
 
@@ -209,7 +274,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
 
       // Save services if any
       if (services.length > 0) {
-        const validServices = services.filter(service => service.name.trim())
+        const validServices = services.filter(service => service.name?.trim())
         if (validServices.length > 0) {
           const servicesData = validServices.map(service => ({
             service_provider_id: serviceProviderId,
@@ -279,9 +344,9 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       
       toast.success("Service provider created successfully")
       router.push("/dashboard/service-providers")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving service provider:", error)
-      toast.error("Failed to save service provider")
+      toast.error(error?.message || "Failed to save service provider")
     } finally {
       setIsLoading(false)
     }
@@ -381,7 +446,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
                   {isLastStep ? (
                     <Button 
                       type="button" 
-                      onClick={() => form.handleSubmit(onSubmit)()} 
+                      onClick={() => form.handleSubmit(onSubmit, handleFormError)()} 
                       disabled={isLoading}
                     >
                       {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

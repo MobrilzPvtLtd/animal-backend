@@ -18,47 +18,11 @@ export const serviceProviderSchema = z.object({
   is_verified: z.boolean().default(false),
   is_active: z.boolean().default(true),
   featured: z.boolean().default(false),
-  operating_hours: z.object({
-    monday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    tuesday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    wednesday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    thursday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    friday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    saturday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional(),
-    sunday: z.object({
-      isOpen: z.boolean(),
-      openTime: z.string(),
-      closeTime: z.string()
-    }).optional()
-  }).optional(),
+  operating_hours: z.record(z.any()).optional().nullable(),
   social_media: z.record(z.any()).optional(),
   additional_info: z.record(z.any()).optional(),
   service_areas: z.string().optional(),
-  show_operating_hours: z.boolean().default(true),
+  show_operating_hours: z.boolean().optional().default(false),
   // Location fields for creating a new location
   address: z.string().optional(),
   latitude: z.string().optional(),

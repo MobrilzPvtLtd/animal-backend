@@ -164,7 +164,7 @@ export function OperatingHoursTab({ form }: OperatingHoursTabProps) {
     toast.success(isOpen ? "Opened all days" : "Closed all days")
   }
 
-  const showOperatingHours = form.watch("show_operating_hours") ?? true
+  const showOperatingHours = form.watch("show_operating_hours") ?? false
 
   return (
     <div className="space-y-6">
