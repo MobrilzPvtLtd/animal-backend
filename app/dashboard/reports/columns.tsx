@@ -101,7 +101,7 @@ export const getReportsColumns = (
       const amount = row.getValue("amount");
       return (
         <div className="text-sm text-gray-500">
-          ${(amount as number).toFixed(2)}
+          R{(amount as number).toFixed(2)}
         </div>
       );
     },

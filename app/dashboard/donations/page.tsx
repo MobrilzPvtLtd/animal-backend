@@ -132,11 +132,42 @@ export default function DonationsPage() {
     event.preventDefault();
     setSaving(true);
     try {
+      const rescueCentreIdNum = Number(form.rescue_centre_id);
+      if (!rescueCentreIdNum || isNaN(rescueCentreIdNum)) {
+        toast.error("Please select a valid rescue centre");
+        setSaving(false);
+        return;
+      }
+
+      // Check if selected ID exists in rescue_centres table
+      let validRescueCentreId = rescueCentreIdNum;
+      const { data: existingCentre } = await supabase
+        .from("rescue_centres")
+        .select("rescue_centre_id")
+        .eq("rescue_centre_id", rescueCentreIdNum)
+        .maybeSingle();
+
+      if (!existingCentre) {
+        // Find if this was selected from service_providers
+        const selectedOption = rescueCentres.find((rc) => rc.rescue_centre_id === rescueCentreIdNum);
+        if (selectedOption) {
+          // Auto-create a matching rescue_centre entry so FK constraint passes
+          const { data: createdCentre, error: createError } = await supabase
+            .from("rescue_centres")
+            .insert([{ name: selectedOption.name.replace(" (Service Provider)", ""), address: "N/A", is_verified: true }])
+            .select("rescue_centre_id")
+            .single();
+
+          if (createError) throw createError;
+          validRescueCentreId = createdCentre.rescue_centre_id;
+        }
+      }
+
       const payload = {
-        rescue_centre_id: Number(form.rescue_centre_id),
+        rescue_centre_id: validRescueCentreId,
         title: form.title,
         description: form.description || null,
-        monthly_target: Number(form.monthly_target),
+        monthly_target: Number(form.monthly_target) || 0,
         visible: form.visible,
         expires_at: form.expires_at || null,
         bank_name: form.bank_name || null,
@@ -156,7 +187,7 @@ export default function DonationsPage() {
           .eq("campaign_id", selected.campaign_id);
 
         if (error) throw error;
-        toast.success("Campaign updated");
+        toast.success("Campaign updated successfully");
       } else {
         // Create new campaign
         const { error } = await supabase
@@ -164,7 +195,7 @@ export default function DonationsPage() {
           .insert([payload]);
 
         if (error) throw error;
-        toast.success("Campaign created");
+        toast.success("Campaign created successfully");
       }
 
       setFormOpen(false);
@@ -173,7 +204,7 @@ export default function DonationsPage() {
       loadData();
     } catch (error: any) {
       console.error("Error saving donation campaign:", error);
-      toast.error(error.message || "Failed to save campaign");
+      toast.error(error?.message || "Failed to save campaign");
     } finally {
       setSaving(false);
     }

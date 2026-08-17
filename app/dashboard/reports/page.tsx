@@ -227,7 +227,7 @@ export default function ReportsPage() {
           <CardContent className="p-6">
             <p className="text-sm text-gray-500">Total Revenue</p>
             <div className="flex items-baseline mt-1">
-              <h2 className="text-2xl font-bold mr-2">${metrics.totalRevenue.toLocaleString()}</h2>
+              <h2 className="text-2xl font-bold mr-2">R{metrics.totalRevenue.toLocaleString()}</h2>
               <div className={`flex items-center text-sm ${metrics.revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {metrics.revenueChange >= 0 ? (
                   <ArrowUpRight className="h-3.5 w-3.5" />

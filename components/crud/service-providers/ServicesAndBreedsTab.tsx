@@ -262,7 +262,7 @@ export function ServicesAndBreedsTab({
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Price ($)</label>
+                        <label className="text-sm font-medium">Price (R)</label>
                         <Input
                           type="number"
                           step="0.01"

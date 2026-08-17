@@ -28,7 +28,7 @@ export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
               <p className="text-sm text-muted-foreground mb-2">{service.description}</p>
             )}
             <div className="flex space-x-4 text-sm text-muted-foreground">
-              {service.price && <span>Price: ${service.price}</span>}
+              {service.price && <span>Price: R{service.price}</span>}
               {service.duration_minutes && <span>Duration: {service.duration_minutes} min</span>}
             </div>
           </div>

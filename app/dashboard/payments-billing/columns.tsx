@@ -91,7 +91,7 @@ export const getColumns = (
     },
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("total_amounts") || '');
-      return <div className="text-gray-500">${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+      return <div className="text-gray-500">R {amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
     },
   },
   {
