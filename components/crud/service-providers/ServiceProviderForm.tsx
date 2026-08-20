@@ -20,6 +20,7 @@ import { OperatingHoursTab } from "./OperatingHoursTab"
 import { ImagesTab } from "./ImagesTab"
 import { ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { ImageUploadService } from "@/lib/image-upload"
+import { syncServiceProviderToPetFriendlyPlace } from "@/lib/sync-pet-friendly-places"
 
 interface ServiceProviderFormProps {
   provider?: ServiceProvider
@@ -88,8 +89,31 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
     fetchCategories()
     if (provider?.service_provider_id) {
       fetchProviderCategories(provider.service_provider_id)
+      fetchPetFriendlyPlaceDetails(provider.service_provider_id)
     }
   }, [provider])
+
+  const fetchPetFriendlyPlaceDetails = async (providerId: number) => {
+    try {
+      const { data: place } = await supabase
+        .from("pet_friendly_places")
+        .select("*, place_groups(group_id)")
+        .eq("service_provider_id", providerId)
+        .eq("is_deleted", false)
+        .maybeSingle()
+
+      if (place) {
+        form.setValue("is_pet_friendly_place" as any, true)
+        if (place.name) form.setValue("pet_friendly_name" as any, place.name)
+        if (place.amenities) form.setValue("amenities" as any, place.amenities)
+        if (place.place_groups && place.place_groups.length > 0) {
+          form.setValue("pet_friendly_group_id" as any, place.place_groups[0].group_id)
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching pet friendly place details:", err)
+    }
+  }
 
   const fetchProviderCategories = async (providerId: number) => {
     try {
@@ -211,6 +235,19 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         operating_hours: submissionValues.operating_hours || null,
       }
 
+      const petFriendlyInfo = {
+        is_pet_friendly_place: (submissionValues as any).is_pet_friendly_place || false,
+        pet_friendly_name: (submissionValues as any).pet_friendly_name || null,
+        pet_friendly_group_id: (submissionValues as any).pet_friendly_group_id || null,
+        amenities: (submissionValues as any).amenities || [],
+      }
+
+      const locationPayload = {
+        address: submissionValues.address || null,
+        latitude: submissionValues.latitude || null,
+        longitude: submissionValues.longitude || null,
+      }
+
       if (provider) {
         const { error } = await supabase
           .from("service_providers")
@@ -218,6 +255,12 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
           .eq("service_provider_id", provider.service_provider_id)
 
         if (error) throw error
+
+        await syncServiceProviderToPetFriendlyPlace(
+          provider.service_provider_id,
+          { ...providerData, ...locationPayload },
+          petFriendlyInfo
+        )
 
         // Sync service_provider_categories
         await supabase
@@ -353,6 +396,12 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         if (error) throw error
 
         const serviceProviderId = providerResult.service_provider_id
+
+        await syncServiceProviderToPetFriendlyPlace(
+          serviceProviderId,
+          { ...providerData, ...locationPayload },
+          petFriendlyInfo
+        )
 
         // Sync service_provider_categories
         if (categoryIds.length > 0) {

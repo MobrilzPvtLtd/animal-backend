@@ -28,6 +28,11 @@ export const serviceProviderSchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   show_publicly: z.boolean().default(true),
+  // Pet-Friendly Place Integration fields
+  is_pet_friendly_place: z.boolean().default(false),
+  pet_friendly_name: z.string().optional().nullable(),
+  pet_friendly_group_id: z.number().optional().nullable(),
+  amenities: z.array(z.string()).optional().nullable(),
 })
 
 export type ServiceProvider = z.infer<typeof serviceProviderSchema> & {

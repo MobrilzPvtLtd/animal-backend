@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
+import { syncServiceProviderToPetFriendlyPlace } from '@/lib/sync-pet-friendly-places';
 
 export async function GET(request: NextRequest) {
   const serviceCategoryId = request.nextUrl.searchParams.get('service_category_id');
@@ -191,6 +192,10 @@ export async function PATCH(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (data) {
+    syncServiceProviderToPetFriendlyPlace(data.service_provider_id, data, { is_pet_friendly_place: true }, supabaseAdmin);
   }
 
   return NextResponse.json({ provider: data });

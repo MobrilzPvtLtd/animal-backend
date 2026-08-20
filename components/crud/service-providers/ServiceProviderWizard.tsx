@@ -21,6 +21,7 @@ import { ServicesAndBreedsTab } from "./ServicesAndBreedsTab"
 import { OperatingHoursTab } from "./OperatingHoursTab"
 import { ImagesTab } from "./ImagesTab"
 import { ServiceProviderImage } from "@/components/ui/multiple-image-upload"
+import { syncServiceProviderToPetFriendlyPlace } from "@/lib/sync-pet-friendly-places"
 
 const WIZARD_STEPS = [
   { id: 1, label: "Basic Info", component: "basic" },
@@ -253,6 +254,19 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         operating_hours: submissionValues.operating_hours || null,
       }
 
+      const petFriendlyInfo = {
+        is_pet_friendly_place: (submissionValues as any).is_pet_friendly_place || false,
+        pet_friendly_name: (submissionValues as any).pet_friendly_name || null,
+        pet_friendly_group_id: (submissionValues as any).pet_friendly_group_id || null,
+        amenities: (submissionValues as any).amenities || [],
+      }
+
+      const locationPayload = {
+        address: submissionValues.address || null,
+        latitude: submissionValues.latitude || null,
+        longitude: submissionValues.longitude || null,
+      }
+
       const { data: providerResult, error } = await supabase
         .from("service_providers")
         .insert([providerData])
@@ -262,6 +276,12 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       if (error) throw error
 
       const serviceProviderId = providerResult.service_provider_id
+
+      await syncServiceProviderToPetFriendlyPlace(
+        serviceProviderId,
+        { ...providerData, ...locationPayload },
+        petFriendlyInfo
+      )
 
       // Sync service_provider_categories
       if (categoryIds.length > 0) {
