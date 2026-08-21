@@ -21,12 +21,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Service category not found' }, { status: 404 });
     }
 
-    const { data: providers } = await supabaseAdmin
+    const catIdNum = Number(categoryId);
+    const { data: junctionRows } = await supabaseAdmin
+      .from('service_provider_categories')
+      .select('service_provider_id')
+      .eq('service_category_id', catIdNum);
+
+    const linkedProviderIds = (junctionRows || []).map((r: any) => r.service_provider_id).filter(Boolean);
+
+    let providerQuery = supabaseAdmin
       .from('service_providers')
       .select('*, service_categories(*), service_provider_images(*), services(*)')
-      .eq('service_category_id', Number(categoryId))
-      .eq('is_deleted', false)
+      .or('is_deleted.eq.false,is_deleted.is.null')
       .order('name');
+
+    if (linkedProviderIds.length > 0) {
+      providerQuery = providerQuery.or(`service_category_id.eq.${catIdNum},service_provider_id.in.(${linkedProviderIds.join(',')})`);
+    } else {
+      providerQuery = providerQuery.eq('service_category_id', catIdNum);
+    }
+
+    const { data: providers } = await providerQuery;
 
     return NextResponse.json({ category: { ...category, service_providers: providers || [] } });
   }

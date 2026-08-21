@@ -222,7 +222,7 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         image_url: profileImage,
         images: allImageUrls.length > 0 ? allImageUrls : (profileImage ? [profileImage] : []),
         phone: submissionValues.phone || null,
-        emergency_number: submissionValues.emergency_number || null,
+        emergency_number: submissionValues.emergency_number || submissionValues.phone || null,
         number_2: submissionValues.number_2 || null,
         email: submissionValues.email || null,
         website: submissionValues.website || null,
@@ -249,32 +249,35 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       }
 
       if (provider) {
-        const { error } = await supabase
-          .from("service_providers")
-          .update(providerData)
-          .eq("service_provider_id", provider.service_provider_id)
+        // Get session token to authenticate the PATCH request
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
 
-        if (error) throw error
-
-        await syncServiceProviderToPetFriendlyPlace(
-          provider.service_provider_id,
-          { ...providerData, ...locationPayload },
-          petFriendlyInfo
+        // Use the API endpoint (supabaseAdmin) instead of direct Supabase client
+        // to bypass RLS restrictions that would silently block updates
+        const patchRes = await fetch(
+          `/api/v1/service-providers?service_provider_id=${provider.service_provider_id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+            },
+            body: JSON.stringify({
+              ...providerData,
+              ...locationPayload,
+              category_ids: categoryIds,
+              ...petFriendlyInfo,
+            }),
+          }
         )
-
-        // Sync service_provider_categories
-        await supabase
-          .from("service_provider_categories")
-          .delete()
-          .eq("service_provider_id", provider.service_provider_id)
-
-        if (categoryIds.length > 0) {
-          const categoryData = categoryIds.map((catId: number) => ({
-            service_provider_id: provider.service_provider_id,
-            service_category_id: catId,
-          }))
-          await supabase.from("service_provider_categories").insert(categoryData)
+        if (!patchRes.ok) {
+          const errBody = await patchRes.json().catch(() => ({}))
+          throw new Error(errBody.error || `Update failed with status ${patchRes.status}`)
         }
+
+
+
 
         // Update services - always delete existing first, then insert new ones if any
         await supabase

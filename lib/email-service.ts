@@ -117,3 +117,99 @@ export async function sendEventReminderEmail(data: EventReminderEmailData) {
   const info = await transporter.sendMail(mailOptions);
   return { success: true, messageId: info.messageId };
 }
+
+export interface SupportTicketReplyEmailData {
+  to: string;
+  userName?: string;
+  ticketSubject: string;
+  replyText: string;
+  ticketId: number | string;
+}
+
+export async function sendSupportTicketReplyEmail(data: SupportTicketReplyEmailData) {
+  const { to, userName = 'Valued Member', ticketSubject, replyText, ticketId } = data;
+
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER || '';
+  const smtpPass = process.env.SMTP_PASS || '';
+
+  let rawFrom = process.env.SMTP_FROM || '';
+  let fromEmail = '';
+
+  if (rawFrom.includes('@')) {
+    fromEmail = rawFrom;
+  } else if (rawFrom.trim()) {
+    const senderEmail = process.env.SMTP_SENDER_EMAIL || 'noreply@animal.com';
+    fromEmail = `"${rawFrom.replace(/"/g, '').trim()}" <${senderEmail}>`;
+  } else {
+    fromEmail = `"Animal Click Support" <noreply@animal.com>`;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 24px; text-align: center; color: white; }
+          .header h1 { margin: 0; font-size: 24px; }
+          .content { padding: 28px; color: #334155; }
+          .reply-card { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; margin: 20px 0; border-radius: 6px; }
+          .ticket-info { font-size: 14px; margin-bottom: 12px; color: #64748b; }
+          .reply-text { font-size: 16px; margin: 4px 0; color: #0f172a; line-height: 1.5; white-space: pre-wrap; }
+          .footer { background: #f8fafc; text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Update on Your Support Ticket</h1>
+          </div>
+          <div class="content">
+            <p>Hi <strong>${userName}</strong>,</p>
+            <p>Our support team has replied to your ticket.</p>
+            
+            <div class="reply-card">
+              <div class="ticket-info">Ticket ID: #${ticketId} | Subject: ${ticketSubject}</div>
+              <div class="reply-text">${replyText.replace(/\n/g, '<br/>')}</div>
+            </div>
+
+            <p>You can reply directly in the Animal Click app to continue the conversation.</p>
+            <p>Best regards,<br/><strong>Animal Click Support Team</strong></p>
+          </div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Animal Click. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  if (!smtpUser || !smtpPass) {
+    console.log(`[Email Service Simulation] Sent Support Ticket Reply to ${to} for ticket #${ticketId}`);
+    return { success: true, simulated: true };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
+
+  const mailOptions = {
+    from: fromEmail,
+    to,
+    subject: `Re: [Ticket #${ticketId}] ${ticketSubject}`,
+    html: htmlContent,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return { success: true, messageId: info.messageId };
+}

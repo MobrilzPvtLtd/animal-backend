@@ -4,6 +4,10 @@ import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 import { syncServiceProviderToPetFriendlyPlace } from '@/lib/sync-pet-friendly-places';
 
+// Disable Next.js fetch cache so DB updates are immediately reflected
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const serviceCategoryId = request.nextUrl.searchParams.get('service_category_id');
   const search = request.nextUrl.searchParams.get('search');
@@ -16,19 +20,52 @@ export async function GET(request: NextRequest) {
     .order('name');
 
   if (serviceCategoryId) {
-    query = query.eq('service_category_id', Number(serviceCategoryId));
+    const catIdNum = Number(serviceCategoryId);
+    const { data: junctionRows } = await supabaseAdmin
+      .from('service_provider_categories')
+      .select('service_provider_id')
+      .eq('service_category_id', catIdNum);
+
+    const linkedProviderIds = (junctionRows || []).map((r: any) => r.service_provider_id).filter(Boolean);
+
+    if (linkedProviderIds.length > 0) {
+      query = query.or(`service_category_id.eq.${catIdNum},service_provider_id.in.(${linkedProviderIds.join(',')})`);
+    } else {
+      query = query.eq('service_category_id', catIdNum);
+    }
   }
 
   if (!includeDeleted) {
-    query = query.eq('is_deleted', false);
+    query = query.or('is_deleted.eq.false,is_deleted.is.null');
   }
 
   if (activeOnly) {
-    query = query.eq('is_active', true);
+    query = query.or('is_active.eq.true,is_active.is.null');
   }
 
   if (search) {
-    query = query.ilike('name', `%${search}%`).or(`description.ilike.%${search}%`);
+    const s = search.trim().toLowerCase();
+    // 1. Fetch matching breed service_provider_ids
+    const { data: breedRows } = await supabaseAdmin
+      .from('service_provider_breeds')
+      .select('service_provider_id, breeds!inner(name)')
+      .ilike('breeds.name', `%${s}%`);
+    const breedProviderIds = (breedRows || []).map((r: any) => r.service_provider_id).filter(Boolean);
+
+    // 2. Fetch matching category service_provider_ids
+    const { data: catRows } = await supabaseAdmin
+      .from('service_provider_categories')
+      .select('service_provider_id, service_categories!inner(name)')
+      .ilike('service_categories.name', `%${s}%`);
+    const catProviderIds = (catRows || []).map((r: any) => r.service_provider_id).filter(Boolean);
+
+    const extraIds = Array.from(new Set([...breedProviderIds, ...catProviderIds]));
+
+    if (extraIds.length > 0) {
+      query = query.or(`name.ilike.%${s}%,description.ilike.%${s}%,bio.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%,service_provider_id.in.(${extraIds.join(',')})`);
+    } else {
+      query = query.or(`name.ilike.%${s}%,description.ilike.%${s}%,bio.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`);
+    }
   }
 
   const { data, error } = await query;
@@ -37,6 +74,27 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ providers: data });
+}
+
+function parseCategoryIds(rawCategoryIds: any, fallbackCategoryId?: any): number[] {
+  let ids: number[] = [];
+  if (Array.isArray(rawCategoryIds)) {
+    ids = rawCategoryIds.map(Number).filter(n => !isNaN(n) && n > 0);
+  } else if (typeof rawCategoryIds === 'string' && rawCategoryIds.trim()) {
+    try {
+      const parsed = JSON.parse(rawCategoryIds);
+      if (Array.isArray(parsed)) {
+        ids = parsed.map(Number).filter(n => !isNaN(n) && n > 0);
+      }
+    } catch {
+      ids = rawCategoryIds.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0);
+    }
+  }
+  if (ids.length === 0 && fallbackCategoryId) {
+    const num = Number(fallbackCategoryId);
+    if (!isNaN(num) && num > 0) ids.push(num);
+  }
+  return Array.from(new Set(ids));
 }
 
 export async function POST(request: NextRequest) {
@@ -103,18 +161,24 @@ export async function POST(request: NextRequest) {
 
   const { name, description, service_category_id, phone, emergency_number, number_2, email, website, image_url, bio, is_verified, is_active, featured, rating, total_reviews, operating_hours, images } = body;
 
-  if (!name || !service_category_id) {
+  const categoryIds = parseCategoryIds(body.category_ids, service_category_id);
+  const primaryCategoryId = categoryIds[0] || (service_category_id ? Number(service_category_id) : undefined);
+
+  if (!name || !primaryCategoryId) {
     return NextResponse.json({ error: 'Provider name and service category are required' }, { status: 400 });
   }
+
+  const finalPhone = (phone as string | undefined)?.trim() || null;
+  const finalEmergency = (emergency_number as string | undefined)?.trim() || finalPhone;
 
   const { data: provider, error } = await supabaseAdmin
     .from('service_providers')
     .insert([{
       name,
       description: description || null,
-      service_category_id,
-      phone: phone || null,
-      emergency_number: emergency_number || null,
+      service_category_id: primaryCategoryId,
+      phone: finalPhone,
+      emergency_number: finalEmergency,
       number_2: number_2 || null,
       email: email || null,
       website: website || null,
@@ -150,17 +214,31 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Sync service_provider_categories junction table
+  if (categoryIds.length > 0) {
+    const categoryRows = categoryIds.map((catId: number) => ({
+      service_provider_id: provider.service_provider_id,
+      service_category_id: catId,
+    }));
+    await supabaseAdmin.from('service_provider_categories').insert(categoryRows);
+  }
+
   return NextResponse.json({ provider });
 }
 
 export async function PATCH(request: NextRequest) {
   const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
-  if ('status' in auth) return auth;
+  if ('status' in auth) {
+    console.error('PATCH /api/v1/service-providers - Auth FAILED:', JSON.stringify(auth));
+    return auth;
+  }
 
   const providerId = request.nextUrl.searchParams.get('service_provider_id');
+  console.log(`PATCH /api/v1/service-providers - providerId=${providerId}, user=${(auth as any).user?.email}`);
   if (!providerId) {
     return NextResponse.json({ error: 'service_provider_id is required' }, { status: 400 });
   }
+
 
   let updates: Record<string, unknown>;
   let rawBody: string;
@@ -183,9 +261,53 @@ export async function PATCH(request: NextRequest) {
       error: 'Invalid JSON in request body.' + hint
     }, { status: 400 });
   }
+
+  // Sync service_provider_categories junction table if category updates are provided
+  if (updates.category_ids !== undefined || updates.service_category_id !== undefined) {
+    const catIds = parseCategoryIds(updates.category_ids, updates.service_category_id);
+
+    if (catIds.length > 0) {
+      updates.service_category_id = catIds[0];
+      await supabaseAdmin.from('service_provider_categories').delete().eq('service_provider_id', providerId);
+      const categoryRows = catIds.map((catId: number) => ({
+        service_provider_id: Number(providerId),
+        service_category_id: catId,
+      }));
+      await supabaseAdmin.from('service_provider_categories').insert(categoryRows);
+    }
+  }
+
+  // If phone is updated and emergency_number is empty or omitted, sync emergency_number with phone
+  if (updates.phone !== undefined) {
+    const updatedPhone = (updates.phone as string | undefined)?.trim() || null;
+    updates.phone = updatedPhone;
+    if (updates.emergency_number === undefined || updates.emergency_number === '' || updates.emergency_number === null) {
+      updates.emergency_number = updatedPhone;
+    }
+  }
+
+  // Extract petFriendlyInfo and location fields from the payload (not DB columns)
+  const petFriendlyInfo = {
+    is_pet_friendly_place: updates.is_pet_friendly_place as boolean | undefined,
+    pet_friendly_name: updates.pet_friendly_name as string | null | undefined,
+    pet_friendly_group_id: updates.pet_friendly_group_id as number | null | undefined,
+    amenities: updates.amenities as string[] | null | undefined,
+  };
+  const locationPayload = {
+    address: updates.address as string | null | undefined,
+    latitude: updates.latitude as string | number | null | undefined,
+    longitude: updates.longitude as string | number | null | undefined,
+  };
+
+  // Strip non-column fields before sending to Supabase
+  // 'images' is stored in service_provider_images table (not a column on service_providers)
+  // petFriendly/location fields are virtual fields from the form, not DB columns
+  const { is_pet_friendly_place, pet_friendly_name, pet_friendly_group_id, amenities,
+    address, latitude, longitude, show_publicly, category_ids, images, ...providerUpdates } = updates as any;
+
   const { data, error } = await supabaseAdmin
     .from('service_providers')
-    .update(updates)
+    .update(providerUpdates)
     .eq('service_provider_id', providerId)
     .select()
     .single();
@@ -195,7 +317,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (data) {
-    syncServiceProviderToPetFriendlyPlace(data.service_provider_id, data, { is_pet_friendly_place: true }, supabaseAdmin);
+    // Use full petFriendlyInfo from the request (not hardcoded true)
+    syncServiceProviderToPetFriendlyPlace(
+      data.service_provider_id,
+      { ...data, ...locationPayload },
+      { ...petFriendlyInfo, is_pet_friendly_place: petFriendlyInfo.is_pet_friendly_place ?? true },
+      supabaseAdmin
+    );
   }
 
   return NextResponse.json({ provider: data });

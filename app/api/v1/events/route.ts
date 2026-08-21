@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
 
   let title: string | undefined;
   let description: string | undefined;
+  let phone: string | undefined;
   let event_date: string | undefined;
   let end_date: string | undefined;
   let venue: string | undefined;
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
 
     title = formData.get('title') as string | undefined;
     description = formData.get('description') as string | undefined;
+    phone = (formData.get('phone') || formData.get('contact_phone')) as string | undefined;
     event_date = formData.get('event_date') as string | undefined;
     end_date = formData.get('end_date') as string | undefined;
     venue = formData.get('venue') as string | undefined;
@@ -147,6 +149,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     title = body.title;
     description = body.description;
+    phone = body.phone || body.contact_phone;
     event_date = body.event_date;
     end_date = body.end_date;
     venue = body.venue;
@@ -228,6 +231,7 @@ export async function POST(request: NextRequest) {
       {
         title,
         description,
+        phone,
         event_date,
         end_date,
         venue,

@@ -21,7 +21,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import {
   useSortable,
@@ -74,7 +74,8 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 50 : 1,
   };
 
   const [imgError, setImgError] = useState(false);
@@ -83,11 +84,15 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
     <div
       ref={setNodeRef}
       style={style}
-      className="relative group"
+      className={`relative group touch-none cursor-grab active:cursor-grabbing ${
+        isDragging ? 'shadow-2xl ring-2 ring-primary rounded-lg z-50 scale-105 transition-transform' : ''
+      }`}
+      {...attributes}
+      {...listeners}
     >
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden border transition-all hover:border-primary/50 hover:shadow-md">
         <CardContent className="p-2">
-          <div className="relative">
+          <div className="relative aspect-video w-full">
             {imgError ? (
               <div className="w-full h-32 flex items-center justify-center bg-muted rounded-md">
                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -96,33 +101,34 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
               <img
                 src={image.image_url}
                 alt={`Image ${index + 1}`}
-                className="w-full h-32 object-cover rounded-md"
+                className="w-full h-32 object-cover rounded-md pointer-events-none select-none"
                 onError={() => setImgError(true)}
               />
             )}
 
-            <div
-              {...attributes}
-              {...listeners}
-              className="absolute top-2 left-2 p-1 bg-black/50 rounded cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <GripVertical className="h-4 w-4 text-white" />
+            {/* Drag Handle & Order Badge */}
+            <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold rounded-md flex items-center gap-1 shadow-md select-none pointer-events-none">
+              <GripVertical className="h-3.5 w-3.5 opacity-80" />
+              <span>{index + 1}</span>
             </div>
 
+            {/* Remove Button */}
             <Button
               type="button"
               variant="destructive"
               size="sm"
-              className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => onRemove(index)}
+              className="absolute top-2 right-2 h-7 w-7 p-0 rounded-full shadow-md z-20 opacity-80 group-hover:opacity-100 transition-opacity"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onRemove(index);
+              }}
               disabled={disabled}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </Button>
-
-            <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-              {index + 1}
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -164,7 +170,11 @@ export function MultipleImageUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -496,7 +506,7 @@ export function MultipleImageUpload({
           >
             <SortableContext
               items={value.map((_, index) => `image-${index}`)}
-              strategy={verticalListSortingStrategy}
+              strategy={rectSortingStrategy}
             >
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {value.map((image, index) => (

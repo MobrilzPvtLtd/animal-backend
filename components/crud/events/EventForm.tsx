@@ -66,6 +66,7 @@ export function EventForm({ event, onSuccess, onCancel }: EventFormProps) {
       max_attendees: event?.max_attendees || undefined,
       current_attendees: event?.current_attendees || 0,
       is_active: event?.is_active ?? true,
+      phone: event?.phone || "",
       event_category_id: event?.event_category?.event_category_id || undefined,
       additional_info: event?.additional_info || undefined,
     },
@@ -374,6 +375,27 @@ export function EventForm({ event, onSuccess, onCancel }: EventFormProps) {
                   {...field}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Contact Phone Number</FormLabel>
+              <FormControl>
+                <Input
+                  type="tel"
+                  placeholder="e.g. +27 12 345 6789"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                Organizer contact number for attendees to call with questions
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

@@ -26,12 +26,14 @@ export const eventSchema = z.object({
   current_attendees: z.number().min(0).default(0),
   is_active: z.boolean().default(true),
   is_approved: z.boolean().default(false),
+  phone: z.string().optional(),
   event_category_id: z.number().optional(),
   additional_info: z.any().optional(), // JSONB field
 })
 
 export type Event = z.infer<typeof eventSchema> & {
   event_id: number
+  phone?: string
   created_at: string
   updated_at?: string
   service_provider?: {

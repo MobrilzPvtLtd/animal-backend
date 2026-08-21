@@ -3385,3 +3385,117 @@ CREATE TABLE IF NOT EXISTS public.event_reminders (
 -- Index for fast user/event reminder lookups
 CREATE INDEX IF NOT EXISTS idx_event_reminders_user_event ON public.event_reminders(user_id, event_id);
 
+
+-- ============================================================
+-- Migration: 046_add_reviews_and_places_contribute_fields.sql
+-- ============================================================
+
+-- 1. Add fields to reviews table
+ALTER TABLE public.reviews
+ADD COLUMN IF NOT EXISTS listing_id TEXT NULL,
+ADD COLUMN IF NOT EXISTS reviewer_name TEXT NULL,
+ADD COLUMN IF NOT EXISTS reviewer_image TEXT NULL,
+ADD COLUMN IF NOT EXISTS likes INTEGER DEFAULT 0;
+
+-- Create index for listing_id lookup
+CREATE INDEX IF NOT EXISTS idx_reviews_listing_id ON public.reviews(listing_id);
+
+-- 2. Add fields to pet_friendly_places table
+ALTER TABLE public.pet_friendly_places
+ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS place_type TEXT NULL;
+
+
+-- ============================================================
+-- Migration: 047_add_phone_to_events.sql
+-- ============================================================
+
+-- Add contact phone column to events table
+ALTER TABLE public.events
+ADD COLUMN IF NOT EXISTS phone TEXT NULL;
+
+
+-- ============================================================
+-- Migration: 048_sync_service_provider_category_ids.sql
+-- ============================================================
+
+-- Sync primary service_category_id on public.service_providers from junction table
+UPDATE public.service_providers sp
+SET service_category_id = (
+  SELECT spc.service_category_id
+  FROM public.service_provider_categories spc
+  WHERE spc.service_provider_id = sp.service_provider_id
+  ORDER BY spc.service_category_id ASC
+  LIMIT 1
+)
+WHERE sp.service_category_id IS NULL;
+
+
+-- ============================================================
+-- Migration: 049_sync_service_provider_phone_numbers.sql
+-- ============================================================
+
+-- Sync emergency_number on public.service_providers with phone if emergency_number is null, empty, or outdated
+UPDATE public.service_providers
+SET emergency_number = phone
+WHERE phone IS NOT NULL AND phone != '' AND (emergency_number IS NULL OR emergency_number = '');
+
+
+-- ============================================================
+-- Migration: 050_fix_spca_category_mapping.sql
+-- ============================================================
+
+-- Fix SPCA category data mapping, standardize active/deleted flags
+UPDATE public.service_providers
+SET is_deleted = false
+WHERE is_deleted IS NULL;
+
+UPDATE public.service_providers
+SET is_active = true
+WHERE is_active IS NULL;
+
+DO $$
+DECLARE
+  spca_cat_id BIGINT;
+BEGIN
+  SELECT service_category_id INTO spca_cat_id
+  FROM public.service_categories
+  WHERE LOWER(name) LIKE '%spca%'
+  ORDER BY service_category_id ASC
+  LIMIT 1;
+
+  IF spca_cat_id IS NOT NULL THEN
+    UPDATE public.service_providers
+    SET service_category_id = spca_cat_id, is_active = true, is_deleted = false
+    WHERE (LOWER(name) LIKE '%spca edenvale%' OR LOWER(name) LIKE '%spca sandton%' OR LOWER(name) LIKE '%edenvale%spca%' OR LOWER(name) LIKE '%sandton%spca%');
+
+    INSERT INTO public.service_provider_categories (service_provider_id, service_category_id)
+    SELECT sp.service_provider_id, spca_cat_id
+    FROM public.service_providers sp
+    WHERE (LOWER(sp.name) LIKE '%spca edenvale%' OR LOWER(sp.name) LIKE '%spca sandton%' OR LOWER(sp.name) LIKE '%edenvale%spca%' OR LOWER(sp.name) LIKE '%sandton%spca%')
+    AND NOT EXISTS (
+      SELECT 1 FROM public.service_provider_categories spc
+      WHERE spc.service_provider_id = sp.service_provider_id
+      AND spc.service_category_id = spca_cat_id
+    );
+
+    DELETE FROM public.service_provider_categories
+    WHERE service_category_id = spca_cat_id
+    AND service_provider_id IN (
+      SELECT service_provider_id FROM public.service_providers
+      WHERE (LOWER(name) LIKE '%animal travel%' OR LOWER(name) LIKE '%transport%')
+      AND LOWER(name) NOT LIKE '%spca%'
+    );
+  END IF;
+END $$;
+
+
+-- ============================================================
+-- Migration: 051_drop_reviews_unique_constraint.sql
+-- ============================================================
+
+-- Drop unique constraint on reviews (user_id, place_id) to allow multiple reviews
+ALTER TABLE public.reviews DROP CONSTRAINT IF EXISTS reviews_user_id_place_id_key;
+DROP INDEX IF EXISTS idx_reviews_user_id_place_id;
+
+

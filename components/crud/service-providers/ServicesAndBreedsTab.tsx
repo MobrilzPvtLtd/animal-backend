@@ -8,10 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { PlusCircle, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { BreedForm } from "@/components/crud/breeds/BreedForm"
 
 interface ServicesAndBreedsTabProps {
   serviceCategoryId: number
@@ -51,7 +49,6 @@ export function ServicesAndBreedsTab({
   const [services, setServices] = useState<ServiceItem[]>([])
   const [breedsLoading, setBreedsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [isAddBreedDialogOpen, setIsAddBreedDialogOpen] = useState(false)
 
   // Check if this is a breeder category (service_category_id = 12)
   const isBreederCategory = serviceCategoryId === 12
@@ -87,18 +84,13 @@ export function ServicesAndBreedsTab({
   }, [services, onServicesChange])
 
   useEffect(() => {
-    if (onBreedsChange && selectedBreedIds.length > 0) {
+    if (onBreedsChange) {
       const selectedBreeds = breeds.filter(breed => 
         selectedBreedIds.includes(breed.breed_id.toString())
       )
       onBreedsChange(selectedBreeds)
     }
   }, [selectedBreedIds, breeds, onBreedsChange])
-
-  const handleBreedCreated = () => {
-    setIsAddBreedDialogOpen(false)
-    fetchBreeds() // Refresh the breeds list
-  }
 
   const fetchBreeds = async () => {
     setBreedsLoading(true)
@@ -320,34 +312,20 @@ export function ServicesAndBreedsTab({
         </CardContent>
       </Card>
 
-      {/* Breeds Section - Available for all service categories */}
+      {/* Breeds Section - Pulls directly from existing breeds database */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div>
             <CardTitle>Breeds</CardTitle>
-            <Dialog open={isAddBreedDialogOpen} onOpenChange={setIsAddBreedDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add New Breed
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Add New Breed</DialogTitle>
-                </DialogHeader>
-                <BreedForm
-                  onSuccess={handleBreedCreated}
-                  onCancel={() => setIsAddBreedDialogOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select existing breeds from the main database (managed via Breeds in the main left menu).
+            </p>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {breedsLoading ? (
-            <div className="flex justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <>
@@ -362,12 +340,21 @@ export function ServicesAndBreedsTab({
               />
               
               {selectedBreeds.length > 0 && (
-                <div className="space-y-2">
-                  <h5 className="text-sm font-medium">Selected Breeds:</h5>
+                <div className="space-y-2 pt-1">
+                  <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Selected Breeds ({selectedBreeds.length}):
+                  </h5>
                   <div className="flex flex-wrap gap-2">
                     {selectedBreeds.map((breed) => (
-                      <Badge key={breed.breed_id} variant="secondary">
-                        {breed.name} ({breed.animal_type?.name || 'Unknown'})
+                      <Badge key={breed.breed_id} variant="secondary" className="flex items-center gap-1.5 py-1 px-2.5">
+                        <span>{breed.name} ({breed.animal_type?.name || 'Unknown'})</span>
+                        <button
+                          type="button"
+                          onClick={() => handleBreedsChange(selectedBreedIds.filter(id => id !== breed.breed_id.toString()))}
+                          className="rounded-full hover:bg-muted-foreground/20 p-0.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </Badge>
                     ))}
                   </div>

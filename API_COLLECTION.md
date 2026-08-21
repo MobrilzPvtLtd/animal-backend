@@ -290,10 +290,20 @@ curl --location --request PUT 'https://animal-backend-nine.vercel.app/api/pet-fr
 }'
 ```
 
-### 5.5 Delete Pet-Friendly Place
-* **Method:** `DELETE`
+### 5.6 Contribute Pet-Friendly Place (Public / Guest Submission)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/places/contribute`
 ```bash
-curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/pet-friendly-places/1'
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/places/contribute' \
+--form 'name="Kirstenbosch Tea Garden"' \
+--form 'place_type="Cafe & Restaurant"' \
+--form 'address="Rhodes Dr, Newlands, Cape Town"' \
+--form 'description="Pet-friendly outdoor cafe with beautiful mountain views."' \
+--form 'phone="+27 21 799 8782"' \
+--form 'website="https://example.com"' \
+--form 'latitude="-33.987"' \
+--form 'longitude="18.432"' \
+--form 'image=@"/path/to/photo.jpg"'
 ```
 
 ---
@@ -1536,3 +1546,36 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/blocked
   ]
 }
 ```
+
+---
+
+## 🌟 17. Reviews & Profanity Moderation Module (3 APIs)
+
+### 17.1 Get Listing Reviews
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=vet_clinic`
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=vet_clinic'
+```
+
+### 17.2 Submit Listing Review (With Profanity Moderation)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
+--header 'Content-Type: application/json' \
+--data '{
+  "listing_id": "vet_clinic",
+  "rating": 5,
+  "comment": "Wonderful clinic with exceptionally caring staff!",
+  "reviewer_name": "Sarah Jenkins"
+}'
+```
+
+### 17.3 Toggle / Increment Review Like
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews/1/like`
+```bash
+curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/reviews/1/like'
+```
+

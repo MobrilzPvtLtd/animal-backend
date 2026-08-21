@@ -25,6 +25,7 @@ export async function syncServiceProviderToPetFriendlyPlace(
     is_pet_friendly_place?: boolean
     pet_friendly_name?: string | null
     pet_friendly_group_id?: number | null
+    pet_friendly_group_ids?: number[] | null
     amenities?: string[] | null
   },
   customClient?: any
@@ -121,19 +122,25 @@ export async function syncServiceProviderToPetFriendlyPlace(
       }
     }
 
-    // Sync group mapping if pet_friendly_group_id is specified
-    if (placeId && petFriendlyInfo.pet_friendly_group_id) {
+    // Sync group mapping if pet_friendly_group_id or pet_friendly_group_ids specified
+    const groupIds: number[] = petFriendlyInfo.pet_friendly_group_ids && petFriendlyInfo.pet_friendly_group_ids.length > 0
+      ? petFriendlyInfo.pet_friendly_group_ids
+      : (petFriendlyInfo.pet_friendly_group_id ? [petFriendlyInfo.pet_friendly_group_id] : []);
+
+    if (placeId && groupIds.length > 0) {
       await client
         .from("place_groups")
         .delete()
         .eq("place_id", placeId)
 
+      const groupRows = groupIds.map(gId => ({
+        place_id: placeId,
+        group_id: gId,
+      }))
+
       await client
         .from("place_groups")
-        .insert({
-          place_id: placeId,
-          group_id: petFriendlyInfo.pet_friendly_group_id,
-        })
+        .insert(groupRows)
     }
   } catch (err) {
     console.error("Error syncing ServiceProvider to pet_friendly_places:", err)

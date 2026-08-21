@@ -122,7 +122,7 @@ export function SearchableSelect({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
+                  value={`${option.label} ${option.value}`}
                   onSelect={() => handleSelect(option.value)}
                 >
                   <Check

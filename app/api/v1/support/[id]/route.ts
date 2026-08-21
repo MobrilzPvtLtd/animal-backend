@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { getUserFromRequest, requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
+import { sendSupportTicketReplyEmail } from '@/lib/email-service';
 
 const TICKET_SELECT = `
   *,
@@ -104,7 +105,16 @@ export async function POST(
   // Verify the ticket exists and check permissions
   const { data: ticket, error: ticketError } = await supabaseAdmin
     .from('support_tickets')
-    .select('support_ticket_id, user_id, status')
+    .select(`
+      support_ticket_id, 
+      user_id, 
+      status, 
+      subject,
+      users!support_tickets_user_id_fkey (
+        email,
+        full_name
+      )
+    `)
     .eq('support_ticket_id', params.id)
     .single();
 
@@ -181,6 +191,24 @@ export async function POST(
     .from('support_tickets')
     .update(updateFields)
     .eq('support_ticket_id', params.id);
+
+  // If an admin is replying, send an email to the ticket creator
+  const ticketUser: any = Array.isArray(ticket.users) ? ticket.users[0] : ticket.users;
+
+  if (isAdmin && ticketUser && ticketUser.email) {
+    try {
+      await sendSupportTicketReplyEmail({
+        to: ticketUser.email,
+        userName: ticketUser.full_name || 'Valued Member',
+        ticketSubject: ticket.subject || 'Support Ticket',
+        replyText: replyText.trim(),
+        ticketId: ticket.support_ticket_id,
+      });
+    } catch (emailError) {
+      console.error('Failed to send support ticket reply email:', emailError);
+      // We don't fail the request if the email fails to send
+    }
+  }
 
   return NextResponse.json({ reply: replyResult });
 }

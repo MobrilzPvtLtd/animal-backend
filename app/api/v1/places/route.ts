@@ -3,6 +3,9 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get('search');
   const includeDeleted = request.nextUrl.searchParams.get('include_deleted');
