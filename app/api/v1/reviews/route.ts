@@ -62,8 +62,8 @@ async function enrichReviewsWithUserData(reviews: any[]) {
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const placeId = searchParams.get('place_id') || searchParams.get('placeId');
-  const serviceProviderId = searchParams.get('service_provider_id') || searchParams.get('serviceProviderId');
+  const placeId = searchParams.get('place_id') || searchParams.get('placeId') || searchParams.get('pet_friendly_place_id');
+  const serviceProviderId = searchParams.get('service_provider_id') || searchParams.get('serviceProviderId') || searchParams.get('provider_id');
   const listingId = searchParams.get('listing_id') || searchParams.get('listingId');
 
   const extractNumericId = (str: string | null): number | null => {
@@ -72,9 +72,50 @@ export async function GET(request: NextRequest) {
     return match ? Number(match[0]) : null;
   };
 
-  const numericPlaceId = placeId ? Number(placeId) : extractNumericId(listingId);
+  let targetPlaceIds: number[] = [];
 
-  // 1. Try querying by listing_id first (if listing_id column exists in DB)
+  // 1. Resolve service_provider_id to pet_friendly_place_id
+  if (serviceProviderId && !isNaN(Number(serviceProviderId))) {
+    const spId = Number(serviceProviderId);
+    const { data: spPlace } = await supabaseAdmin
+      .from('pet_friendly_places')
+      .select('pet_friendly_place_id')
+      .eq('service_provider_id', spId)
+      .maybeSingle();
+
+    if (spPlace?.pet_friendly_place_id) {
+      targetPlaceIds.push(spPlace.pet_friendly_place_id);
+    }
+  }
+
+  // 2. Resolve place_id
+  if (placeId && !isNaN(Number(placeId))) {
+    targetPlaceIds.push(Number(placeId));
+  } else if (listingId) {
+    const parsedId = extractNumericId(listingId);
+    if (parsedId) targetPlaceIds.push(parsedId);
+  }
+
+  // Remove duplicate IDs
+  targetPlaceIds = Array.from(new Set(targetPlaceIds));
+
+  // If specific place IDs were resolved
+  if (targetPlaceIds.length > 0) {
+    let query = supabaseAdmin
+      .from('reviews')
+      .select('*')
+      .in('place_id', targetPlaceIds)
+      .order('created_at', { ascending: false });
+
+    const { data: placeData, error: placeError } = await query;
+
+    if (!placeError && placeData && placeData.length > 0) {
+      const enriched = await enrichReviewsWithUserData(placeData);
+      return NextResponse.json({ reviews: enriched });
+    }
+  }
+
+  // Fallback query by listing_id if provided
   if (listingId) {
     const { data: listingData, error: listingError } = await supabaseAdmin
       .from('reviews')
@@ -88,21 +129,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 2. Query by place_id (using numericPlaceId)
-  if (numericPlaceId) {
-    const { data: placeData, error: placeError } = await supabaseAdmin
-      .from('reviews')
-      .select('*')
-      .eq('place_id', numericPlaceId)
-      .order('created_at', { ascending: false });
-
-    if (!placeError && placeData) {
-      const enriched = await enrichReviewsWithUserData(placeData);
-      return NextResponse.json({ reviews: enriched });
-    }
-  }
-
-  // 3. Fallback to all reviews
+  // Fallback to all reviews if no specific filters provided or no matching filtered reviews
   const { data: allData, error: allError } = await supabaseAdmin
     .from('reviews')
     .select('*')
@@ -132,6 +159,13 @@ export async function POST(request: NextRequest) {
 
     const {
       place_id,
+      placeId,
+      pet_friendly_place_id,
+      petFriendlyPlaceId,
+      service_provider_id,
+      serviceProviderId,
+      provider_id,
+      providerId,
       listing_id,
       listingId,
       rating,
@@ -142,7 +176,10 @@ export async function POST(request: NextRequest) {
       reviewerImage,
     } = body;
 
-    const targetListingId = listing_id || listingId || (place_id ? String(place_id) : 'default');
+    const rawPlaceId = place_id || placeId || pet_friendly_place_id || petFriendlyPlaceId;
+    const rawServiceProviderId = service_provider_id || serviceProviderId || provider_id || providerId;
+    const targetListingId = listing_id || listingId || (rawPlaceId ? String(rawPlaceId) : (rawServiceProviderId ? String(rawServiceProviderId) : 'default'));
+
     const targetRating = Number(rating);
     const cleanComment = typeof comment === 'string' ? comment.trim() : '';
 
@@ -162,6 +199,63 @@ export async function POST(request: NextRequest) {
           error: 'Review contains inappropriate language',
           message: 'Your review contains inappropriate or rude language. Please remove it before posting.',
           flaggedWords,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Resolve target place_id from either place_id OR service_provider_id
+    let extractedPlaceId: number | null = rawPlaceId ? Number(rawPlaceId) : null;
+
+    // If service_provider_id is passed, look up its synced pet_friendly_place_id
+    if ((!extractedPlaceId || isNaN(extractedPlaceId)) && rawServiceProviderId && !isNaN(Number(rawServiceProviderId))) {
+      const spId = Number(rawServiceProviderId);
+      const { data: spPlace } = await supabaseAdmin
+        .from('pet_friendly_places')
+        .select('pet_friendly_place_id')
+        .eq('service_provider_id', spId)
+        .maybeSingle();
+
+      if (spPlace?.pet_friendly_place_id) {
+        extractedPlaceId = spPlace.pet_friendly_place_id;
+      }
+    }
+
+    // If still null, try extracting ID from targetListingId
+    if ((!extractedPlaceId || isNaN(extractedPlaceId)) && targetListingId) {
+      const matchNum = targetListingId.match(/\d+/);
+      if (matchNum) {
+        const parsedId = Number(matchNum[0]);
+        const { data: placeCheck } = await supabaseAdmin
+          .from('pet_friendly_places')
+          .select('pet_friendly_place_id')
+          .or(`pet_friendly_place_id.eq.${parsedId},service_provider_id.eq.${parsedId}`)
+          .maybeSingle();
+
+        if (placeCheck?.pet_friendly_place_id) {
+          extractedPlaceId = placeCheck.pet_friendly_place_id;
+        }
+      }
+    }
+
+    if (!extractedPlaceId || isNaN(extractedPlaceId)) {
+      return NextResponse.json(
+        { error: 'Valid place_id or service_provider_id is required to submit a review.' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that place_id exists in pet_friendly_places table
+    const { data: placeExists } = await supabaseAdmin
+      .from('pet_friendly_places')
+      .select('pet_friendly_place_id')
+      .eq('pet_friendly_place_id', extractedPlaceId)
+      .maybeSingle();
+
+    if (!placeExists) {
+      return NextResponse.json(
+        {
+          error: `Invalid place/provider ID (${extractedPlaceId}): Target entity does not exist in pet_friendly_places table.`
         },
         { status: 400 }
       );
@@ -201,27 +295,6 @@ export async function POST(request: NextRequest) {
         : tokenName || (user.email ? user.email.split('@')[0] : 'Pet Owner');
 
     const image = reviewer_image || reviewerImage || tokenImage || null;
-
-    const matchNum = targetListingId ? targetListingId.match(/\d+/) : null;
-    const extractedPlaceId = place_id ? Number(place_id) : (matchNum ? Number(matchNum[0]) : null);
-
-    // Validate that place_id exists in pet_friendly_places table if provided
-    if (extractedPlaceId && !isNaN(extractedPlaceId)) {
-      const { data: placeExists } = await supabaseAdmin
-        .from('pet_friendly_places')
-        .select('pet_friendly_place_id')
-        .eq('pet_friendly_place_id', extractedPlaceId)
-        .maybeSingle();
-
-      if (!placeExists) {
-        return NextResponse.json(
-          {
-            error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
-          },
-          { status: 400 }
-        );
-      }
-    }
 
     // 1. Primary insert payload
     const fullPayload: Record<string, any> = {

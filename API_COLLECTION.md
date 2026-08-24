@@ -1551,23 +1551,20 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/blocked
 
 ## 🌟 17. Reviews & Profanity Moderation Module (5 APIs)
 
-### 17.1 Get Listing Reviews
+### 17.1 Get Reviews (Pet-Friendly Places & Service Providers)
 * **Method:** `GET`
 * **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
 * **Query Parameters (Optional):**
-  - `place_id`: Filter by place numeric ID (`?place_id=5`)
-  - `service_provider_id`: Filter by service provider ID (`?service_provider_id=3`)
-  - `listing_id`: Filter by listing ID string (`?listing_id=vet_clinic`)
+  - `place_id` / `pet_friendly_place_id`: Filter by place ID (`?place_id=5`)
+  - `service_provider_id` / `provider_id`: Filter by service provider ID (`?service_provider_id=3`)
+  - `listing_id`: Filter by listing ID string (`?listing_id=5`)
 
 ```bash
-# 1. Get all reviews
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews'
-
-# 2. Get reviews by place_id
+# 1. Get reviews by place_id
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?place_id=5'
 
-# 3. Get reviews by listing_id
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=vet_clinic'
+# 2. Get reviews by service_provider_id
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?service_provider_id=3'
 ```
 
 **Example JSON Response Body:**
@@ -1593,16 +1590,17 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_i
 
 ---
 
-### 17.2 Submit Listing Review (With Profanity Moderation)
+### 17.2 Submit Review (Pet-Friendly Places & Service Providers)
 * **Method:** `POST`
 * **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
 * **Headers:**
   - `Content-Type: application/json`
   - `Authorization: Bearer <user_access_token>` (Required)
 
-> **Description:** Submits a new review. Requires authentication. `user_id` is automatically set from the authenticated user token. Includes built-in profanity filter (`getInappropriateWords`). If a user has already reviewed the place, it updates the existing review (upsert).
+> **Description:** Single unified endpoint to submit reviews for **both Pet-Friendly Places and Service Providers**. Accepts either `place_id` OR `service_provider_id`. If `service_provider_id` is passed, backend automatically resolves its synced place ID.
 
 ```bash
+# Option A: Submit review using place_id (Pet Friendly Place)
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN' \
@@ -1610,6 +1608,17 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
   "place_id": 5,
   "rating": 5,
   "comment": "Wonderful clinic with exceptionally caring staff!",
+  "reviewer_name": "Sarah Jenkins"
+}'
+
+# Option B: Submit review using service_provider_id (Service Provider)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "service_provider_id": 3,
+  "rating": 5,
+  "comment": "Great grooming service for my dog!",
   "reviewer_name": "Sarah Jenkins"
 }'
 ```
