@@ -185,7 +185,7 @@ export function OperatingHoursTab({ form }: OperatingHoursTabProps) {
             </div>
             <FormControl>
               <Switch
-                checked={field.value ?? true}
+                checked={field.value ?? false}
                 onCheckedChange={field.onChange}
               />
             </FormControl>

@@ -69,6 +69,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       latitude: "",
       longitude: "",
       show_publicly: true,
+      show_operating_hours: false,
       operating_hours: undefined,
     },
   })

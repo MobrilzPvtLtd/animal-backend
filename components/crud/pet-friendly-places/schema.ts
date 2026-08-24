@@ -28,6 +28,7 @@ export const petFriendlyPlaceSchema = z.object({
     saturday: dayHoursSchema,
     sunday: dayHoursSchema
   }).nullable().optional(),
+  show_operating_hours: z.boolean().optional().default(false),
   amenities: z.array(z.string()).nullable().optional(),
   pet_policy: z.string().nullable().optional(),
   // Location fields stored directly on pet_friendly_places

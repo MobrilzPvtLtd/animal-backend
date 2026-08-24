@@ -60,6 +60,7 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       latitude: provider.location?.latitude || "",
       longitude: provider.location?.longitude || "",
       show_publicly: provider.location?.show_publicly ?? true,
+      show_operating_hours: (provider as any).show_operating_hours ?? (provider.operating_hours ? true : false),
       operating_hours: provider.operating_hours || undefined,
     } : {
       service_category_id: preselectedCategoryId ? parseInt(preselectedCategoryId) : 0,
@@ -82,6 +83,7 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       latitude: "",
       longitude: "",
       show_publicly: true,
+      show_operating_hours: false,
     },
   })
 
