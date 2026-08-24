@@ -70,24 +70,39 @@ export async function GET(request: NextRequest) {
   let targetListingId = listingId || (placeId ? String(placeId) : (serviceProviderId ? String(serviceProviderId) : null));
   let targetListingType = listingType || (serviceProviderId ? 'service_provider' : (placeId ? 'pet_friendly' : null));
 
-  // 1. Query by listing_id (and optionally listing_type)
+  // 1. If specific listing_id filter is requested
   if (targetListingId) {
     let query = supabaseAdmin
       .from('reviews')
       .select('*')
-      .eq('listing_id', targetListingId)
-      .order('created_at', { ascending: false });
+      .eq('listing_id', targetListingId);
 
     if (targetListingType) {
       query = query.eq('listing_type', targetListingType);
     }
 
-    const { data: listingData, error: listingError } = await query;
+    const { data: listingData, error: listingError } = await query.order('created_at', { ascending: false });
 
-    if (!listingError && listingData && listingData.length > 0) {
+    if (!listingError && listingData) {
       const enriched = await enrichReviewsWithUserData(listingData);
       return NextResponse.json({ reviews: enriched });
     }
+
+    // Fallback if listing_type column isn't in DB schema yet
+    if (listingError && targetListingType) {
+      const { data: fallbackData, error: fallbackErr } = await supabaseAdmin
+        .from('reviews')
+        .select('*')
+        .eq('listing_id', targetListingId)
+        .order('created_at', { ascending: false });
+
+      if (!fallbackErr && fallbackData) {
+        const enriched = await enrichReviewsWithUserData(fallbackData);
+        return NextResponse.json({ reviews: enriched });
+      }
+    }
+
+    return NextResponse.json({ reviews: [] });
   }
 
   // 2. Query by place_id legacy column fallback
@@ -98,13 +113,15 @@ export async function GET(request: NextRequest) {
       .eq('place_id', Number(placeId))
       .order('created_at', { ascending: false });
 
-    if (!placeError && placeData && placeData.length > 0) {
+    if (!placeError && placeData) {
       const enriched = await enrichReviewsWithUserData(placeData);
       return NextResponse.json({ reviews: enriched });
     }
+
+    return NextResponse.json({ reviews: [] });
   }
 
-  // 3. Fallback to all reviews
+  // 3. Fallback to all reviews (only when no filter parameters are passed at all)
   const { data: allData, error: allError } = await supabaseAdmin
     .from('reviews')
     .select('*')
