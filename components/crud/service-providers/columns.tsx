@@ -95,20 +95,7 @@ export const columns: ColumnDef<ServiceProvider>[] = [
       return phone || "No phone"
     },
   },
-  {
-    accessorKey: "is_verified",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Verified" />
-    ),
-    cell: ({ row }) => {
-      const isVerified = row.getValue("is_verified") as boolean
-      return (
-        <Badge variant={isVerified ? "default" : "secondary"}>
-          {isVerified ? "Verified" : "Unverified"}
-        </Badge>
-      )
-    },
-  },
+
   {
     accessorKey: "is_active",
     header: ({ column }) => (

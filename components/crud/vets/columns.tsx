@@ -47,12 +47,6 @@ export const columns: ColumnDef<Vet>[] = [
           </Avatar>
           <div>
             <div className="font-medium">{vet.name}</div>
-            {vet.is_verified && (
-              <Badge variant="outline" className="ml-1">
-                <Check className="mr-1 h-3 w-3 text-green-500" />
-                Verified
-              </Badge>
-            )}
           </div>
         </div>
       )

@@ -146,18 +146,5 @@ export const columns: ColumnDef<PetFriendlyPlace>[] = [
       )
     },
   },
-  {
-    accessorKey: "is_verified",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Verified" />
-    ),
-    cell: ({ row }) => {
-      const isVerified = (row.original as any).is_verified as boolean | undefined
-      return (
-        <Badge variant={isVerified ? "default" : "secondary"}>
-          {isVerified ? "Verified" : "Unverified"}
-        </Badge>
-      )
-    },
-  },
+
 ]

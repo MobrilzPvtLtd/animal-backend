@@ -284,26 +284,7 @@ export function VetForm({ vet, onSuccess, onCancel }: VetFormProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="is_verified"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">Verified Status</FormLabel>
-                <FormDescription>
-                  Mark this veterinarian as verified
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+
 
         <FormField
           control={form.control}
