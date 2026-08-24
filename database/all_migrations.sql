@@ -3499,3 +3499,24 @@ ALTER TABLE public.reviews DROP CONSTRAINT IF EXISTS reviews_user_id_place_id_ke
 DROP INDEX IF EXISTS idx_reviews_user_id_place_id;
 
 
+
+-- ============================================================
+-- Migration: 052_add_listing_type_to_reviews.sql
+-- ============================================================
+
+-- Add listing_type and listing_id columns to reviews table and make place_id nullable
+ALTER TABLE public.reviews
+ADD COLUMN IF NOT EXISTS listing_type TEXT NULL,
+ADD COLUMN IF NOT EXISTS listing_id TEXT NULL,
+ADD COLUMN IF NOT EXISTS reviewer_name TEXT NULL,
+ADD COLUMN IF NOT EXISTS reviewer_image TEXT NULL,
+ADD COLUMN IF NOT EXISTS likes INTEGER DEFAULT 0;
+
+ALTER TABLE public.reviews
+ALTER COLUMN place_id DROP NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_reviews_listing_id ON public.reviews(listing_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_listing_type ON public.reviews(listing_type);
+
+
+

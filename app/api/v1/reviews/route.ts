@@ -65,63 +65,24 @@ export async function GET(request: NextRequest) {
   const placeId = searchParams.get('place_id') || searchParams.get('placeId') || searchParams.get('pet_friendly_place_id');
   const serviceProviderId = searchParams.get('service_provider_id') || searchParams.get('serviceProviderId') || searchParams.get('provider_id');
   const listingId = searchParams.get('listing_id') || searchParams.get('listingId');
+  const listingType = searchParams.get('listing_type') || searchParams.get('listingType') || searchParams.get('type');
 
-  const extractNumericId = (str: string | null): number | null => {
-    if (!str) return null;
-    const match = str.match(/\d+/);
-    return match ? Number(match[0]) : null;
-  };
+  let targetListingId = listingId || (placeId ? String(placeId) : (serviceProviderId ? String(serviceProviderId) : null));
+  let targetListingType = listingType || (serviceProviderId ? 'service_provider' : (placeId ? 'pet_friendly' : null));
 
-  let targetPlaceIds: number[] = [];
-
-  // 1. Resolve service_provider_id to pet_friendly_place_id
-  if (serviceProviderId && !isNaN(Number(serviceProviderId))) {
-    const spId = Number(serviceProviderId);
-    const { data: spPlace } = await supabaseAdmin
-      .from('pet_friendly_places')
-      .select('pet_friendly_place_id')
-      .eq('service_provider_id', spId)
-      .maybeSingle();
-
-    if (spPlace?.pet_friendly_place_id) {
-      targetPlaceIds.push(spPlace.pet_friendly_place_id);
-    }
-  }
-
-  // 2. Resolve place_id
-  if (placeId && !isNaN(Number(placeId))) {
-    targetPlaceIds.push(Number(placeId));
-  } else if (listingId) {
-    const parsedId = extractNumericId(listingId);
-    if (parsedId) targetPlaceIds.push(parsedId);
-  }
-
-  // Remove duplicate IDs
-  targetPlaceIds = Array.from(new Set(targetPlaceIds));
-
-  // If specific place IDs were resolved
-  if (targetPlaceIds.length > 0) {
+  // 1. Query by listing_id (and optionally listing_type)
+  if (targetListingId) {
     let query = supabaseAdmin
       .from('reviews')
       .select('*')
-      .in('place_id', targetPlaceIds)
+      .eq('listing_id', targetListingId)
       .order('created_at', { ascending: false });
 
-    const { data: placeData, error: placeError } = await query;
-
-    if (!placeError && placeData && placeData.length > 0) {
-      const enriched = await enrichReviewsWithUserData(placeData);
-      return NextResponse.json({ reviews: enriched });
+    if (targetListingType) {
+      query = query.eq('listing_type', targetListingType);
     }
-  }
 
-  // Fallback query by listing_id if provided
-  if (listingId) {
-    const { data: listingData, error: listingError } = await supabaseAdmin
-      .from('reviews')
-      .select('*')
-      .eq('listing_id', listingId)
-      .order('created_at', { ascending: false });
+    const { data: listingData, error: listingError } = await query;
 
     if (!listingError && listingData && listingData.length > 0) {
       const enriched = await enrichReviewsWithUserData(listingData);
@@ -129,7 +90,21 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fallback to all reviews if no specific filters provided or no matching filtered reviews
+  // 2. Query by place_id legacy column fallback
+  if (placeId && !isNaN(Number(placeId))) {
+    const { data: placeData, error: placeError } = await supabaseAdmin
+      .from('reviews')
+      .select('*')
+      .eq('place_id', Number(placeId))
+      .order('created_at', { ascending: false });
+
+    if (!placeError && placeData && placeData.length > 0) {
+      const enriched = await enrichReviewsWithUserData(placeData);
+      return NextResponse.json({ reviews: enriched });
+    }
+  }
+
+  // 3. Fallback to all reviews
   const { data: allData, error: allError } = await supabaseAdmin
     .from('reviews')
     .select('*')
@@ -168,6 +143,16 @@ export async function POST(request: NextRequest) {
       providerId,
       listing_id,
       listingId,
+      listing_type,
+      listingType,
+      type,
+      id,
+      itemId,
+      item_id,
+      entityId,
+      entity_id,
+      targetId,
+      target_id,
       rating,
       comment,
       reviewer_name,
@@ -178,7 +163,19 @@ export async function POST(request: NextRequest) {
 
     const rawPlaceId = place_id || placeId || pet_friendly_place_id || petFriendlyPlaceId;
     const rawServiceProviderId = service_provider_id || serviceProviderId || provider_id || providerId;
-    const targetListingId = listing_id || listingId || (rawPlaceId ? String(rawPlaceId) : (rawServiceProviderId ? String(rawServiceProviderId) : 'default'));
+    const rawGenericId = id || itemId || item_id || entityId || entity_id || targetId || target_id;
+    const rawListingId = listing_id || listingId;
+
+    const targetListingId =
+      rawListingId ? String(rawListingId) :
+      rawServiceProviderId ? String(rawServiceProviderId) :
+      rawPlaceId ? String(rawPlaceId) :
+      rawGenericId ? String(rawGenericId) :
+      'default';
+
+    const targetListingType =
+      listing_type || listingType || type ||
+      (rawServiceProviderId ? 'service_provider' : (rawPlaceId ? 'pet_friendly' : 'pet_friendly'));
 
     const targetRating = Number(rating);
     const cleanComment = typeof comment === 'string' ? comment.trim() : '';
@@ -199,63 +196,6 @@ export async function POST(request: NextRequest) {
           error: 'Review contains inappropriate language',
           message: 'Your review contains inappropriate or rude language. Please remove it before posting.',
           flaggedWords,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Resolve target place_id from either place_id OR service_provider_id
-    let extractedPlaceId: number | null = rawPlaceId ? Number(rawPlaceId) : null;
-
-    // If service_provider_id is passed, look up its synced pet_friendly_place_id
-    if ((!extractedPlaceId || isNaN(extractedPlaceId)) && rawServiceProviderId && !isNaN(Number(rawServiceProviderId))) {
-      const spId = Number(rawServiceProviderId);
-      const { data: spPlace } = await supabaseAdmin
-        .from('pet_friendly_places')
-        .select('pet_friendly_place_id')
-        .eq('service_provider_id', spId)
-        .maybeSingle();
-
-      if (spPlace?.pet_friendly_place_id) {
-        extractedPlaceId = spPlace.pet_friendly_place_id;
-      }
-    }
-
-    // If still null, try extracting ID from targetListingId
-    if ((!extractedPlaceId || isNaN(extractedPlaceId)) && targetListingId) {
-      const matchNum = targetListingId.match(/\d+/);
-      if (matchNum) {
-        const parsedId = Number(matchNum[0]);
-        const { data: placeCheck } = await supabaseAdmin
-          .from('pet_friendly_places')
-          .select('pet_friendly_place_id')
-          .or(`pet_friendly_place_id.eq.${parsedId},service_provider_id.eq.${parsedId}`)
-          .maybeSingle();
-
-        if (placeCheck?.pet_friendly_place_id) {
-          extractedPlaceId = placeCheck.pet_friendly_place_id;
-        }
-      }
-    }
-
-    if (!extractedPlaceId || isNaN(extractedPlaceId)) {
-      return NextResponse.json(
-        { error: 'Valid place_id or service_provider_id is required to submit a review.' },
-        { status: 400 }
-      );
-    }
-
-    // Validate that place_id exists in pet_friendly_places table
-    const { data: placeExists } = await supabaseAdmin
-      .from('pet_friendly_places')
-      .select('pet_friendly_place_id')
-      .eq('pet_friendly_place_id', extractedPlaceId)
-      .maybeSingle();
-
-    if (!placeExists) {
-      return NextResponse.json(
-        {
-          error: `Invalid place/provider ID (${extractedPlaceId}): Target entity does not exist in pet_friendly_places table.`
         },
         { status: 400 }
       );
@@ -296,11 +236,12 @@ export async function POST(request: NextRequest) {
 
     const image = reviewer_image || reviewerImage || tokenImage || null;
 
-    // 1. Primary insert payload
+    // Payload - place_id is strictly null as requested
     const fullPayload: Record<string, any> = {
       user_id: targetUserId,
-      place_id: extractedPlaceId,
+      place_id: null,
       listing_id: targetListingId,
+      listing_type: targetListingType,
       rating: targetRating,
       comment: cleanComment,
       reviewer_name: name,
@@ -331,24 +272,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle foreign key error explicitly
-    if (fullError?.code === '23503' || fullError?.message?.includes('foreign key constraint')) {
-      return NextResponse.json(
-        {
-          error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
-        },
-        { status: 400 }
-      );
-    }
-
-    // Fallback base insertion if listing_id or likes column is missing in DB schema cache
-    console.warn('Full review insert failed, attempting base fallback insert:', fullError?.message);
+    // Fallback insertion if listing_type column is not yet in schema cache
+    console.warn('Full review insert failed, attempting fallback insert:', fullError?.message);
 
     const basePayload: Record<string, any> = {
       user_id: targetUserId,
-      place_id: extractedPlaceId,
+      place_id: null,
+      listing_id: targetListingId,
       rating: targetRating,
       comment: cleanComment,
+      reviewer_name: name,
+      reviewer_image: image,
+      likes: 0,
       is_approved: true,
     };
 
@@ -359,46 +294,33 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (baseError) {
-      if (baseError.code === '23503' || baseError.message?.includes('foreign key constraint')) {
-        return NextResponse.json(
-          {
-            error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
-          },
-          { status: 400 }
-        );
-      }
-
       // If unique constraint is hit, update the existing review
-      const isBaseDuplicate =
+      const isDuplicate =
         baseError.code === '23505' ||
-        baseError.message?.includes('unique constraint') ||
-        baseError.message?.includes('reviews_user_id_place_id_key');
+        baseError.message?.includes('unique constraint');
 
-      if (isBaseDuplicate && (targetUserId || extractedPlaceId)) {
-        let updateBase = supabaseAdmin
+      if (isDuplicate && targetUserId && targetListingId) {
+        const { data: updatedData, error: updateErr } = await supabaseAdmin
           .from('reviews')
           .update({
             rating: targetRating,
             comment: cleanComment,
             updated_at: new Date().toISOString(),
-          });
+          })
+          .eq('user_id', targetUserId)
+          .eq('listing_id', targetListingId)
+          .select()
+          .maybeSingle();
 
-        if (targetUserId) {
-          updateBase = updateBase.eq('user_id', targetUserId);
-        }
-        if (extractedPlaceId) {
-          updateBase = updateBase.eq('place_id', extractedPlaceId);
-        }
-
-        const { data: updatedBaseData, error: updateBaseErr } = await updateBase.select().maybeSingle();
-        if (!updateBaseErr && updatedBaseData) {
+        if (!updateErr && updatedData) {
           return NextResponse.json(
             {
               success: true,
               message: 'Thank you! Your review has been updated.',
               review: {
-                ...updatedBaseData,
+                ...updatedData,
                 listing_id: targetListingId,
+                listing_type: targetListingType,
                 reviewer_name: name,
                 reviewer_image: image,
               },
@@ -409,7 +331,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.error('Base review insert also failed:', baseError.message);
+      console.error('Review insert failed:', baseError.message);
       return NextResponse.json({ error: baseError.message }, { status: 500 });
     }
 
@@ -420,9 +342,9 @@ export async function POST(request: NextRequest) {
         review: {
           ...baseData,
           listing_id: targetListingId,
+          listing_type: targetListingType,
           reviewer_name: name,
           reviewer_image: image,
-          likes: 0,
         },
         flaggedWords: [],
       },

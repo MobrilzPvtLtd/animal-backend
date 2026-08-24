@@ -1555,16 +1555,17 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/blocked
 * **Method:** `GET`
 * **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
 * **Query Parameters (Optional):**
-  - `place_id` / `pet_friendly_place_id`: Filter by place ID (`?place_id=5`)
-  - `service_provider_id` / `provider_id`: Filter by service provider ID (`?service_provider_id=3`)
-  - `listing_id`: Filter by listing ID string (`?listing_id=5`)
+  - `listing_id`: Filter by listing ID (`?listing_id=5`)
+  - `listing_type`: Filter by listing type (`?listing_type=service_provider` or `?listing_type=pet_friendly`)
+  - `place_id`: Filter by pet-friendly place ID (`?place_id=5`)
+  - `service_provider_id`: Filter by service provider ID (`?service_provider_id=3`)
 
 ```bash
-# 1. Get reviews by place_id
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?place_id=5'
+# 1. Get reviews by listing_id and listing_type for Service Provider
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=3&listing_type=service_provider'
 
-# 2. Get reviews by service_provider_id
-curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?service_provider_id=3'
+# 2. Get reviews by listing_id and listing_type for Pet-Friendly Place
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=5&listing_type=pet_friendly'
 ```
 
 **Example JSON Response Body:**
@@ -1574,8 +1575,9 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?service_p
     {
       "review_id": 10,
       "user_id": 4,
-      "place_id": 5,
-      "listing_id": "5",
+      "place_id": null,
+      "listing_id": "3",
+      "listing_type": "service_provider",
       "rating": 5,
       "comment": "Wonderful clinic with exceptionally caring staff!",
       "reviewer_name": "Sarah Jenkins",
@@ -1597,28 +1599,30 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?service_p
   - `Content-Type: application/json`
   - `Authorization: Bearer <user_access_token>` (Required)
 
-> **Description:** Single unified endpoint to submit reviews for **both Pet-Friendly Places and Service Providers**. Accepts either `place_id` OR `service_provider_id`. If `service_provider_id` is passed, backend automatically resolves its synced place ID.
+> **Description:** Single unified endpoint to submit reviews for **both Pet-Friendly Places and Service Providers**. Saves review data using `listing_type` and `listing_id` while ignoring `place_id` (`place_id` goes as `null`).
 
 ```bash
-# Option A: Submit review using place_id (Pet Friendly Place)
+# Option A: Submit review for Service Provider
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN' \
 --data '{
-  "place_id": 5,
+  "listing_id": "3",
+  "listing_type": "service_provider",
   "rating": 5,
-  "comment": "Wonderful clinic with exceptionally caring staff!",
+  "comment": "Great grooming service for my dog!",
   "reviewer_name": "Sarah Jenkins"
 }'
 
-# Option B: Submit review using service_provider_id (Service Provider)
+# Option B: Submit review for Pet-Friendly Place
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN' \
 --data '{
-  "service_provider_id": 3,
+  "listing_id": "5",
+  "listing_type": "pet_friendly",
   "rating": 5,
-  "comment": "Great grooming service for my dog!",
+  "comment": "Wonderful place for pet boarding!",
   "reviewer_name": "Sarah Jenkins"
 }'
 ```
@@ -1631,10 +1635,11 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
   "review": {
     "review_id": 11,
     "user_id": 4,
-    "place_id": 5,
-    "listing_id": "5",
+    "place_id": null,
+    "listing_id": "3",
+    "listing_type": "service_provider",
     "rating": 5,
-    "comment": "Wonderful clinic with exceptionally caring staff!",
+    "comment": "Great grooming service for my dog!",
     "reviewer_name": "Sarah Jenkins",
     "reviewer_image": null,
     "likes": 0,
