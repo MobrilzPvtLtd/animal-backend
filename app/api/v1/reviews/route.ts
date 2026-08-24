@@ -120,6 +120,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
+
+    if (!user || !user.internalUserId) {
+      return NextResponse.json(
+        { error: 'Authentication required. Please log in to submit a review.' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
 
     const {
@@ -159,16 +167,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch user details from users table if logged in
+    const rawUserId = user.internalUserId;
+    const targetUserId = isNaN(Number(rawUserId)) ? rawUserId : Number(rawUserId);
+
+    // Fetch user details from users table for logged in user
     let dbUser: any = null;
-    if (user?.internalUserId || user?.id) {
-      const { data: uData } = await supabaseAdmin
-        .from('users')
-        .select('name, surname, user_name, full_name, email, avatar_url, profile_image_url')
-        .or(`user_id.eq.${user.internalUserId || '0'},auth_user_id.eq.${user.id}`)
-        .maybeSingle();
-      dbUser = uData;
-    }
+    const { data: uData } = await supabaseAdmin
+      .from('users')
+      .select('name, surname, user_name, full_name, email, avatar_url, profile_image_url')
+      .or(`user_id.eq.${targetUserId || '0'},auth_user_id.eq.${user.id || '0'}`)
+      .maybeSingle();
+    dbUser = uData;
 
     const tokenName =
       (dbUser?.name ? `${dbUser.name}${dbUser.surname ? ' ' + dbUser.surname : ''}` : null) ||
@@ -189,16 +198,34 @@ export async function POST(request: NextRequest) {
         ? reviewer_name
         : reviewerName && reviewerName !== 'Anonymous Pet Owner' && reviewerName !== 'Pet Owner'
         ? reviewerName
-        : tokenName || (user?.email ? user.email.split('@')[0] : 'Pet Owner');
+        : tokenName || (user.email ? user.email.split('@')[0] : 'Pet Owner');
 
     const image = reviewer_image || reviewerImage || tokenImage || null;
 
     const matchNum = targetListingId ? targetListingId.match(/\d+/) : null;
     const extractedPlaceId = place_id ? Number(place_id) : (matchNum ? Number(matchNum[0]) : null);
 
+    // Validate that place_id exists in pet_friendly_places table if provided
+    if (extractedPlaceId && !isNaN(extractedPlaceId)) {
+      const { data: placeExists } = await supabaseAdmin
+        .from('pet_friendly_places')
+        .select('pet_friendly_place_id')
+        .eq('pet_friendly_place_id', extractedPlaceId)
+        .maybeSingle();
+
+      if (!placeExists) {
+        return NextResponse.json(
+          {
+            error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // 1. Primary insert payload
     const fullPayload: Record<string, any> = {
-      user_id: user?.internalUserId || null,
+      user_id: targetUserId,
       place_id: extractedPlaceId,
       listing_id: targetListingId,
       rating: targetRating,
@@ -231,11 +258,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Handle foreign key error explicitly
+    if (fullError?.code === '23503' || fullError?.message?.includes('foreign key constraint')) {
+      return NextResponse.json(
+        {
+          error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
+        },
+        { status: 400 }
+      );
+    }
+
     // Fallback base insertion if listing_id or likes column is missing in DB schema cache
     console.warn('Full review insert failed, attempting base fallback insert:', fullError?.message);
 
     const basePayload: Record<string, any> = {
-      user_id: user?.internalUserId || null,
+      user_id: targetUserId,
       place_id: extractedPlaceId,
       rating: targetRating,
       comment: cleanComment,
@@ -249,13 +286,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (baseError) {
+      if (baseError.code === '23503' || baseError.message?.includes('foreign key constraint')) {
+        return NextResponse.json(
+          {
+            error: `Invalid place_id (${extractedPlaceId}): Place with this ID does not exist in pet_friendly_places table.`
+          },
+          { status: 400 }
+        );
+      }
+
       // If unique constraint is hit, update the existing review
       const isBaseDuplicate =
         baseError.code === '23505' ||
         baseError.message?.includes('unique constraint') ||
         baseError.message?.includes('reviews_user_id_place_id_key');
 
-      if (isBaseDuplicate && (user?.internalUserId || extractedPlaceId)) {
+      if (isBaseDuplicate && (targetUserId || extractedPlaceId)) {
         let updateBase = supabaseAdmin
           .from('reviews')
           .update({
@@ -264,8 +310,8 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           });
 
-        if (user?.internalUserId) {
-          updateBase = updateBase.eq('user_id', user.internalUserId);
+        if (targetUserId) {
+          updateBase = updateBase.eq('user_id', targetUserId);
         }
         if (extractedPlaceId) {
           updateBase = updateBase.eq('place_id', extractedPlaceId);

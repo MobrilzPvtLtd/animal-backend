@@ -1549,33 +1549,174 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/community/blocked
 
 ---
 
-## 🌟 17. Reviews & Profanity Moderation Module (3 APIs)
+## 🌟 17. Reviews & Profanity Moderation Module (5 APIs)
 
 ### 17.1 Get Listing Reviews
 * **Method:** `GET`
-* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=vet_clinic`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
+* **Query Parameters (Optional):**
+  - `place_id`: Filter by place numeric ID (`?place_id=5`)
+  - `service_provider_id`: Filter by service provider ID (`?service_provider_id=3`)
+  - `listing_id`: Filter by listing ID string (`?listing_id=vet_clinic`)
+
 ```bash
+# 1. Get all reviews
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews'
+
+# 2. Get reviews by place_id
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?place_id=5'
+
+# 3. Get reviews by listing_id
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews?listing_id=vet_clinic'
 ```
+
+**Example JSON Response Body:**
+```json
+{
+  "reviews": [
+    {
+      "review_id": 10,
+      "user_id": 4,
+      "place_id": 5,
+      "listing_id": "5",
+      "rating": 5,
+      "comment": "Wonderful clinic with exceptionally caring staff!",
+      "reviewer_name": "Sarah Jenkins",
+      "reviewer_image": "https://example.com/images/sarah.jpg",
+      "likes": 3,
+      "is_approved": true,
+      "created_at": "2026-08-24T10:15:00.000Z"
+    }
+  ]
+}
+```
+
+---
 
 ### 17.2 Submit Listing Review (With Profanity Moderation)
 * **Method:** `POST`
 * **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_access_token>` (Required)
+
+> **Description:** Submits a new review. Requires authentication. `user_id` is automatically set from the authenticated user token. Includes built-in profanity filter (`getInappropriateWords`). If a user has already reviewed the place, it updates the existing review (upsert).
+
 ```bash
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/reviews' \
 --header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
 --data '{
-  "listing_id": "vet_clinic",
+  "place_id": 5,
   "rating": 5,
   "comment": "Wonderful clinic with exceptionally caring staff!",
   "reviewer_name": "Sarah Jenkins"
 }'
 ```
 
+**Example JSON Response Body (Success - 201 Created):**
+```json
+{
+  "success": true,
+  "message": "Thank you! Your review has been published.",
+  "review": {
+    "review_id": 11,
+    "user_id": 4,
+    "place_id": 5,
+    "listing_id": "5",
+    "rating": 5,
+    "comment": "Wonderful clinic with exceptionally caring staff!",
+    "reviewer_name": "Sarah Jenkins",
+    "reviewer_image": null,
+    "likes": 0,
+    "is_approved": true,
+    "created_at": "2026-08-24T11:20:00.000Z"
+  },
+  "flaggedWords": []
+}
+```
+
+**Example Error Body (Inappropriate Language Flagged - 400 Bad Request):**
+```json
+{
+  "error": "Review contains inappropriate language",
+  "message": "Your review contains inappropriate or rude language. Please remove it before posting.",
+  "flaggedWords": ["badword"]
+}
+```
+
+---
+
 ### 17.3 Toggle / Increment Review Like
 * **Method:** `POST`
-* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews/1/like`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews/10/like`
+
 ```bash
-curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/reviews/1/like'
+curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/reviews/10/like'
 ```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "likes": 4
+}
+```
+
+---
+
+### 17.4 Update Review (Moderation & Editing)
+* **Method:** `PATCH`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews?review_id=10`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <admin_or_owner_token>` (Required: `Admin`, `Owner`, or `Approver` role)
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/reviews?review_id=10' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN' \
+--data '{
+  "is_approved": true,
+  "comment": "Updated review text after moderation check",
+  "rating": 5
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "review": {
+    "review_id": 10,
+    "user_id": 4,
+    "place_id": 5,
+    "rating": 5,
+    "comment": "Updated review text after moderation check",
+    "is_approved": true,
+    "updated_at": "2026-08-24T11:30:00.000Z"
+  }
+}
+```
+
+---
+
+### 17.5 Delete Review
+* **Method:** `DELETE`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/reviews?review_id=10`
+* **Headers:**
+  - `Authorization: Bearer <admin_or_owner_token>` (Required: `Admin` or `Owner` role)
+
+```bash
+curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/reviews?review_id=10' \
+--header 'Authorization: Bearer YOUR_ADMIN_TOKEN'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true
+}
+```
+
+
 
