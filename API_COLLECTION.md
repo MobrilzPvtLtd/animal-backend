@@ -1,6 +1,6 @@
 # Animal Click - Complete API Documentation & cURL Collection
 
-**Total APIs: 57 Endpoints** across 13 Modules.
+**Total APIs: 59 Endpoints** across 18 Modules.
 
 * **Live Base URL:** `https://animal-backend-nine.vercel.app/api`
 * **Local Base URL:** `http://localhost:3000/api`
@@ -1731,6 +1731,122 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
   "success": true
 }
 ```
+
+---
+
+## 💳 18. PayFast Payment Integration Module (2 APIs)
+
+### 18.1 Initiate Payment (`/api/v1/payments/payfast/initiate`)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/payments/payfast/initiate`
+* **Local URL:** `http://localhost:3000/api/v1/payments/payfast/initiate`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <access_token>` (Required: Authenticated User)
+
+```bash
+curl --location 'http://localhost:3000/api/v1/payments/payfast/initiate' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--data '{
+  "amount": 100.00,
+  "item_name": "Pro Plan Subscription",
+  "item_description": "30 Days Access to Pro Features",
+  "custom_str1": "Pro",
+  "custom_str2": "Monthly"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "payment_url": "https://sandbox.payfast.co.za/eng/process?merchant_id=10000100&merchant_key=46f0cd694581a&return_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard%2Fpayments-billing%3Fpayment%3Dsuccess%26ref%3DPF_1787834522_9821&cancel_url=http%3A%2F%2Flocalhost%3A3000%2Fdashboard%2Fpayments-billing%3Fpayment%3Dcancelled%26ref%3DPF_1787834522_9821&notify_url=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fv1%2Fpayments%2Fpayfast%2Fnotify&m_payment_id=PF_1787834522_9821&amount=100.00&item_name=Pro+Plan+Subscription&item_description=30+Days+Access+to+Pro+Features&custom_str1=Pro&custom_str2=Monthly&signature=a5d4e12b8c...",
+  "redirect_url": "https://sandbox.payfast.co.za/eng/process?merchant_id=10000100&merchant_key=46f0cd694581a...",
+  "transaction_id": 15,
+  "payment_reference": "PF_1787834522_9821",
+  "payfastUrl": "https://sandbox.payfast.co.za/eng/process",
+  "fields": {
+    "merchant_id": "10000100",
+    "merchant_key": "46f0cd694581a",
+    "return_url": "http://localhost:3000/dashboard/payments-billing?payment=success&ref=PF_1787834522_9821",
+    "cancel_url": "http://localhost:3000/dashboard/payments-billing?payment=cancelled&ref=PF_1787834522_9821",
+    "notify_url": "http://localhost:3000/api/v1/payments/payfast/notify",
+    "m_payment_id": "PF_1787834522_9821",
+    "amount": "100.00",
+    "item_name": "Pro Plan Subscription",
+    "signature": "a5d4e12b8c..."
+  }
+}
+```
+
+---
+
+### 18.2 Instant Transaction Notification (ITN) Webhook (`/api/v1/payments/payfast/notify`)
+* **Method:** `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/payments/payfast/notify`
+* **Local URL:** `http://localhost:3000/api/v1/payments/payfast/notify`
+* **Content-Type:** `application/x-www-form-urlencoded`
+* **Note:** Automatically called by PayFast servers upon payment completion. Validates signature, verifies transaction with PayFast host, updates Supabase `transactions` status to `completed`, and updates user subscription.
+
+```bash
+curl --location 'http://localhost:3000/api/v1/payments/payfast/notify' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'm_payment_id=PF_1787834522_9821' \
+--data-urlencode 'pf_payment_id=1082341' \
+--data-urlencode 'payment_status=COMPLETE' \
+--data-urlencode 'item_name=Pro Plan Subscription' \
+--data-urlencode 'amount_gross=100.00' \
+--data-urlencode 'signature=a5d4e12b8c...'
+```
+
+**Response Body:**
+`HTTP 200 OK` ("OK")
+
+---
+
+### 18.3 Check Payment Status (`/api/v1/payments/status`)
+* **Method:** `GET` or `POST`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/payments/status`
+* **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <user_access_token>`
+
+#### GET Request (Query Parameter):
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/status?ref=PF_1787826795818_8098' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+#### POST Request (JSON Body):
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/status' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--data '{
+  "ref": "PF_1787826795818_8098"
+}'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "data": {
+    "transaction_id": 15,
+    "payment_reference": "PF_1787826795818_8098",
+    "status": "completed",
+    "is_completed": true,
+    "amount": 200,
+    "item_name": "Pro Plan Subscription",
+    "item_description": "30 Days Access to Pro Features",
+    "created_at": "2026-08-27T10:00:00.000Z",
+    "updated_at": "2026-08-27T10:05:00.000Z"
+  }
+}
+```
+
+
 
 
 
