@@ -15,7 +15,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  DragStartEvent,
   DragEndEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -61,7 +63,14 @@ interface SortableImageItemProps {
   disabled?: boolean;
 }
 
+export const getImageId = (image: ServiceProviderImage, index: number): string => {
+  if (image.service_provider_image) return `id-${image.service_provider_image}`;
+  if (image.image_url) return `url-${image.image_url}`;
+  return `idx-${index}`;
+};
+
 function SortableImageItem({ image, index, onRemove, disabled }: SortableImageItemProps) {
+  const itemId = getImageId(image, index);
   const {
     attributes,
     listeners,
@@ -69,13 +78,13 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: `image-${index}` });
+  } = useSortable({ id: itemId });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : 1,
-    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 0 : 1,
   };
 
   const [imgError, setImgError] = useState(false);
@@ -85,12 +94,12 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
       ref={setNodeRef}
       style={style}
       className={`relative group touch-none cursor-grab active:cursor-grabbing ${
-        isDragging ? 'shadow-2xl ring-2 ring-primary rounded-lg z-50 scale-105 transition-transform' : ''
+        isDragging ? 'ring-2 ring-primary/40 rounded-lg' : ''
       }`}
       {...attributes}
       {...listeners}
     >
-      <Card className="overflow-hidden border transition-all hover:border-primary/50 hover:shadow-md">
+      <Card className="overflow-hidden border transition-all hover:border-primary/50 hover:shadow-md select-none">
         <CardContent className="p-2">
           <div className="relative aspect-video w-full">
             {imgError ? (
@@ -136,6 +145,28 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
   );
 }
 
+function ImageCardOverlay({ image, index }: { image: ServiceProviderImage; index: number }) {
+  return (
+    <div className="w-full shadow-2xl ring-2 ring-primary rounded-lg cursor-grabbing scale-105 opacity-95">
+      <Card className="overflow-hidden border border-primary bg-background">
+        <CardContent className="p-2">
+          <div className="relative aspect-video w-full">
+            <img
+              src={image.image_url}
+              alt={`Image ${index + 1}`}
+              className="w-full h-32 object-cover rounded-md pointer-events-none select-none"
+            />
+            <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold rounded-md flex items-center gap-1 shadow-md select-none pointer-events-none">
+              <GripVertical className="h-3.5 w-3.5 opacity-80" />
+              <span>{index + 1}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function UploadingPlaceholder({ name }: { name: string }) {
   return (
     <Card className="overflow-hidden">
@@ -166,6 +197,8 @@ export function MultipleImageUpload({
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [pastedUrl, setPastedUrl] = useState('');
+  const [activeId, setActiveId] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -326,21 +359,35 @@ export function MultipleImageUpload({
     onChange(reorderedImages);
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id.toString());
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
-    if (active.id !== over?.id) {
-      const activeIndex = parseInt(active.id.toString().replace('image-', ''));
-      const overIndex = parseInt(over?.id.toString().replace('image-', '') || '0');
+    if (over && active.id !== over.id) {
+      const activeIndex = value.findIndex((img, i) => getImageId(img, i) === active.id);
+      const overIndex = value.findIndex((img, i) => getImageId(img, i) === over.id);
 
-      const newImages = arrayMove(value, activeIndex, overIndex);
-      const reorderedImages = newImages.map((img, i) => ({
-        ...img,
-        order: i,
-      }));
-      onChange(reorderedImages);
+      if (activeIndex !== -1 && overIndex !== -1) {
+        const newImages = arrayMove(value, activeIndex, overIndex);
+        const reorderedImages = newImages.map((img, i) => ({
+          ...img,
+          order: i,
+        }));
+        onChange(reorderedImages);
+      }
     }
   };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+  };
+
+  const activeImageIndex = activeId ? value.findIndex((img, i) => getImageId(img, i) === activeId) : -1;
+  const activeImage = activeImageIndex !== -1 ? value[activeImageIndex] : null;
 
   const totalSlots = value.length + uploadingFiles.length;
   const canAddMore = totalSlots < maxImages;
@@ -502,16 +549,18 @@ export function MultipleImageUpload({
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
             <SortableContext
-              items={value.map((_, index) => `image-${index}`)}
+              items={value.map((img, i) => getImageId(img, i))}
               strategy={rectSortingStrategy}
             >
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {value.map((image, index) => (
                   <SortableImageItem
-                    key={`image-${index}`}
+                    key={getImageId(image, index)}
                     image={image}
                     index={index}
                     onRemove={handleRemoveImage}
@@ -523,6 +572,12 @@ export function MultipleImageUpload({
                 ))}
               </div>
             </SortableContext>
+
+            <DragOverlay adjustScale={false}>
+              {activeImage ? (
+                <ImageCardOverlay image={activeImage} index={activeImageIndex} />
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </div>
       )}
@@ -536,3 +591,4 @@ export function MultipleImageUpload({
     </div>
   );
 }
+
