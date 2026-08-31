@@ -196,6 +196,12 @@ const data = {
       roles: ["Owner", "Admin"],
     },
     {
+      title: "Subscription Plans",
+      url: "/dashboard/subscription-plans",
+      icon: CreditCard,
+      roles: ["Owner", "Admin", "Manager"],
+    },
+    {
       title: "Reports",
       url: "/dashboard/reports",
       icon: BarChartIcon,
