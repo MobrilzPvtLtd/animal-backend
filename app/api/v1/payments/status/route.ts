@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { getUserFromRequest } from '@/lib/server-auth';
 
 async function handleCheckStatus(
-  userInternalId: number,
+  userInternalId: string | number,
   ref?: string | null,
   transactionId?: string | number | null
 ) {
