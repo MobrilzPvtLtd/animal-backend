@@ -89,11 +89,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create transaction record' }, { status: 500 });
   }
 
-  // 2. Prepare PayFast Payload & Callback URLs
+  // 2. Prepare Callback URLs
   const host = request.headers.get('host');
   const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
 
+  const paygateId = process.env.PAYGATE_ID || (process.env.PAYFAST_MERCHANT_ID && process.env.PAYFAST_MERCHANT_ID !== '10000100' && /^\d+$/.test(process.env.PAYFAST_MERCHANT_ID) ? process.env.PAYFAST_MERCHANT_ID : undefined);
+  const paygateEncryptionKey = process.env.PAYGATE_ENCRYPTION_KEY || process.env.PAYFAST_PASSPHRASE;
+
+  // If PayGate PayWeb v3 credentials are provided, use PayGate
+  if (paygateId && paygateEncryptionKey) {
+    const { initiatePayGateTransaction } = await import('@/lib/paygate');
+    const paygateRes = await initiatePayGateTransaction({
+      paygateId,
+      encryptionKey: paygateEncryptionKey,
+      reference: paymentReference,
+      amount: Number(amount),
+      returnUrl: `${baseUrl}/dashboard/payments-billing?payment=success&ref=${paymentReference}`,
+      notifyUrl: `${baseUrl}/api/v1/payments/payfast/notify`,
+      email: user.email || 'customer@example.com',
+    });
+
+    if (!paygateRes.success || !paygateRes.paymentUrl) {
+      return NextResponse.json(
+        { error: paygateRes.error || 'Failed to initiate PayGate transaction' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      gateway: 'paygate',
+      payment_url: paygateRes.paymentUrl,
+      redirect_url: paygateRes.paymentUrl,
+      html_form: paygateRes.htmlForm,
+      transaction_id: txnData.transaction_id,
+      payment_reference: paymentReference,
+      payRequestId: paygateRes.payRequestId,
+    });
+  }
+
+  // Fallback to PayFast Integration
   const merchantId = process.env.PAYFAST_MERCHANT_ID || '10000100'; // Default to PayFast Sandbox ID if unset
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a'; // Default to PayFast Sandbox Key if unset
 
@@ -115,7 +151,6 @@ export async function POST(request: NextRequest) {
   };
 
   // 3. Generate Signature
-
   const signature = generatePayFastSignature(payFastFields as Record<string, string>);
   payFastFields.signature = signature;
 
@@ -145,6 +180,7 @@ ${formFieldsHtml}    <noscript><button type="submit">Click here to proceed to Pa
 
   return NextResponse.json({
     success: true,
+    gateway: 'payfast',
     payment_url: paymentUrl,
     redirect_url: paymentUrl,
     html_form: htmlForm,
