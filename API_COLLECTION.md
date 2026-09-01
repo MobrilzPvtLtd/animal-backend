@@ -102,11 +102,11 @@ curl --location 'https://animal-backend-nine.vercel.app/api/auth/signup' \
   - `Authorization: Bearer <user_token>`
 
 > **Description:** 
-> - **`GET`**: Returns logged-in user profile, role names, permissions, and profile image.
+> - **`GET`**: Returns logged-in user profile, role names, permissions, profile image, and **full subscription status & plan details**.
 > - **`PATCH` / `PUT` / `POST`**: Updates user profile. Supports `name` (or `full_name`), `user_name` (or `username`), `surname`, `phone`, `bio`, `gender`, `static_location` (or `location` / `address`), and profile image file upload under key `avatar`, `profile_image_url`, `image`, or `file`.
 
 ```bash
-# 1. Fetch Profile (GET)
+# 1. Fetch Profile & Subscription Status (GET)
 curl --location 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
 --header 'Authorization: Bearer YOUR_USER_TOKEN'
 
@@ -133,6 +133,80 @@ curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/a
 --form 'address="Ghaziabad"' \
 --form 'gender="Male"' \
 --form 'avatar=@"/path/to/image.jpg"'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "profile": {
+    "user_id": 1,
+    "user_name": "Priyanka",
+    "name": "Priyanka",
+    "surname": "Developer",
+    "email": "priyanka@example.com",
+    "phone": "0123456789",
+    "profile_image_url": "https://example.com/avatars/user.jpg",
+    "is_verified": true,
+    "subscription_status": "active",
+    "subscription_plan": "MONTHLY_99",
+    "subscription_expires_at": "2026-09-30T18:00:00.000Z",
+    "is_subscribed": true,
+    "subscription_plan_details": {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Monthly Plan",
+      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
+      "price": 99.00,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30,
+      "features": [
+        "List up to 5 places",
+        "Basic Analytics",
+        "Support Access"
+      ],
+      "is_active": true
+    },
+    "user_type": "Owner",
+    "user_roles": [
+      {
+        "role_id": 1,
+        "roles": {
+          "role_id": 1,
+          "name": "Owner",
+          "description": "System Owner"
+        }
+      }
+    ],
+    "permissions": []
+  },
+  "subscription": {
+    "is_subscribed": true,
+    "subscription_status": "active",
+    "subscription_plan": "MONTHLY_99",
+    "subscription_expires_at": "2026-09-30T18:00:00.000Z",
+    "plan_details": {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Monthly Plan",
+      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
+      "price": 99.00,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30,
+      "features": [
+        "List up to 5 places",
+        "Basic Analytics",
+        "Support Access"
+      ],
+      "is_active": true
+    }
+  },
+  "is_subscribed": true,
+  "roleIds": [1],
+  "roleNames": ["Owner"],
+  "permissionNames": []
+}
 ```
 
 ---
@@ -1845,6 +1919,63 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/status' 
   }
 }
 ```
+
+---
+
+## 💳 19. Subscription Plans Module (1 API)
+
+### 19.1 Get Available Subscription Plans (Public Endpoint for Mobile App & Web)
+* **Method:** `GET`
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/subscriptions/plans`
+
+```bash
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/plans'
+```
+
+**Example JSON Response Body:**
+```json
+{
+  "success": true,
+  "plans": [
+    {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Monthly Plan",
+      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
+      "price": 99.00,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30,
+      "features": [
+        "List up to 5 places",
+        "Basic Analytics",
+        "Support Access"
+      ],
+      "badge_text": null,
+      "is_active": true
+    },
+    {
+      "subscription_plan_id": 2,
+      "plan_code": "YEARLY_899",
+      "name": "Yearly Plan",
+      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
+      "price": 899.00,
+      "currency": "ZAR",
+      "billing_cycle": "yearly",
+      "duration_days": 365,
+      "features": [
+        "Unlimited places",
+        "Priority Support",
+        "2 Months Free",
+        "Verified Badge"
+      ],
+      "badge_text": "MOST POPULAR",
+      "is_active": true
+    }
+  ]
+}
+```
+
 
 
 

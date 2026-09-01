@@ -31,6 +31,9 @@ export type AuthProfile = {
   profile_image_url: string | null;
   is_verified: boolean;
   subscription_status: string | null;
+  subscription_plan?: string | null;
+  subscription_expires_at?: string | null;
+  is_subscribed?: boolean;
   user_type: string | null;
   created_at: string | null;
   auth_user_id: string;
@@ -67,6 +70,8 @@ async function loadInternalUser(authUser: AuthUserInput) {
     longitude,
     profile_image_url:profile_image_url,
     subscription_status,
+    subscription_plan,
+    subscription_expires_at,
     user_type,
     created_at,
     auth_user_id
@@ -198,6 +203,23 @@ async function loadPermissions(roleIds: number[]) {
   return dedupeByKey(permissions, (permission) => permission.permission_id);
 }
 
+async function loadSubscriptionPlanDetails(planCode: string | null | undefined) {
+  if (!planCode || !planCode.trim()) return null;
+
+  try {
+    const { data } = await supabaseAdmin
+      .from('subscription_plans')
+      .select('*')
+      .eq('plan_code', planCode.trim())
+      .maybeSingle();
+
+    return data || null;
+  } catch (err) {
+    console.warn('Failed to fetch plan details for code:', planCode, err);
+    return null;
+  }
+}
+
 export async function buildAuthProfile(authUser: AuthUserInput) {
   const profileRecord = await loadInternalUser(authUser);
   const fallbackDisplayName = authUser.email?.split('@')[0] || 'User';
@@ -227,12 +249,29 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
   const roleIds = userRoles.map((role) => role.role_id);
   const permissions = await loadPermissions(roleIds);
 
+  const rawStatus = String(baseProfile.subscription_status || '').toLowerCase();
+  const expiresAtStr = baseProfile.subscription_expires_at;
+  const expiresAt = expiresAtStr ? new Date(expiresAtStr) : null;
+  const now = new Date();
+
+  const isSubscribed = Boolean(
+    (rawStatus === 'active' || rawStatus === 'subscribed' || rawStatus === 'paid' || rawStatus === 'true') &&
+    (!expiresAt || expiresAt > now)
+  );
+
+  const planDetails = await loadSubscriptionPlanDetails(baseProfile.subscription_plan);
+
   return {
     profile: {
       ...baseProfile,
+      is_subscribed: isSubscribed,
+      subscription_plan: baseProfile.subscription_plan || null,
+      subscription_expires_at: baseProfile.subscription_expires_at || null,
+      subscription_plan_details: planDetails || null,
       user_roles: userRoles,
       permissions,
     },
+    is_subscribed: isSubscribed,
     roleIds,
     roleNames: userRoles.map((role) => role.roles?.name).filter(Boolean) as string[],
     permissions,
