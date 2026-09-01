@@ -1818,16 +1818,14 @@ curl --location --request DELETE 'https://animal-backend-nine.vercel.app/api/v1/
   - `Content-Type: application/json`
   - `Authorization: Bearer <access_token>` (Required: Authenticated User)
 
+> **Note:** Pass `subscription_plan_id` in request body. Backend automatically fetches plan name, description, price/amount, billing cycle, and duration from database.
+
 ```bash
-curl --location 'http://localhost:3000/api/v1/payments/payfast/initiate' \
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/payfast/initiate' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
 --data '{
-  "amount": 100.00,
-  "item_name": "Pro Plan Subscription",
-  "item_description": "30 Days Access to Pro Features",
-  "custom_str1": "Pro",
-  "custom_str2": "Monthly"
+  "subscription_plan_id": 1
 }'
 ```
 

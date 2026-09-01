@@ -89,9 +89,11 @@ export async function POST(request: NextRequest) {
   // 5. If Subscription / Plan Upgrade was associated with this payment, update User Subscription
   if (isSuccess && txn.user_id) {
     const planName = pfData.custom_str1 || txn.object?.custom_str1 || txn.object?.subscription_plan;
-    if (planName) {
+    const durationDays = Number(pfData.custom_int2 || txn.object?.custom_int2 || txn.object?.duration_days || 30);
+
+    if (planName && planName !== 'BOOST') {
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days default subscription duration
+      expiresAt.setDate(expiresAt.getDate() + (durationDays > 0 ? durationDays : 30));
 
       await supabaseAdmin
         .from('users')

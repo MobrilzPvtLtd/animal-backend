@@ -3593,5 +3593,18 @@ SET
   updated_at = NOW();
 
 
+-- ============================================================
+-- Migration: 054_add_subscription_plan_id_to_transactions.sql
+-- ============================================================
+
+-- Add subscription_plan_id column to public.transactions table
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS subscription_plan_id BIGINT REFERENCES public.subscription_plans(subscription_plan_id) ON DELETE SET NULL;
+
+-- Create index for subscription_plan_id for fast joins & filtering
+CREATE INDEX IF NOT EXISTS idx_transactions_subscription_plan_id ON public.transactions (subscription_plan_id);
+
+
+
 
 

@@ -17,49 +17,83 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
-  const { amount, item_name, item_description, custom_str1, custom_str2, custom_int1, custom_int2 } = body;
+  const { subscription_plan_id } = body;
 
-  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-    return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
+  if (!subscription_plan_id) {
+    return NextResponse.json({ error: 'subscription_plan_id is required' }, { status: 400 });
   }
 
-  if (!item_name || typeof item_name !== 'string') {
-    return NextResponse.json({ error: 'item_name is required' }, { status: 400 });
+  const { data: plan, error: planError } = await supabaseAdmin
+    .from('subscription_plans')
+    .select('*')
+    .eq('subscription_plan_id', Number(subscription_plan_id))
+    .maybeSingle();
+
+  if (planError || !plan) {
+    return NextResponse.json(
+      { error: `Subscription plan with ID ${subscription_plan_id} not found` },
+      { status: 404 }
+    );
   }
+
+  const amount = plan.price;
+  const item_name = plan.name;
+  const item_description = plan.description || `${plan.duration_days || 30} Days Subscription`;
+  const custom_str1 = plan.plan_code;
+  const custom_str2 = plan.billing_cycle;
+  const custom_int1 = plan.subscription_plan_id;
+  const custom_int2 = plan.duration_days;
 
   const formattedAmount = Number(amount).toFixed(2);
   const paymentReference = `PF_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
   // 1. Save Pending Transaction Record in Supabase DB
-  const { data: txnData, error: txnError } = await supabaseAdmin
+  const insertPayload: Record<string, any> = {
+    user_id: user.internalUserId,
+    amount: Number(formattedAmount),
+    status: 'pending',
+    payment_reference: paymentReference,
+    subscription_plan_id: plan.subscription_plan_id,
+    object: {
+      subscription_plan_id: plan.subscription_plan_id,
+      plan_id: plan.subscription_plan_id,
+      plan_code: plan.plan_code,
+      billing_cycle: plan.billing_cycle,
+      duration_days: plan.duration_days,
+      item_name,
+      item_description,
+      gateway: 'payfast',
+    },
+  };
+
+  let { data: txnData, error: txnError } = await supabaseAdmin
     .from('transactions')
-    .insert([
-      {
-        user_id: user.internalUserId,
-        amount: Number(formattedAmount),
-        status: 'pending',
-        payment_reference: paymentReference,
-        object: {
-          item_name,
-          item_description,
-          custom_str1,
-          custom_str2,
-          custom_int1,
-          custom_int2,
-          gateway: 'payfast',
-        },
-      },
-    ])
+    .insert([insertPayload])
     .select('transaction_id')
     .single();
 
-  if (txnError) {
-    console.error('Failed to create pending transaction:', txnError.message);
+  if (txnError && txnError.message?.includes('subscription_plan_id')) {
+    delete insertPayload.subscription_plan_id;
+    const retry = await supabaseAdmin
+      .from('transactions')
+      .insert([insertPayload])
+      .select('transaction_id')
+      .single();
+
+    txnData = retry.data;
+    txnError = retry.error;
+  }
+
+  if (txnError || !txnData) {
+    console.error('Failed to create pending transaction:', txnError?.message);
     return NextResponse.json({ error: 'Failed to create transaction record' }, { status: 500 });
   }
 
   // 2. Prepare PayFast Payload & Callback URLs
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
+
   const merchantId = process.env.PAYFAST_MERCHANT_ID || '10000100'; // Default to PayFast Sandbox ID if unset
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a'; // Default to PayFast Sandbox Key if unset
 
