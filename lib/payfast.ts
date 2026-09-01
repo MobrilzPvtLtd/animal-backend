@@ -21,6 +21,15 @@ export interface PayFastPaymentPayload {
 }
 
 /**
+ * Standard PayFast URL encoder (RFC 3986)
+ */
+function payFastEncode(val: string): string {
+  return encodeURIComponent(val.trim())
+    .replace(/%20/g, '+')
+    .replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+}
+
+/**
  * Get PayFast Process Base URL based on environment setting
  */
 export function getPayFastUrl(): string {
@@ -42,8 +51,6 @@ export function getPayFastValidateUrl(): string {
 
 /**
  * Generate MD5 Signature for PayFast payment payload or ITN verification
- * @param data Data object containing PayFast fields
- * @param passphrase Optional passphrase configured in PayFast account
  */
 export function generatePayFastSignature(
   data: Record<string, string | number | undefined | null>,
@@ -55,8 +62,7 @@ export function generatePayFastSignature(
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const val = data[key];
       if (val !== undefined && val !== null && String(val).trim() !== '' && key !== 'signature') {
-        const encodedVal = encodeURIComponent(String(val).trim()).replace(/%20/g, '+');
-        pfOutput += `${key}=${encodedVal}&`;
+        pfOutput += `${key}=${payFastEncode(String(val))}&`;
       }
     }
   }
@@ -64,15 +70,11 @@ export function generatePayFastSignature(
   // Remove trailing '&'
   pfOutput = pfOutput.slice(0, -1);
 
-  const merchantId = String(data.merchant_id || process.env.PAYFAST_MERCHANT_ID || '').trim();
-  const isDefaultSandbox = merchantId === '10000100';
-  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE || (isDefaultSandbox ? 'jt7NOE43FZPn' : undefined);
+  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE;
 
   if (pfPassphrase && pfPassphrase.trim() !== '') {
-    const encodedPassphrase = encodeURIComponent(pfPassphrase.trim()).replace(/%20/g, '+');
-    pfOutput += `&passphrase=${encodedPassphrase}`;
+    pfOutput += `&passphrase=${payFastEncode(pfPassphrase)}`;
   }
-
 
   return crypto.createHash('md5').update(pfOutput).digest('hex');
 }
@@ -89,15 +91,13 @@ export function buildPayFastQueryString(
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const val = data[key];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
-        const encodedVal = encodeURIComponent(String(val).trim()).replace(/%20/g, '+');
-        params.push(`${key}=${encodedVal}`);
+        params.push(`${key}=${payFastEncode(String(val))}`);
       }
     }
   }
 
   return params.join('&');
 }
-
 
 /**
  * Verify ITN Callback Signature and Validate with PayFast Server
@@ -121,14 +121,13 @@ export async function verifyPayFastItn(
   try {
     const validateUrl = getPayFastValidateUrl();
 
-    // Reconstruct param string if not directly provided
     let paramString = rawPfParamString;
     if (!paramString) {
       const params: string[] = [];
       for (const key in pfData) {
         if (Object.prototype.hasOwnProperty.call(pfData, key) && key !== 'signature') {
           const val = pfData[key];
-          params.push(`${key}=${encodeURIComponent(val.trim()).replace(/%20/g, '+')}`);
+          params.push(`${key}=${payFastEncode(val)}`);
         }
       }
       paramString = params.join('&');
