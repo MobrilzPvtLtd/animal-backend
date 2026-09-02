@@ -70,7 +70,9 @@ export function generatePayFastSignature(
   // Remove trailing '&'
   pfOutput = pfOutput.slice(0, -1);
 
-  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE;
+  const merchantId = String(data.merchant_id || process.env.PAYFAST_MERCHANT_ID || '').trim();
+  const isDefaultSandbox = merchantId === '10000100';
+  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE || (isDefaultSandbox ? 'jt7NOE43FZPn' : undefined);
 
   if (pfPassphrase && pfPassphrase.trim() !== '') {
     pfOutput += `&passphrase=${payFastEncode(pfPassphrase)}`;
@@ -149,5 +151,50 @@ export async function verifyPayFastItn(
     return { isValid: true };
   } catch (err: any) {
     return { isValid: false, error: `Error validating with PayFast server: ${err.message}` };
+  }
+}
+
+/**
+ * Automatically fetch direct session redirect URL from PayFast so clicking payment_url opens checkout directly
+ */
+export async function createPayFastSessionUrl(
+  payFastFields: Record<string, string>
+): Promise<string> {
+  const payfastUrl = getPayFastUrl();
+  const queryString = buildPayFastQueryString(payFastFields);
+  const fallbackUrl = `${payfastUrl}?${queryString}`;
+
+  try {
+    const bodyParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(payFastFields)) {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        bodyParams.append(key, String(value).trim());
+      }
+    }
+
+    const response = await fetch(payfastUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: bodyParams.toString(),
+      redirect: 'manual',
+    });
+
+    const locationHeader = response.headers.get('location');
+    if (locationHeader) {
+      return locationHeader;
+    }
+
+    const text = await response.text();
+    const match = text.match(/href=["'](https?:\/\/[^"']+)["']/i) || text.match(/url=['"](https?:\/\/[^"']+)['"]/i);
+    if (match && match[1]) {
+      return match[1];
+    }
+
+    return fallbackUrl;
+  } catch (err) {
+    console.error('Failed to create direct PayFast session URL:', err);
+    return fallbackUrl;
   }
 }

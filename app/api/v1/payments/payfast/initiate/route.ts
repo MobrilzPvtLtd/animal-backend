@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { getUserFromRequest } from '@/lib/server-auth';
-import { generatePayFastSignature, getPayFastUrl, buildPayFastQueryString, PayFastPaymentPayload } from '@/lib/payfast';
+import { generatePayFastSignature, getPayFastUrl, buildPayFastQueryString, createPayFastSessionUrl, PayFastPaymentPayload } from '@/lib/payfast';
 
 export async function POST(request: NextRequest) {
 
@@ -94,42 +94,7 @@ export async function POST(request: NextRequest) {
   const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
 
-  const paygateId = process.env.PAYGATE_ID || (process.env.PAYFAST_MERCHANT_ID && process.env.PAYFAST_MERCHANT_ID !== '10000100' && /^\d+$/.test(process.env.PAYFAST_MERCHANT_ID) ? process.env.PAYFAST_MERCHANT_ID : undefined);
-  const paygateEncryptionKey = process.env.PAYGATE_ENCRYPTION_KEY || process.env.PAYFAST_PASSPHRASE;
-
-  // If PayGate PayWeb v3 credentials are provided, use PayGate
-  if (paygateId && paygateEncryptionKey) {
-    const { initiatePayGateTransaction } = await import('@/lib/paygate');
-    const paygateRes = await initiatePayGateTransaction({
-      paygateId,
-      encryptionKey: paygateEncryptionKey,
-      reference: paymentReference,
-      amount: Number(amount),
-      returnUrl: `${baseUrl}/dashboard/payments-billing?payment=success&ref=${paymentReference}`,
-      notifyUrl: `${baseUrl}/api/v1/payments/payfast/notify`,
-      email: user.email || 'customer@example.com',
-    });
-
-    if (!paygateRes.success || !paygateRes.paymentUrl) {
-      return NextResponse.json(
-        { error: paygateRes.error || 'Failed to initiate PayGate transaction' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      gateway: 'paygate',
-      payment_url: paygateRes.paymentUrl,
-      redirect_url: paygateRes.paymentUrl,
-      html_form: paygateRes.htmlForm,
-      transaction_id: txnData.transaction_id,
-      payment_reference: paymentReference,
-      payRequestId: paygateRes.payRequestId,
-    });
-  }
-
-  // Fallback to PayFast Integration
+  // 3. Prepare PayFast Integration Credentials
   const merchantId = process.env.PAYFAST_MERCHANT_ID || '10000100'; // Default to PayFast Sandbox ID if unset
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a'; // Default to PayFast Sandbox Key if unset
 
@@ -146,8 +111,8 @@ export async function POST(request: NextRequest) {
     item_description: item_description?.trim() || undefined,
     custom_str1: custom_str1?.trim() || undefined,
     custom_str2: custom_str2?.trim() || undefined,
-    custom_int1: custom_int1 ? String(custom_int1) : undefined,
-    custom_int2: custom_int2 ? String(custom_int2) : undefined,
+    custom_str3: custom_int1 ? String(custom_int1) : undefined,
+    custom_str4: custom_int2 ? String(custom_int2) : undefined,
   };
 
   // 3. Generate Signature
@@ -156,9 +121,9 @@ export async function POST(request: NextRequest) {
 
   const payfastUrl = getPayFastUrl();
 
-  // 4. Construct direct Payment URL & Auto-submitting HTML Form (for WebViews / Mobile Apps)
+  // 4. Construct Direct PayFast Checkout Session URL & Auto-submitting HTML Form
   const queryString = buildPayFastQueryString(payFastFields as Record<string, string>);
-  const paymentUrl = `${payfastUrl}?${queryString}`;
+  const directSessionUrl = await createPayFastSessionUrl(payFastFields as Record<string, string>);
 
   let formFieldsHtml = '';
   for (const [key, value] of Object.entries(payFastFields)) {
@@ -181,8 +146,9 @@ ${formFieldsHtml}    <noscript><button type="submit">Click here to proceed to Pa
   return NextResponse.json({
     success: true,
     gateway: 'payfast',
-    payment_url: paymentUrl,
-    redirect_url: paymentUrl,
+    payment_url: directSessionUrl,
+    redirect_url: directSessionUrl,
+    raw_query_url: `${payfastUrl}?${queryString}`,
     html_form: htmlForm,
     transaction_id: txnData.transaction_id,
     payment_reference: paymentReference,
