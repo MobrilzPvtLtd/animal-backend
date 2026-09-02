@@ -108,14 +108,34 @@ export async function verifyPayFastItn(
   pfData: Record<string, string>,
   rawPfParamString?: string
 ): Promise<{ isValid: boolean; error?: string }> {
-  // 1. Verify Signature
+  // 1. Verify Signature using exact parameter sequence sent by PayFast
   const receivedSignature = pfData.signature;
   if (!receivedSignature) {
     return { isValid: false, error: 'Missing signature in PayFast ITN payload' };
   }
 
-  const calculatedSignature = generatePayFastSignature(pfData);
+  let calculatedSignature = '';
+
+  if (rawPfParamString && rawPfParamString.trim() !== '') {
+    // Preserve exact raw POST body parameter order as sent by PayFast
+    const paramPairs = rawPfParamString.split('&').filter(p => p.trim() !== '' && !p.startsWith('signature='));
+    let pfParamStr = paramPairs.join('&');
+
+    const merchantId = String(pfData.merchant_id || process.env.PAYFAST_MERCHANT_ID || '').trim();
+    const isDefaultSandbox = merchantId === '10000100';
+    const pfPassphrase = process.env.PAYFAST_PASSPHRASE || (isDefaultSandbox ? 'jt7NOE43FZPn' : undefined);
+
+    if (pfPassphrase && pfPassphrase.trim() !== '') {
+      pfParamStr += `&passphrase=${payFastEncode(pfPassphrase)}`;
+    }
+
+    calculatedSignature = crypto.createHash('md5').update(pfParamStr).digest('hex');
+  } else {
+    calculatedSignature = generatePayFastSignature(pfData);
+  }
+
   if (receivedSignature.toLowerCase() !== calculatedSignature.toLowerCase()) {
+    console.error(`PayFast ITN Signature mismatch. Received: ${receivedSignature}, Calculated: ${calculatedSignature}`);
     return { isValid: false, error: 'PayFast ITN signature mismatch' };
   }
 

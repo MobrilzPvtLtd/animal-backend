@@ -98,12 +98,17 @@ export async function POST(request: NextRequest) {
   const merchantId = process.env.PAYFAST_MERCHANT_ID || '10000100'; // Default to PayFast Sandbox ID if unset
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a'; // Default to PayFast Sandbox Key if unset
 
+  // PayFast webhook ITN requires a publicly accessible URL to reach our server
+  const notifyBaseUrl = baseUrl.includes('localhost')
+    ? (process.env.PUBLIC_NOTIFY_URL || 'https://animal-backend-nine.vercel.app')
+    : baseUrl;
+
   const payFastFields: PayFastPaymentPayload = {
     merchant_id: merchantId,
     merchant_key: merchantKey,
     return_url: `${baseUrl}/dashboard/payments-billing?payment=success&ref=${paymentReference}`,
     cancel_url: `${baseUrl}/dashboard/payments-billing?payment=cancelled&ref=${paymentReference}`,
-    notify_url: `${baseUrl}/api/v1/payments/payfast/notify`,
+    notify_url: `${notifyBaseUrl}/api/v1/payments/payfast/notify`,
     email_address: user.email || undefined,
     m_payment_id: paymentReference,
     amount: formattedAmount,
