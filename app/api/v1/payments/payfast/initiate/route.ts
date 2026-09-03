@@ -95,8 +95,15 @@ export async function POST(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
 
   // 3. Prepare PayFast Integration Credentials
-  const merchantId = process.env.PAYFAST_MERCHANT_ID || '10000100'; // Default to PayFast Sandbox ID if unset
-  const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a'; // Default to PayFast Sandbox Key if unset
+  const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
+  const merchantKey = process.env.PAYFAST_MERCHANT_KEY?.trim();
+
+  if (!merchantId || !merchantKey) {
+    return NextResponse.json(
+      { error: 'PayFast merchant credentials (PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY) are not configured in environment variables.' },
+      { status: 500 }
+    );
+  }
 
   // PayFast webhook ITN requires a publicly accessible URL to reach our server
   const notifyBaseUrl = baseUrl.includes('localhost')

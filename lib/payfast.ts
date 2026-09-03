@@ -70,9 +70,7 @@ export function generatePayFastSignature(
   // Remove trailing '&'
   pfOutput = pfOutput.slice(0, -1);
 
-  const merchantId = String(data.merchant_id || process.env.PAYFAST_MERCHANT_ID || '').trim();
-  const isDefaultSandbox = merchantId === '10000100';
-  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE || (isDefaultSandbox ? 'jt7NOE43FZPn' : undefined);
+  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE;
 
   if (pfPassphrase && pfPassphrase.trim() !== '') {
     pfOutput += `&passphrase=${payFastEncode(pfPassphrase)}`;
@@ -121,9 +119,7 @@ export async function verifyPayFastItn(
     const paramPairs = rawPfParamString.split('&').filter(p => p.trim() !== '' && !p.startsWith('signature='));
     let pfParamStr = paramPairs.join('&');
 
-    const merchantId = String(pfData.merchant_id || process.env.PAYFAST_MERCHANT_ID || '').trim();
-    const isDefaultSandbox = merchantId === '10000100';
-    const pfPassphrase = process.env.PAYFAST_PASSPHRASE || (isDefaultSandbox ? 'jt7NOE43FZPn' : undefined);
+    const pfPassphrase = process.env.PAYFAST_PASSPHRASE;
 
     if (pfPassphrase && pfPassphrase.trim() !== '') {
       pfParamStr += `&passphrase=${payFastEncode(pfPassphrase)}`;
