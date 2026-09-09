@@ -17,7 +17,9 @@
     "db:reset": "dotenv -e .env -- supabase db reset",
     "db:new": "node scripts/new-migration.js",
     "db:sync": "node scripts/sync-migrations.js",
-    "db:migrate-data": "dotenv -e .env -- node scripts/migrate-data.js"
+    "db:migrate-data": "dotenv -e .env -- node scripts/migrate-data.js",
+    "db:migrate-storage": "dotenv -e .env -- node scripts/migrate-storage.js",
+    "user:set-password": "dotenv -e .env -- node scripts/set-user-password.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
