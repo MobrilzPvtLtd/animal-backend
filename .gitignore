@@ -3,3 +3,7 @@ node_modules
 .next
 dist
 .vercel
+
+# Supabase local development
+supabase/.temp
+supabase/.branches

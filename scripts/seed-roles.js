@@ -1,3 +1,6 @@
+// Load .env automatically when run directly (fallback for dotenv-cli)
+try { require('dotenv').config(); } catch (_) {}
+
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;

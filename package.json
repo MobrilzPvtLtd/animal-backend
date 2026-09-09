@@ -4,11 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "seed:roles": "node scripts/seed-roles.js",
+    "seed:roles": "dotenv -e .env -- node scripts/seed-roles.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "npx vercel --prod"
+    "deploy": "npx vercel --prod",
+    "db:link": "dotenv -e .env -- supabase link --project-ref $SUPABASE_PROJECT_REF",
+    "db:push": "dotenv -e .env -- supabase db push",
+    "db:push:dry": "dotenv -e .env -- supabase db push --dry-run",
+    "db:pull": "dotenv -e .env -- supabase db pull",
+    "db:status": "dotenv -e .env -- supabase migration list",
+    "db:reset": "dotenv -e .env -- supabase db reset",
+    "db:new": "node scripts/new-migration.js",
+    "db:sync": "node scripts/sync-migrations.js",
+    "db:migrate-data": "dotenv -e .env -- node scripts/migrate-data.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -102,6 +111,7 @@
     "utf-8-validate": "^6.0.5"
   },
   "devDependencies": {
-    "@types/google.maps": "^3.58.1"
+    "@types/google.maps": "^3.58.1",
+    "dotenv-cli": "^11.0.0"
   }
 }
