@@ -111,14 +111,18 @@ export async function POST(
       status, 
       subject,
       users!support_tickets_user_id_fkey (
+        user_id,
         email,
-        full_name
+        name,
+        surname,
+        user_name
       )
     `)
     .eq('support_ticket_id', params.id)
     .single();
 
   if (ticketError || !ticket) {
+    console.error('Error fetching ticket for reply:', ticketError);
     return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
   }
 
@@ -194,21 +198,49 @@ export async function POST(
 
   // If an admin is replying, send an email to the ticket creator
   const ticketUser: any = Array.isArray(ticket.users) ? ticket.users[0] : ticket.users;
+  let userEmail = ticketUser?.email;
+  let userName = ticketUser
+    ? `${ticketUser.name || ''} ${ticketUser.surname || ''}`.trim() || ticketUser.user_name || 'Valued Member'
+    : 'Valued Member';
 
-  if (isAdmin && ticketUser && ticketUser.email) {
+  if (!userEmail && ticket.user_id) {
+    const { data: directUser } = await supabaseAdmin
+      .from('users')
+      .select('user_id, email, name, surname, user_name')
+      .eq('user_id', ticket.user_id)
+      .single();
+    if (directUser) {
+      userEmail = directUser.email;
+      userName = `${directUser.name || ''} ${directUser.surname || ''}`.trim() || directUser.user_name || 'Valued Member';
+    }
+  }
+
+  let emailSent = false;
+  let emailErrorMsg: string | null = null;
+
+  if (isAdmin && userEmail) {
     try {
-      await sendSupportTicketReplyEmail({
-        to: ticketUser.email,
-        userName: ticketUser.full_name || 'Valued Member',
+      const emailResult = await sendSupportTicketReplyEmail({
+        to: userEmail,
+        userName,
         ticketSubject: ticket.subject || 'Support Ticket',
         replyText: replyText.trim(),
         ticketId: ticket.support_ticket_id,
+        imageUrl,
       });
-    } catch (emailError) {
+      emailSent = emailResult?.success ?? false;
+      console.log(`[Support] Reply email successfully sent to ${userEmail} for ticket #${ticket.support_ticket_id}`);
+    } catch (emailError: any) {
+      emailErrorMsg = emailError?.message || 'Failed to send email';
       console.error('Failed to send support ticket reply email:', emailError);
       // We don't fail the request if the email fails to send
     }
   }
 
-  return NextResponse.json({ reply: replyResult });
+  return NextResponse.json({
+    reply: replyResult,
+    emailSent,
+    emailRecipient: userEmail || null,
+    emailError: emailErrorMsg,
+  });
 }

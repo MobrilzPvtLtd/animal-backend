@@ -12,6 +12,25 @@ export const columns: ColumnDef<ServiceProvider>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Provider" />
     ),
+    filterFn: (row, id, filterValue) => {
+      if (!filterValue) return true
+      const search = String(filterValue).toLowerCase().trim()
+      const name = (row.original.name || "").toLowerCase()
+      if (name.includes(search)) return true
+
+      // Also allow searching provider by category name
+      const primaryCat = row.original.service_category?.name?.toLowerCase() || ""
+      if (primaryCat.includes(search)) return true
+
+      if (Array.isArray(row.original.service_provider_categories)) {
+        return row.original.service_provider_categories.some((spc: any) => {
+          const catName = spc.service_category?.name?.toLowerCase() || ""
+          return catName.includes(search)
+        })
+      }
+
+      return false
+    },
     cell: ({ row }) => {
       const provider = row.original
       return (
@@ -40,6 +59,45 @@ export const columns: ColumnDef<ServiceProvider>[] = [
           .join(", ")
       }
       return row.service_category?.name || "Uncategorized"
+    },
+    filterFn: (row, id, filterValue) => {
+      if (!filterValue || filterValue === "all") return true
+      const searchStr = String(filterValue).toLowerCase().trim()
+
+      // 1. Check primary service_category
+      const primaryName = row.original.service_category?.name?.toLowerCase() || ""
+      const primaryId = String(row.original.service_category_id || "")
+      if (
+        primaryName === searchStr ||
+        primaryName.includes(searchStr) ||
+        searchStr.includes(primaryName) ||
+        primaryId === searchStr
+      ) {
+        return true
+      }
+
+      // 2. Check linked service_provider_categories
+      if (Array.isArray(row.original.service_provider_categories)) {
+        const hasMatch = row.original.service_provider_categories.some((spc: any) => {
+          const catName = spc.service_category?.name?.toLowerCase() || ""
+          const catId = String(spc.service_category_id || spc.service_category?.service_category_id || "")
+          return (
+            catName === searchStr ||
+            catName.includes(searchStr) ||
+            searchStr.includes(catName) ||
+            catId === searchStr
+          )
+        })
+        if (hasMatch) return true
+      }
+
+      // 3. Check combined accessor value string
+      const cellValue = String(row.getValue(id) || "").toLowerCase()
+      if (cellValue.includes(searchStr) || searchStr.includes(cellValue)) {
+        return true
+      }
+
+      return false
     },
     cell: ({ row }: any) => {
       const provider = row.original

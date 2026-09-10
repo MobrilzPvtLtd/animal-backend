@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 
+// Disable Next.js fetch cache so DB updates are immediately reflected
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
-  const activeOnly = request.nextUrl.searchParams.get('active_only') === 'true';
+  const activeOnly = request.nextUrl.searchParams.get('active_only') !== 'false';
+  const includeInactive = request.nextUrl.searchParams.get('include_inactive') === 'true';
   let query = supabaseAdmin.from('groups').select('*').order('name');
 
-  if (activeOnly) {
+  if (!includeInactive && activeOnly) {
     query = query.eq('is_active', true);
   }
 

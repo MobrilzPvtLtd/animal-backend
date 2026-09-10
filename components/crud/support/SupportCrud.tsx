@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/providers/AuthProvider"
-import { SupportTicket, SupportReply, TICKET_STATUSES } from "./schema"
+import { SupportTicket, SupportReply, TICKET_STATUSES, parseTicketMessage } from "./schema"
 import { columns } from "./columns"
 import { DataTable } from "../DataTable"
 import { Button } from "@/components/ui/button"
@@ -52,6 +52,7 @@ export function SupportCrud() {
   const [replyFile, setReplyFile] = useState<File | null>(null)
   const replyFileInputRef = useRef<HTMLInputElement>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [sendingReply, setSendingReply] = useState(false)
 
   const authHeaders = (): HeadersInit => {
     if (session?.access_token) {
@@ -119,7 +120,8 @@ export function SupportCrud() {
   }
 
   const handleSubmitReply = async () => {
-    if (!selectedTicket || !replyText.trim()) return
+    if (!selectedTicket || !replyText.trim() || sendingReply) return
+    setSendingReply(true)
     try {
       let response: Response
       if (replyFile) {
@@ -140,13 +142,25 @@ export function SupportCrud() {
       }
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || "Failed to send reply")
-      toast.success("Reply sent successfully")
+      
+      if (result.emailSent) {
+        toast.success(`Reply sent and emailed to ${result.emailRecipient || "user"}`)
+      } else if (result.emailError) {
+        toast.success("Reply posted, but email notification failed to send")
+      } else {
+        toast.success("Reply sent successfully")
+      }
+
       setReplyText("")
       setReplyFile(null)
+      if (replyFileInputRef.current) replyFileInputRef.current.value = ""
       openTicketDetail(selectedTicket)
-    } catch (error) {
+      fetchTickets()
+    } catch (error: any) {
       console.error("Error sending reply:", error)
-      toast.error("Failed to send reply")
+      toast.error(error.message || "Failed to send reply")
+    } finally {
+      setSendingReply(false)
     }
   }
 
@@ -199,7 +213,9 @@ export function SupportCrud() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedTicket ? (
+          {selectedTicket ? (() => {
+            const { category, cleanMessage } = parseTicketMessage(selectedTicket.initial_message)
+            return (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2 items-center">
                 <Badge className={statusStyles[selectedTicket.status] || ""}>
@@ -208,6 +224,11 @@ export function SupportCrud() {
                 <Badge variant="outline" className={priorityStyles[selectedTicket.priority] || ""}>
                   {selectedTicket.priority}
                 </Badge>
+                {category && (
+                  <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-50 font-medium">
+                    Category: {category}
+                  </Badge>
+                )}
                 <div className="text-sm text-muted-foreground ml-auto">
                   {format(new Date(selectedTicket.created_at), "MMM d, yyyy HH:mm")}
                 </div>
@@ -215,13 +236,28 @@ export function SupportCrud() {
 
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium">From:</span>
-                {selectedTicket.users
-                  ? `${selectedTicket.users.name || ""} ${selectedTicket.users.surname || ""}`.trim() || selectedTicket.users.email
-                  : "Unknown"}
+                <span className="font-medium text-foreground">
+                  {selectedTicket.users
+                    ? `${selectedTicket.users.name || ""} ${selectedTicket.users.surname || ""}`.trim() || selectedTicket.users.email
+                    : "Unknown"}
+                </span>
+                {selectedTicket.users?.email && (
+                  <span className="text-muted-foreground text-xs">({selectedTicket.users.email})</span>
+                )}
               </div>
 
-              <div className="bg-muted rounded-lg p-4">
-                <p className="text-sm whitespace-pre-wrap">{selectedTicket.initial_message}</p>
+              <div className="bg-muted/70 rounded-lg p-4 space-y-3 border">
+                {category && (
+                  <div className="flex items-center gap-2 pb-2.5 border-b border-border/60">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category:</span>
+                    <span className="text-xs font-medium text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                      {category}
+                    </span>
+                  </div>
+                )}
+                <p className="text-sm whitespace-pre-wrap text-foreground">
+                  {cleanMessage || <span className="text-muted-foreground italic">(No additional text)</span>}
+                </p>
                 {selectedTicket.image_url && (
                   <div className="mt-2 relative rounded-lg overflow-hidden border max-w-sm">
                     <Image
@@ -323,15 +359,25 @@ export function SupportCrud() {
                         </Button>
                       )}
                     </div>
-                    <Button onClick={handleSubmitReply} disabled={!replyText.trim()}>
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Reply
+                    <Button onClick={handleSubmitReply} disabled={!replyText.trim() || sendingReply}>
+                      {sendingReply ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending Reply...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Send Reply
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
               )}
             </div>
-          ) : (
+            )
+          })() : (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>

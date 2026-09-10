@@ -19,6 +19,7 @@
     "db:sync": "node scripts/sync-migrations.js",
     "db:migrate-data": "dotenv -e .env -- node scripts/migrate-data.js",
     "db:migrate-storage": "dotenv -e .env -- node scripts/migrate-storage.js",
+    "db:migrate-auth": "dotenv -e .env -- node scripts/migrate-auth-users.js",
     "user:set-password": "dotenv -e .env -- node scripts/set-user-password.js"
   },
   "dependencies": {

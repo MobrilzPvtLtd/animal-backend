@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { SupportTicket } from "./schema"
+import { SupportTicket, parseTicketMessage } from "./schema"
 import { DataTableColumnHeader } from "../DataTableColumnHeader"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +51,7 @@ export const columns: ColumnDef<SupportTicket>[] = [
     ),
     cell: ({ row }) => {
       const ticket = row.original
+      const { category } = parseTicketMessage(ticket.initial_message)
       return (
         <div className="flex items-center gap-2">
           <Avatar className="h-7 w-7">
@@ -59,7 +60,14 @@ export const columns: ColumnDef<SupportTicket>[] = [
               {ticket.users?.name?.charAt(0) || ticket.users?.email?.charAt(0) || "?"}
             </AvatarFallback>
           </Avatar>
-          <div className="font-medium truncate max-w-[250px]">{ticket.subject}</div>
+          <div className="space-y-0.5">
+            <div className="font-medium truncate max-w-[250px]">{ticket.subject}</div>
+            {category && (
+              <span className="inline-block text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200/70 px-1.5 py-0.2 rounded">
+                {category}
+              </span>
+            )}
+          </div>
         </div>
       )
     },

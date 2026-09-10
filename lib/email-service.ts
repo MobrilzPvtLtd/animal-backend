@@ -124,10 +124,11 @@ export interface SupportTicketReplyEmailData {
   ticketSubject: string;
   replyText: string;
   ticketId: number | string;
+  imageUrl?: string | null;
 }
 
 export async function sendSupportTicketReplyEmail(data: SupportTicketReplyEmailData) {
-  const { to, userName = 'Valued Member', ticketSubject, replyText, ticketId } = data;
+  const { to, userName = 'Valued Member', ticketSubject, replyText, ticketId, imageUrl } = data;
 
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '587');
@@ -152,15 +153,15 @@ export async function sendSupportTicketReplyEmail(data: SupportTicketReplyEmailD
       <head>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
           .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
           .header { background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 24px; text-align: center; color: white; }
-          .header h1 { margin: 0; font-size: 24px; }
-          .content { padding: 28px; color: #334155; }
-          .reply-card { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; margin: 20px 0; border-radius: 6px; }
-          .ticket-info { font-size: 14px; margin-bottom: 12px; color: #64748b; }
-          .reply-text { font-size: 16px; margin: 4px 0; color: #0f172a; line-height: 1.5; white-space: pre-wrap; }
-          .footer { background: #f8fafc; text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; }
+          .header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+          .content { padding: 28px; color: #334155; line-height: 1.6; }
+          .reply-card { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 18px; margin: 20px 0; border-radius: 6px; }
+          .ticket-info { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #64748b; }
+          .reply-text { font-size: 15px; margin: 4px 0; color: #0f172a; line-height: 1.6; white-space: pre-wrap; }
+          .footer { background: #f8fafc; text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
         </style>
       </head>
       <body>
@@ -175,10 +176,11 @@ export async function sendSupportTicketReplyEmail(data: SupportTicketReplyEmailD
             <div class="reply-card">
               <div class="ticket-info">Ticket ID: #${ticketId} | Subject: ${ticketSubject}</div>
               <div class="reply-text">${replyText.replace(/\n/g, '<br/>')}</div>
+              ${imageUrl ? `<div style="margin-top: 14px;"><img src="${imageUrl}" alt="Attachment" style="max-width: 100%; max-height: 300px; border-radius: 6px; border: 1px solid #cbd5e1; display: block;" /></div>` : ''}
             </div>
 
             <p>You can reply directly in the Animal Click app to continue the conversation.</p>
-            <p>Best regards,<br/><strong>Animal Click Support Team</strong></p>
+            <p style="margin-top: 20px;">Best regards,<br/><strong>Animal Click Support Team</strong></p>
           </div>
           <div class="footer">
             &copy; ${new Date().getFullYear()} Animal Click. All rights reserved.

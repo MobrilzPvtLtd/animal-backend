@@ -52,18 +52,42 @@ const NEW_CONN = buildConn(NEW_REF, NEW_PASS);
 // ─── Tables (FK-safe insert order, reverse for TRUNCATE) ───────────────────
 
 const TABLES = [
+  // Core lookup tables (no FKs)
   'permissions', 'roles', 'role_permissions',
   'service_categories', 'event_categories',
   'animal_types', 'breeds',
   'locations', 'boost_packages', 'subscription_plans',
-  'users', 'user_roles',
-  'veterinarians', 'breeders', 'service_providers',
+
+  // Users
+  'users', 'user_roles', 'user_blocks',
+
+  // Profiles / service entities
+  'vets', 'breeders', 'service_providers',
+  'service_provider_categories', 'service_provider_breeds', 'service_provider_images',
+  'services',
+  'vendors', 'vendor_locations',
   'pet_friendly_places', 'rescue_centres',
-  'service_provider_categories',
+  'groups', 'place_groups',
+
+  // Boost / subscription
+  'boost_package_links', 'entity_boosts',
+
+  // Content
   'community_posts', 'post_likes', 'community_comments',
   'events', 'event_reminders',
-  'transactions', 'whats_new', 'reviews',
-  'support_tickets', 'audit_logs', 'notifications',
+  'whats_new', 'reviews',
+  'saved_places',
+
+  // Donations & transactions
+  'donation_campaigns',
+  'transactions',
+
+  // Support
+  'provider_requests',
+  'support_tickets', 'support_replies',
+
+  // System
+  'audit_logs', 'notifications',
 ];
 
 const TRUNCATE_ORDER = [...TABLES].reverse();

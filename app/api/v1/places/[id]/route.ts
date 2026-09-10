@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
+import { normalizePlaceImages } from '@/lib/image-normalizer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,5 +19,5 @@ export async function GET(
     return NextResponse.json({ error: 'Place not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ place });
+  return NextResponse.json({ place: normalizePlaceImages(place) });
 }

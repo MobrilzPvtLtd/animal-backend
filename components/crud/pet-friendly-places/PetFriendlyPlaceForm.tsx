@@ -250,9 +250,14 @@ export function PetFriendlyPlaceForm({ place, onSuccess, onCancel }: PetFriendly
         show_publicly: data.show_publicly ?? true,
       };
 
-      // Ensure operating_hours defaults if not set
-      if (!payload.operating_hours) {
-        payload.operating_hours = DEFAULT_OPERATING_HOURS
+      // Handle operating hours based on toggle
+      if (payload.show_operating_hours) {
+        if (!payload.operating_hours) {
+          payload.operating_hours = DEFAULT_OPERATING_HOURS
+        }
+      } else {
+        payload.operating_hours = null
+        payload.show_operating_hours = false
       }
 
       let savedPlaceId: number | undefined

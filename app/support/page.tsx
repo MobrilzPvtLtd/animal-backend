@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import { PRIORITY_LEVELS } from "@/components/crud/support/schema";
+import { PRIORITY_LEVELS, parseTicketMessage } from "@/components/crud/support/schema";
 import type { SupportTicket, SupportReply } from "@/components/crud/support/schema";
 import { Paperclip, X, ImageIcon, MessageSquare, Send } from "lucide-react";
 import { format } from "date-fns";
@@ -242,13 +242,22 @@ export default function SupportPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xl font-bold">{selectedTicket.subject}</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Created {format(new Date(selectedTicket.created_at), "MMM d, yyyy HH:mm")}
-                    {" | "}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="text-xs text-gray-500">
+                      Created {format(new Date(selectedTicket.created_at), "MMM d, yyyy HH:mm")}
+                    </span>
                     <Badge className={statusBadge(selectedTicket.status)}>
                       {selectedTicket.status.replace("_", " ")}
                     </Badge>
-                  </p>
+                    {(() => {
+                      const { category } = parseTicketMessage(selectedTicket.initial_message);
+                      return category ? (
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                          {category}
+                        </Badge>
+                      ) : null;
+                    })()}
+                  </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedTicket(null)}>
                   <X className="h-4 w-4" />
@@ -261,10 +270,23 @@ export default function SupportPage() {
                 <p className="text-gray-500 text-center py-8">Loading...</p>
               ) : (
                 <>
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTicket.initial_message}</p>
-                    <MessageImage url={selectedTicket.image_url} />
-                  </div>
+                  {(() => {
+                    const { category, cleanMessage } = parseTicketMessage(selectedTicket.initial_message);
+                    return (
+                      <div className="bg-blue-50/60 rounded-lg p-4 space-y-2 border border-blue-100">
+                        {category && (
+                          <div className="flex items-center gap-2 pb-2 border-b border-blue-200/50 text-xs text-blue-900">
+                            <span className="font-semibold">Category:</span>
+                            <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 shadow-xs">
+                              {category}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{cleanMessage || "(No additional text)"}</p>
+                        <MessageImage url={selectedTicket.image_url} />
+                      </div>
+                    );
+                  })()}
 
                   {selectedTicket.support_replies?.map((reply: SupportReply) => (
                     <div key={reply.support_reply_id} className="bg-gray-50 rounded-lg p-4 ml-6">

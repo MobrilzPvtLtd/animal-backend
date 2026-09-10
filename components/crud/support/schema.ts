@@ -50,3 +50,18 @@ export type SupportReply = z.infer<typeof supportReplySchema> & {
     email: string
   } | null
 }
+
+export function parseTicketMessage(rawMessage: string | null | undefined): {
+  category: string | null
+  cleanMessage: string
+} {
+  if (!rawMessage) return { category: null, cleanMessage: "" }
+  const match = rawMessage.match(/^\[Category:\s*([^\]]+)\]\s*/i)
+  if (match) {
+    return {
+      category: match[1].trim(),
+      cleanMessage: rawMessage.replace(/^\[Category:\s*([^\]]+)\]\s*/i, "").trim(),
+    }
+  }
+  return { category: null, cleanMessage: rawMessage }
+}

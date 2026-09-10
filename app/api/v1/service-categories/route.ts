@@ -2,16 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 
+// Disable Next.js fetch cache so DB updates are immediately reflected
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get('search');
   const categoryId = request.nextUrl.searchParams.get('service_category_id');
+  const activeOnly = request.nextUrl.searchParams.get('active_only') !== 'false';
+  const includeInactive = request.nextUrl.searchParams.get('include_inactive') === 'true';
 
   if (categoryId) {
-    const { data: category, error } = await supabaseAdmin
+    let catQuery = supabaseAdmin
       .from('service_categories')
       .select('*')
-      .eq('service_category_id', Number(categoryId))
-      .maybeSingle();
+      .eq('service_category_id', Number(categoryId));
+
+    if (!includeInactive && activeOnly) {
+      catQuery = catQuery.eq('is_active', true);
+    }
+
+    const { data: category, error } = await catQuery.maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,6 +46,10 @@ export async function GET(request: NextRequest) {
       .or('is_deleted.eq.false,is_deleted.is.null')
       .order('name');
 
+    if (!includeInactive && activeOnly) {
+      providerQuery = providerQuery.or('is_active.eq.true,is_active.is.null');
+    }
+
     if (linkedProviderIds.length > 0) {
       providerQuery = providerQuery.or(`service_category_id.eq.${catIdNum},service_provider_id.in.(${linkedProviderIds.join(',')})`);
     } else {
@@ -46,7 +61,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ category: { ...category, service_providers: providers || [] } });
   }
 
-  let query = supabaseAdmin.from('service_categories').select('*').order('name');
+  let query = supabaseAdmin
+    .from('service_categories')
+    .select('*')
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('name');
+
+  if (!includeInactive && activeOnly) {
+    query = query.eq('is_active', true);
+  }
 
   if (search) {
     query = query.ilike('name', `%${search}%`).or(`description.ilike.%${search}%`);

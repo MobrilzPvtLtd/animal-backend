@@ -52,6 +52,7 @@ import { DataTableToolbar } from "../DataTableToolbar"
 
 export function ServiceProvidersCrud() {
   const [providers, setProviders] = useState<ServiceProvider[]>([])
+  const [categories, setCategories] = useState<{ service_category_id: number; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isServicesDialogOpen, setIsServicesDialogOpen] = useState(false)
@@ -73,17 +74,23 @@ export function ServiceProvidersCrud() {
   // Initialize state from URL parameters only once on mount
   useEffect(() => {
     const filter = searchParams.get('filter') || ''
+    const category = searchParams.get('category') || ''
+    const location = searchParams.get('location') || ''
     const page = Math.max(0, parseInt(searchParams.get('page') || '1') - 1)
     const pageSize = parseInt(searchParams.get('pageSize') || '30')
     const sortBy = searchParams.get('sortBy')
     const sortOrder = searchParams.get('sortOrder')
     const hiddenColumns = searchParams.get('hiddenColumns')
 
-    console.log('Initializing from URL params:', { filter, page, pageSize, sortBy, sortOrder, hiddenColumns })
+    console.log('Initializing from URL params:', { filter, category, location, page, pageSize, sortBy, sortOrder, hiddenColumns })
 
-    // Set filter
-    if (filter) {
-      setColumnFilters([{ id: 'name', value: filter }])
+    // Set filters
+    const initialFilters: ColumnFiltersState = []
+    if (filter) initialFilters.push({ id: 'name', value: filter })
+    if (category) initialFilters.push({ id: 'service_category', value: category })
+    if (location) initialFilters.push({ id: 'location', value: location })
+    if (initialFilters.length > 0) {
+      setColumnFilters(initialFilters)
     }
 
     // Set pagination
@@ -110,6 +117,8 @@ export function ServiceProvidersCrud() {
   // Separate effect to handle URL changes from external navigation (back/forward buttons)
   useEffect(() => {
     const filter = searchParams.get('filter') || ''
+    const category = searchParams.get('category') || ''
+    const location = searchParams.get('location') || ''
     const page = Math.max(0, parseInt(searchParams.get('page') || '1') - 1)
     const pageSize = parseInt(searchParams.get('pageSize') || '30')
     const sortBy = searchParams.get('sortBy')
@@ -117,12 +126,18 @@ export function ServiceProvidersCrud() {
 
     // Only update if there's a significant difference (external navigation)
     const currentFilter = columnFilters.find(f => f.id === 'name')?.value as string || ''
+    const currentCategory = columnFilters.find(f => f.id === 'service_category')?.value as string || ''
+    const currentLocation = columnFilters.find(f => f.id === 'location')?.value as string || ''
     const currentPage = pagination.pageIndex
     const currentPageSize = pagination.pageSize
     const currentSort = sorting[0]
 
-    if (filter !== currentFilter) {
-      setColumnFilters(filter ? [{ id: 'name', value: filter }] : [])
+    if (filter !== currentFilter || category !== currentCategory || location !== currentLocation) {
+      const updatedFilters: ColumnFiltersState = []
+      if (filter) updatedFilters.push({ id: 'name', value: filter })
+      if (category) updatedFilters.push({ id: 'service_category', value: category })
+      if (location) updatedFilters.push({ id: 'location', value: location })
+      setColumnFilters(updatedFilters)
     }
 
     if (page !== currentPage || pageSize !== currentPageSize) {
@@ -142,6 +157,40 @@ export function ServiceProvidersCrud() {
   useEffect(() => {
     fetchProviders()
   }, [])
+
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+
+    // Initialize with all known categories
+    categories.forEach((c) => {
+      if (c.name) counts.set(c.name, 0)
+    })
+
+    // Count providers for each category
+    providers.forEach((p) => {
+      const providerCats = new Set<string>()
+      if (p.service_category?.name) {
+        providerCats.add(p.service_category.name)
+      }
+      if (Array.isArray(p.service_provider_categories)) {
+        p.service_provider_categories.forEach((spc: any) => {
+          if (spc.service_category?.name) {
+            providerCats.add(spc.service_category.name)
+          }
+        })
+      }
+      providerCats.forEach((catName) => {
+        counts.set(catName, (counts.get(catName) || 0) + 1)
+      })
+    })
+
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, count]) => ({
+        label: count > 0 ? `${name} (${count})` : name,
+        value: name,
+      }))
+  }, [categories, providers])
 
   // Update URL when table state changes
   const updateURL = useCallback((updates: Record<string, string | null>) => {
@@ -178,19 +227,29 @@ export function ServiceProvidersCrud() {
   const fetchProviders = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from("service_providers")
-        .select(`
-          *,
-          location:locations(*),
-          service_category:service_categories!service_providers_service_category_id_fkey(*),
-          service_provider_categories(service_category:service_categories(*))
-        `)
-        .or("is_deleted.eq.false,is_deleted.is.null")
-        .order("name")
+      const [providersRes, categoriesRes] = await Promise.all([
+        supabase
+          .from("service_providers")
+          .select(`
+            *,
+            location:locations(*),
+            service_category:service_categories!service_providers_service_category_id_fkey(*),
+            service_provider_categories(service_category:service_categories(*))
+          `)
+          .or("is_deleted.eq.false,is_deleted.is.null")
+          .order("name"),
+        supabase
+          .from("service_categories")
+          .select("service_category_id, name")
+          .order("name")
+      ])
 
-      if (error) throw error
-      setProviders(data || [])
+      if (providersRes.error) throw providersRes.error
+      setProviders(providersRes.data || [])
+
+      if (categoriesRes.data) {
+        setCategories(categoriesRes.data)
+      }
     } catch (error) {
       console.error("Error fetching service providers:", error)
       toast.error("Failed to load service providers")
@@ -317,13 +376,16 @@ export function ServiceProvidersCrud() {
       setColumnFilters(newFilters)
       
       const nameFilter = newFilters.find(f => f.id === 'name')
-      const filterValue = nameFilter?.value as string
+      const categoryFilter = newFilters.find(f => f.id === 'service_category')
+      const locationFilter = newFilters.find(f => f.id === 'location')
       
-      console.log('Filter changed:', { nameFilter, filterValue, newFilters })
+      console.log('Filter changed:', { nameFilter, categoryFilter, locationFilter, newFilters })
       
       // Use debounced URL update for filtering
       debouncedUpdateURL({
-        filter: filterValue || null,
+        filter: (nameFilter?.value as string) || null,
+        category: (categoryFilter?.value as string) || null,
+        location: (locationFilter?.value as string) || null,
         page: null, // Reset to first page when filtering
       })
     },
@@ -380,6 +442,9 @@ export function ServiceProvidersCrud() {
           table={table} 
           filterKey="name" 
           placeholder="Filter providers..."
+          categoryFilterKey="service_category"
+          categoryPlaceholder="All Categories / Groups"
+          categoryOptions={categoryOptions}
           secondaryFilterKey="location"
           secondaryPlaceholder="Filter location..."
         />

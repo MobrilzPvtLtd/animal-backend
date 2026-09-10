@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
+import { normalizePlaceImages } from '@/lib/image-normalizer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ places: data || [] });
+  const places = (data || []).map(normalizePlaceImages);
+  return NextResponse.json({ places });
 }
 
 export async function POST(request: NextRequest) {

@@ -60,6 +60,13 @@ export type ServiceProvider = z.infer<typeof serviceProviderSchema> & {
     sort_order: number
     created_at: string
   }
+  service_provider_categories?: {
+    service_category?: {
+      service_category_id: number
+      name: string
+    } | null
+    service_category_id?: number
+  }[]
   services?: Service[]
   tags?: ServiceProviderTag[]
 }
