@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from './server-supabase';
+import { hashAccessToken } from './auth-session';
 
 
 type SupabaseUser = {
@@ -92,16 +93,29 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
 
   let internalQuery = await supabaseAdmin
     .from('users')
-    .select('user_id')
+    .select('user_id, current_access_token_hash')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
   if (!internalQuery.data && user.email) {
     internalQuery = await supabaseAdmin
       .from('users')
-      .select('user_id')
+      .select('user_id, current_access_token_hash')
       .eq('email', user.email)
       .maybeSingle();
+  }
+
+  // Single-device restriction:
+  // If current_access_token_hash is registered on the user profile and does not match
+  // the incoming token hash, another device has logged in with this account.
+  if (internalQuery.data?.current_access_token_hash) {
+    const incomingTokenHash = hashAccessToken(token);
+    if (incomingTokenHash !== internalQuery.data.current_access_token_hash) {
+      console.warn(
+        `[Single Device Check] Access denied for user ${user.id}: session token hash mismatch (profile active on another device).`
+      );
+      return null;
+    }
   }
 
   const internalUserId = internalQuery.data?.user_id ?? user.id;
@@ -158,10 +172,21 @@ export async function requireRoles(
   request: NextRequest,
   allowedRoleNames: string[]
 ): Promise<{ user: AuthenticatedUser } | NextResponse> {
+  const token = await getTokenFromRequest(request);
+  if (!token) {
+    return buildErrorResponse('Authentication required', 401);
+  }
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return buildErrorResponse('Authentication required', 401);
+    return NextResponse.json(
+      {
+        error: 'This account is currently active on another device. You have been logged out.',
+        code: 'SESSION_TERMINATED',
+      },
+      { status: 401 }
+    );
   }
 
   const normalizedAllowed = allowedRoleNames.map(normalizeRoleName);

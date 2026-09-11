@@ -6,6 +6,7 @@ export const serviceCategorySchema = z.object({
   }),
   description: z.string().optional(),
   icon: z.string().optional(),
+  image_url: z.string().nullable().optional(),
   color: z.string().regex(/^#[0-9A-F]{6}$/i, {
     message: "Color must be a valid hex color code.",
   }).optional(),

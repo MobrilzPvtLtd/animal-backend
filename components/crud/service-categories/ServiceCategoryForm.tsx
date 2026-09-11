@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/form"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { ImageUpload } from "@/components/ui/image-upload"
 
 interface ServiceCategoryFormProps {
   category?: ServiceCategory
@@ -37,6 +38,7 @@ export function ServiceCategoryForm({ category, onSuccess, onCancel }: ServiceCa
       name: category?.name || "",
       description: category?.description || "",
       icon: category?.icon || "",
+      image_url: category?.image_url || "",
       color: category?.color || "#3B82F6",
       is_active: category?.is_active ?? true,
       sort_order: category?.sort_order || 0,
@@ -104,6 +106,29 @@ export function ServiceCategoryForm({ category, onSuccess, onCancel }: ServiceCa
                   {...field}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="image_url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category Image</FormLabel>
+              <FormControl>
+                <ImageUpload
+                  value={field.value || ""}
+                  onChange={field.onChange}
+                  folder="service-categories"
+                  label="Category Image"
+                  placeholder="Upload category image or paste URL"
+                />
+              </FormControl>
+              <FormDescription>
+                Upload an image to represent this category in the mobile app and admin dashboard (replaces emoji icon).
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

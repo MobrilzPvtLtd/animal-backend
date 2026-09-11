@@ -6,13 +6,19 @@ import { setCurrentTokenHashes } from '@/lib/auth-session';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, device_id, device_type } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    return handleLogin(email, password);
+    const headerDeviceType = request.headers.get('x-device-type') || request.headers.get('x-platform');
+    const headerDeviceId = request.headers.get('x-device-id');
+
+    return handleLogin(email, password, {
+      device_id: device_id || headerDeviceId || null,
+      device_type: device_type || headerDeviceType || null,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Login failed' }, { status: 500 });
   }
@@ -22,7 +28,11 @@ export async function GET() {
   return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
 }
 
-async function handleLogin(email: string, password: string) {
+async function handleLogin(
+  email: string,
+  password: string,
+  deviceInfo?: { device_id?: string | null; device_type?: string | null }
+) {
   try {
     // 1. Attempt sign in directly with Supabase Auth
     let { data, error } = await supabaseAdmin.auth.signInWithPassword({
@@ -91,7 +101,7 @@ async function handleLogin(email: string, password: string) {
 
     if (data.session?.access_token && data.session?.refresh_token) {
       try {
-        await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token);
+        await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token, deviceInfo);
       } catch (tokenErr) {
         console.warn('setCurrentTokenHashes warning:', tokenErr);
       }

@@ -3605,6 +3605,38 @@ ALTER TABLE public.transactions
 CREATE INDEX IF NOT EXISTS idx_transactions_subscription_plan_id ON public.transactions (subscription_plan_id);
 
 
+-- ============================================================
+-- Migration: 054_create_terminate_other_sessions_and_device_id.sql
+-- ============================================================
+
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS current_device_id TEXT;
+
+CREATE OR REPLACE FUNCTION public.terminate_other_sessions(target_user_id UUID, current_refresh_token_id BIGINT DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF current_refresh_token_id IS NOT NULL THEN
+    DELETE FROM auth.refresh_tokens
+    WHERE user_id = target_user_id::text
+      AND id != current_refresh_token_id;
+  ELSE
+    DELETE FROM auth.refresh_tokens
+    WHERE user_id = target_user_id::text;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.terminate_other_sessions(UUID, BIGINT) TO service_role;
 
 
+-- ============================================================
+-- Migration: 055_add_image_url_to_service_categories.sql
+-- ============================================================
 
+ALTER TABLE public.service_categories
+ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+COMMENT ON COLUMN public.service_categories.image_url IS 'Direct URL to category icon/image to display in mobile app and admin dashboard';

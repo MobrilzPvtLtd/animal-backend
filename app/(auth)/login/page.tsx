@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { ClipLoader } from "react-spinners";
 import { useToast } from "@/hooks/use-toast";
@@ -88,13 +88,6 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
-          <Link
-            href="/"
-            className=" -translate-y-1/2 text-muted-foreground hover:text-primary flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Return to Home</span>
-          </Link>
           <div className="text-center relative">
             <Link href="/" className="inline-block mb-8">
               <h1 className="text-3xl font-bold">Animal Click</h1>

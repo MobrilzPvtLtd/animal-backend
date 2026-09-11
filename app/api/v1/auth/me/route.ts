@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/server-auth';
+import { getTokenFromRequest, getUserFromRequest } from '@/lib/server-auth';
 import { buildAuthProfile } from '@/lib/auth-profile';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { uploadAnimalImage } from '@/lib/storage-upload';
@@ -36,10 +36,21 @@ async function geocodeLocation(location: string): Promise<{ latitude: number | n
 
 // GET /api/v1/auth/me - Fetch current logged-in user profile
 export async function GET(request: NextRequest) {
+  const token = await getTokenFromRequest(request);
+  if (!token) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const authUser = await getUserFromRequest(request);
 
   if (!authUser?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: 'This account is currently active on another device. You have been logged out.',
+        code: 'SESSION_TERMINATED',
+      },
+      { status: 401 }
+    );
   }
 
   const authProfile = await buildAuthProfile({

@@ -102,14 +102,22 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
   }
-  const { name, description } = body;
+  const { name, description, icon, image_url, color, is_active, sort_order } = body;
   if (!name) {
     return NextResponse.json({ error: 'Category name is required' }, { status: 400 });
   }
 
+  const insertData: Record<string, any> = { name };
+  if (description !== undefined) insertData.description = description;
+  if (icon !== undefined) insertData.icon = icon;
+  if (image_url !== undefined) insertData.image_url = image_url;
+  if (color !== undefined) insertData.color = color;
+  if (is_active !== undefined) insertData.is_active = is_active;
+  if (sort_order !== undefined) insertData.sort_order = sort_order;
+
   const { data, error } = await supabaseAdmin
     .from('service_categories')
-    .insert([{ name, description }])
+    .insert([insertData])
     .select()
     .single();
 

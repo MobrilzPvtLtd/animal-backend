@@ -14,8 +14,26 @@ export const columns: ColumnDef<ServiceCategory>[] = [
     cell: ({ row }) => {
       const category = row.original
       return (
-        <div className="flex items-center space-x-2">
-          {category.icon && <span className="text-lg">{category.icon}</span>}
+        <div className="flex items-center space-x-3">
+          {category.image_url ? (
+            <img
+              src={category.image_url}
+              alt={category.name}
+              className="w-9 h-9 rounded-md object-cover border border-border/60 shadow-xs shrink-0"
+              onError={(e) => {
+                // hide broken images
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : category.icon ? (
+            <span className="w-9 h-9 rounded-md bg-muted/60 border border-border/40 flex items-center justify-center text-lg shrink-0">
+              {category.icon}
+            </span>
+          ) : (
+            <div className="w-9 h-9 rounded-md bg-muted/40 border border-border/40 flex items-center justify-center text-muted-foreground text-xs shrink-0">
+              🐾
+            </div>
+          )}
           <span className="font-medium">{category.name}</span>
         </div>
       )
