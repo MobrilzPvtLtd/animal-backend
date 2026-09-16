@@ -112,7 +112,12 @@ async function handleUpdateProfile(request: NextRequest) {
       const locationVal = body.static_location ?? body.location ?? body.address;
       if (locationVal !== undefined) updates.static_location = String(locationVal).trim();
 
-      if (body.preferred_radius !== undefined) updates.preferred_radius = body.preferred_radius;
+      const radiusVal = body.preferred_radius ?? body.radius ?? body.radius_km ?? body.distance_radius;
+      if (radiusVal !== undefined && radiusVal !== null && radiusVal !== '') {
+        const parsed = Number(String(radiusVal).replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsed) && parsed > 0) updates.preferred_radius = parsed;
+      }
+
       if (body.notification_preferences !== undefined) updates.notification_preferences = body.notification_preferences;
 
       const imgUrlVal = body.profile_image ?? body.profile_image_url ?? body.avatar;
@@ -162,8 +167,11 @@ async function handleUpdateProfile(request: NextRequest) {
       const locationVal = formData.get('static_location') ?? formData.get('location') ?? formData.get('address');
       if (locationVal !== null) updates.static_location = locationVal.toString().trim();
 
-      const radiusVal = formData.get('preferred_radius');
-      if (radiusVal !== null) updates.preferred_radius = radiusVal.toString().trim();
+      const formRadiusVal = formData.get('preferred_radius') ?? formData.get('radius') ?? formData.get('radius_km');
+      if (formRadiusVal !== null && formRadiusVal.toString().trim() !== '') {
+        const parsed = Number(formRadiusVal.toString().replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsed) && parsed > 0) updates.preferred_radius = parsed;
+      }
 
       const prefsVal = formData.get('notification_preferences');
       if (prefsVal !== null) updates.notification_preferences = prefsVal.toString().trim();
@@ -178,7 +186,7 @@ async function handleUpdateProfile(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'No valid fields provided. Supported fields: name, full_name, user_name, username, surname, phone, profile_image, profile_image_url, avatar, location, address, static_location',
+            'No valid fields provided. Supported fields: name, full_name, user_name, username, surname, phone, profile_image, profile_image_url, avatar, location, address, static_location, preferred_radius, radius',
         },
         { status: 400 }
       );

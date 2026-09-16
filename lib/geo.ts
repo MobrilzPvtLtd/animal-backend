@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
+import { getTokenFromRequest } from '@/lib/server-auth';
 
 export interface UserLocationContext {
   latitude: number | null;
@@ -134,25 +135,56 @@ export async function resolveUserLocation(
   let source: UserLocationContext['source'] = latitude !== null && longitude !== null ? (rawLat ? 'query' : 'body') : null;
   let userId: number | null = null;
 
-  // 2. If coordinates not provided, check user_id or Bearer auth token to pull from profile
+  // 2. If coordinates not provided, check user_id or Bearer auth token / cookies to pull from profile
   const rawUserId = searchParams.get('user_id') ?? bodyData?.user_id;
   if (rawUserId) {
     userId = Number(rawUserId);
   } else {
-    // Check Authorization: Bearer token
-    const authHeader = request.headers.get('authorization') || '';
-    if (authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7).trim();
+    const token = await getTokenFromRequest(request);
+    if (token) {
       try {
         const { data: authData } = await supabaseAdmin.auth.getUser(token);
         if (authData?.user?.id) {
-          const { data: userRow } = await supabaseAdmin
+          let { data: userRow } = await supabaseAdmin
             .from('users')
-            .select('user_id')
-            .eq('id', authData.user.id)
+            .select('user_id, latitude, longitude, static_location, preferred_radius')
+            .eq('auth_user_id', authData.user.id)
             .maybeSingle();
+
+          if (!userRow && authData.user.email) {
+            const fallback = await supabaseAdmin
+              .from('users')
+              .select('user_id, latitude, longitude, static_location, preferred_radius')
+              .eq('email', authData.user.email)
+              .maybeSingle();
+            userRow = fallback.data;
+          }
+
           if (userRow?.user_id) {
             userId = userRow.user_id;
+            if (latitude === null || longitude === null) {
+              if (userRow.latitude && userRow.longitude) {
+                latitude = Number(userRow.latitude);
+                longitude = Number(userRow.longitude);
+                source = 'profile';
+              }
+            }
+
+            if (!address && userRow.static_location) {
+              address = userRow.static_location;
+            }
+
+            // Inherit preferred_radius if not explicitly passed
+            if (
+              radiusKm === null &&
+              (rawRadius === null || rawRadius === undefined || rawRadius === '') &&
+              userRow.preferred_radius
+            ) {
+              const prefRadius = parseFloat(String(userRow.preferred_radius));
+              if (!isNaN(prefRadius) && prefRadius > 0) {
+                radiusKm = prefRadius;
+              }
+            }
           }
         }
       } catch {
@@ -161,8 +193,8 @@ export async function resolveUserLocation(
     }
   }
 
-  // Fetch user profile location & preferred radius if userId resolved
-  if (userId) {
+  // Fetch user profile location & preferred radius if userId resolved from param
+  if (userId && (latitude === null || longitude === null || radiusKm === null)) {
     try {
       const { data: userProfile } = await supabaseAdmin
         .from('users')

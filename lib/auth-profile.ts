@@ -38,6 +38,10 @@ export type AuthProfile = {
   user_type: string | null;
   created_at: string | null;
   auth_user_id: string;
+  static_location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  preferred_radius?: number | null;
   user_roles: AuthProfileRole[];
   permissions: PermissionRecord[];
 };
@@ -73,6 +77,7 @@ async function loadInternalUser(authUser: AuthUserInput) {
     subscription_status,
     subscription_plan,
     subscription_expires_at,
+    preferred_radius,
     user_type,
     created_at,
     auth_user_id
@@ -237,6 +242,10 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
     user_type: authUser.roleNames?.[0] || null,
     created_at: null,
     auth_user_id: authUser.id,
+    static_location: null,
+    latitude: null,
+    longitude: null,
+    preferred_radius: 25,
     user_roles: [],
     permissions: [],
   };
@@ -272,6 +281,10 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
   return {
     profile: {
       ...baseProfile,
+      static_location: baseProfile.static_location || null,
+      latitude: baseProfile.latitude !== null && baseProfile.latitude !== undefined ? Number(baseProfile.latitude) : null,
+      longitude: baseProfile.longitude !== null && baseProfile.longitude !== undefined ? Number(baseProfile.longitude) : null,
+      preferred_radius: baseProfile.preferred_radius !== null && baseProfile.preferred_radius !== undefined ? Number(baseProfile.preferred_radius) : 25,
       is_subscribed: isSubscribed,
       is_cancelled: isCancelled,
       subscription_status: baseProfile.subscription_status || null,
@@ -281,6 +294,10 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
       user_roles: userRoles,
       permissions,
     },
+    static_location: baseProfile.static_location || null,
+    latitude: baseProfile.latitude !== null && baseProfile.latitude !== undefined ? Number(baseProfile.latitude) : null,
+    longitude: baseProfile.longitude !== null && baseProfile.longitude !== undefined ? Number(baseProfile.longitude) : null,
+    preferred_radius: baseProfile.preferred_radius !== null && baseProfile.preferred_radius !== undefined ? Number(baseProfile.preferred_radius) : 25,
     is_subscribed: isSubscribed,
     is_cancelled: isCancelled,
     roleIds,

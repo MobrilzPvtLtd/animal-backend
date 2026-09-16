@@ -2122,6 +2122,146 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/can
 }
 ```
 
+---
+
+## 📍 20. Discovery Radius & Nearby Places / Providers Module
+
+### 20.1 Update Location & Preferred Search Radius in Profile
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/auth/me`
+* **Method:** `PATCH` (or `PUT` / `POST`)
+* **Headers:**
+  - `Authorization: Bearer <user_token>` *(Required)*
+  - `Content-Type: application/json`
+
+> **Description:** Updates the user's location address and preferred distance radius (e.g. 10 km, 20 km, 50 km). When `static_location` or `address` is provided, the backend automatically geocodes it into `latitude` and `longitude` coordinates!
+
+#### Request Body (JSON):
+```json
+{
+  "address": "Rosebank, Johannesburg, South Africa",
+  "preferred_radius": 20
+}
+```
+*(Also accepts `radius` or `radius_km` as alternative keys for `preferred_radius`)*
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "address": "Rosebank, Johannesburg, South Africa",
+  "preferred_radius": 20
+}'
+```
+
+---
+
+### 20.2 Get Pet-Friendly Places & Service Providers within Radius Circle
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/locations/nearby`
+* **Method:** `GET`
+* **Headers:**
+  - `Authorization: Bearer <user_token>` *(Recommended — automatically pulls your profile location & preferred radius)*
+
+#### Query Parameters (All Optional):
+| Parameter | Type | Default | Description | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| `radius` | `number` / `string` | User's `preferred_radius` or `25` | Radius distance circle in kilometers | `10`, `20`, `50` (use `all` or `0` to disable filter) |
+| `latitude` | `number` | User's profile latitude | Explicit center latitude coordinate | `-26.145` |
+| `longitude` | `number` | User's profile longitude | Explicit center longitude coordinate | `28.041` |
+| `type` | `string` | `all` | Filter by type: `all`, `places`, or `providers` | `all` |
+| `search` | `string` | `null` | Keyword search filter | `cafe`, `vet`, `grooming` |
+
+#### Example cURL Requests:
+
+```bash
+# 1. Fetch nearby places & providers using logged-in user's profile location & radius
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/locations/nearby' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+
+# 2. Filter with explicit radius (e.g. 10 km circle)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/locations/nearby?radius=10' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+
+# 3. Filter with explicit coordinates and radius (e.g. 20 km circle)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/locations/nearby?latitude=-26.145&longitude=28.041&radius=20'
+```
+
+#### Example JSON Response Body:
+```json
+{
+  "success": true,
+  "user_location": {
+    "latitude": -26.145,
+    "longitude": 28.041,
+    "radius_km": 20,
+    "address": "Rosebank, Johannesburg, South Africa",
+    "source": "profile"
+  },
+  "radius_km": 20,
+  "counts": {
+    "places": 3,
+    "service_providers": 4,
+    "total": 7
+  },
+  "places": [
+    {
+      "pet_friendly_place_id": 14,
+      "name": "Rosebank Dog Cafe & Park",
+      "address": "Bath Ave, Rosebank",
+      "latitude": -26.146,
+      "longitude": 28.042,
+      "distance_km": 0.2,
+      "formatted_distance": "200 m away",
+      "is_within_radius": true
+    },
+    {
+      "pet_friendly_place_id": 22,
+      "name": "Zoo Lake Pet Walking Trails",
+      "address": "Parkview, Johannesburg",
+      "latitude": -26.160,
+      "longitude": 28.033,
+      "distance_km": 2.1,
+      "formatted_distance": "2.1 km away",
+      "is_within_radius": true
+    }
+  ],
+  "service_providers": [
+    {
+      "service_provider_id": 8,
+      "name": "Rosebank Veterinary Hospital",
+      "description": "24/7 Emergency and general vet care",
+      "phone": "+27 11 880 5421",
+      "distance_km": 1.4,
+      "formatted_distance": "1.4 km away",
+      "is_within_radius": true
+    },
+    {
+      "service_provider_id": 12,
+      "name": "Paws & Whiskers Grooming Spa",
+      "description": "Professional mobile and salon pet grooming",
+      "phone": "+27 82 456 7890",
+      "distance_km": 4.8,
+      "formatted_distance": "4.8 km away",
+      "is_within_radius": true
+    }
+  ]
+}
+```
+
+---
+
+### 20.3 Radius Circle Filter on Individual Places & Service Providers APIs
+You can also apply radius filtering directly on the existing individual endpoints:
+
+- **Places Only:**
+  `GET https://animal-backend-nine.vercel.app/api/v1/places?radius=10`
+  *(Enriches all places with `distance_km`, `formatted_distance`, filters to `distance_km <= 10`, and sorts closest first)*
+
+- **Service Providers Only:**
+  `GET https://animal-backend-nine.vercel.app/api/v1/service-providers?radius=20`
+  *(Enriches all providers with `distance_km`, `formatted_distance`, filters to `distance_km <= 20`, and sorts closest first)*
+
+
 
 
 
