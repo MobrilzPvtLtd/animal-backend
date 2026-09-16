@@ -34,6 +34,7 @@ export type AuthProfile = {
   subscription_plan?: string | null;
   subscription_expires_at?: string | null;
   is_subscribed?: boolean;
+  is_cancelled?: boolean;
   user_type: string | null;
   created_at: string | null;
   auth_user_id: string;
@@ -254,8 +255,15 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
   const expiresAt = expiresAtStr ? new Date(expiresAtStr) : null;
   const now = new Date();
 
+  const isCancelled = rawStatus === 'cancelled';
   const isSubscribed = Boolean(
-    (rawStatus === 'active' || rawStatus === 'subscribed' || rawStatus === 'paid' || rawStatus === 'true') &&
+    (
+      rawStatus === 'active' ||
+      rawStatus === 'subscribed' ||
+      rawStatus === 'paid' ||
+      rawStatus === 'true' ||
+      (isCancelled && expiresAt && expiresAt > now)
+    ) &&
     (!expiresAt || expiresAt > now)
   );
 
@@ -265,6 +273,8 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
     profile: {
       ...baseProfile,
       is_subscribed: isSubscribed,
+      is_cancelled: isCancelled,
+      subscription_status: baseProfile.subscription_status || null,
       subscription_plan: baseProfile.subscription_plan || null,
       subscription_expires_at: baseProfile.subscription_expires_at || null,
       subscription_plan_details: planDetails || null,
@@ -272,6 +282,7 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
       permissions,
     },
     is_subscribed: isSubscribed,
+    is_cancelled: isCancelled,
     roleIds,
     roleNames: userRoles.map((role) => role.roles?.name).filter(Boolean) as string[],
     permissions,

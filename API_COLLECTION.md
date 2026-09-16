@@ -1920,7 +1920,7 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/status' 
 
 ---
 
-## 💳 19. Subscription Plans Module (1 API)
+## 💳 19. Subscription Module (2 APIs)
 
 ### 19.1 Get Available Subscription Plans (Public Endpoint for Mobile App & Web)
 * **Method:** `GET`
@@ -1973,6 +1973,155 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/pla
   ]
 }
 ```
+
+---
+
+### 19.2 Cancel User Subscription (Mobile App & Web)
+* **URL:** `https://animal-backend-nine.vercel.app/api/v1/subscriptions/cancel`
+* **Method:** `POST` *(also supports `DELETE` and `GET`)*
+* **Headers:**
+  - `Authorization: Bearer <user_token>` *(Required)*
+  - `Content-Type: application/json` *(Optional)*
+
+> **Description:**
+> - Cancels the current user's active subscription.
+> - **Default behavior (`immediate: false`):** The subscription is marked as `cancelled`, but the user retains access to subscriber features until the end of their current billing cycle (`subscription_expires_at`).
+> - **Immediate cancellation (`immediate: true`):** Access is terminated immediately.
+> - Captures optional cancellation `reason` and `feedback` for analytics and audit logging.
+> - Also provides a `GET` request on the same endpoint to check whether the current user is eligible to cancel or view cancellation status.
+
+#### Request Body Parameters (JSON, All Optional):
+| Field | Type | Required | Description | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| `reason` | `string` | No | Reason for cancellation | `"Too expensive"`, `"Found alternative"`, `"Not using anymore"` |
+| `feedback` | `string` | No | Additional feedback or suggestions | `"Would like lower monthly pricing"` |
+| `immediate` | `boolean` | No (default: `false`) | `false`: keep access until current paid period ends. `true`: cancel and terminate access immediately. | `false` |
+
+#### Example cURL Requests:
+
+```bash
+# 1. Standard Cancellation (Keeps access until billing period ends)
+curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/cancel' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "reason": "Too expensive",
+  "feedback": "I will resubscribe once more features are added.",
+  "immediate": false
+}'
+
+# 2. Immediate Cancellation (Terminates access right now)
+curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/cancel' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "reason": "Accidental purchase",
+  "immediate": true
+}'
+
+# 3. Simple Cancel (No body sent - uses defaults)
+curl --location --request POST 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/cancel' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+
+# 4. Check Cancellation Status (GET)
+curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/cancel' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN'
+```
+
+#### Success Response (200 OK - Standard Cancellation `immediate: false`):
+```json
+{
+  "success": true,
+  "message": "Your subscription has been cancelled. You will continue to have access to subscriber features until Oct 16, 2026.",
+  "subscription": {
+    "user_id": 42,
+    "subscription_status": "cancelled",
+    "subscription_plan": "MONTHLY_99",
+    "subscription_expires_at": "2026-10-16T12:00:00.000Z",
+    "is_subscribed": true,
+    "is_cancelled": true,
+    "cancelled_at": "2026-09-16T14:55:00.000Z",
+    "immediate": false,
+    "cancellation_reason": "Too expensive",
+    "access_until": "2026-10-16T12:00:00.000Z",
+    "plan_details": {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Monthly Plan",
+      "price": 99.00,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30
+    }
+  }
+}
+```
+
+#### Success Response (200 OK - Immediate Cancellation `immediate: true`):
+```json
+{
+  "success": true,
+  "message": "Your subscription has been cancelled immediately.",
+  "subscription": {
+    "user_id": 42,
+    "subscription_status": "cancelled",
+    "subscription_plan": "MONTHLY_99",
+    "subscription_expires_at": "2026-09-16T14:55:00.000Z",
+    "is_subscribed": false,
+    "is_cancelled": true,
+    "cancelled_at": "2026-09-16T14:55:00.000Z",
+    "immediate": true,
+    "cancellation_reason": "Accidental purchase",
+    "access_until": "2026-09-16T14:55:00.000Z",
+    "plan_details": {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Monthly Plan",
+      "price": 99.00,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30
+    }
+  }
+}
+```
+
+#### Error Responses:
+
+##### 1. When Already Cancelled (400 Bad Request):
+```json
+{
+  "success": false,
+  "error": "Your subscription is already cancelled.",
+  "subscription": {
+    "user_id": 42,
+    "subscription_status": "cancelled",
+    "subscription_plan": "MONTHLY_99",
+    "subscription_expires_at": "2026-10-16T12:00:00.000Z",
+    "is_subscribed": true,
+    "is_cancelled": true,
+    "access_until": "2026-10-16T12:00:00.000Z"
+  }
+}
+```
+
+##### 2. When No Active Subscription Exists (400 Bad Request):
+```json
+{
+  "success": false,
+  "error": "No active subscription found to cancel.",
+  "current_status": "guest"
+}
+```
+
+##### 3. Unauthorized / Missing Token (401 Unauthorized):
+```json
+{
+  "success": false,
+  "error": "Authentication required. Please provide a valid Bearer token in the Authorization header."
+}
+```
+
 
 
 
