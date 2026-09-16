@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 import { syncServiceProviderToPetFriendlyPlace } from '@/lib/sync-pet-friendly-places';
+import { resolveUserLocation, applyLocationFilterAndSort } from '@/lib/geo';
 
 // Disable Next.js fetch cache so DB updates are immediately reflected
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('service_providers')
-    .select('*, service_categories!service_providers_service_category_id_fkey(*), service_provider_categories(service_category:service_categories(*)), service_provider_images(*)')
+    .select('*, locations(*), pet_friendly_places(latitude, longitude, address), service_categories!service_providers_service_category_id_fkey(*), service_provider_categories(service_category:service_categories(*)), service_provider_images(*)')
     .order('name');
 
   if (serviceCategoryId) {
@@ -73,7 +74,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ providers: data });
+  // Resolve user location from query, user_id, or Bearer auth token
+  const userLocation = await resolveUserLocation(request);
+
+  const result = applyLocationFilterAndSort(data || [], userLocation, {
+    getLat: (provider: any) => {
+      const rawLat = provider.locations?.latitude ?? provider.pet_friendly_places?.[0]?.latitude;
+      return rawLat !== null && rawLat !== undefined && !isNaN(Number(rawLat)) ? Number(rawLat) : null;
+    },
+    getLng: (provider: any) => {
+      const rawLng = provider.locations?.longitude ?? provider.pet_friendly_places?.[0]?.longitude;
+      return rawLng !== null && rawLng !== undefined && !isNaN(Number(rawLng)) ? Number(rawLng) : null;
+    },
+  });
+
+  return NextResponse.json({
+    providers: result.items,
+    user_location: result.user_location,
+    total: result.total,
+  });
 }
 
 function parseCategoryIds(rawCategoryIds: any, fallbackCategoryId?: any): number[] {

@@ -41,6 +41,7 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
     ref
   ) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
@@ -146,18 +147,40 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
   const handleUrlInputChange = (urlValue: string) => {
     setPastedUrl(urlValue);
     setImageLoadError(false);
-    onChange(urlValue.trim());
   };
 
-  const handleApplyUrl = () => {
+  const handleApplyUrl = async () => {
     const trimmed = pastedUrl.trim();
     if (!trimmed) {
       toast.error('Please paste a valid image URL');
       return;
     }
-    onChange(trimmed);
-    setImageLoadError(false);
-    toast.success('Image URL updated');
+
+    // If it is already hosted in our Supabase storage bucket, apply directly
+    if (trimmed.includes('animalclickposts') && trimmed.includes('supabase.co')) {
+      onChange(trimmed);
+      setImageLoadError(false);
+      toast.success('Image link applied');
+      return;
+    }
+
+    setIsImportingUrl(true);
+    const toastId = toast.loading('Saving image to permanent storage...');
+
+    try {
+      const result = await ImageUploadService.uploadImageFromUrl(trimmed, folder);
+      onChange(result.url);
+      setPastedUrl(result.url);
+      setImageLoadError(false);
+      toast.success('Image downloaded & saved to permanent storage!', { id: toastId });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import image from URL';
+      toast.error(errorMessage, { id: toastId });
+      setImageLoadError(true);
+      onError?.(errorMessage);
+    } finally {
+      setIsImportingUrl(false);
+    }
   };
 
   const displayUrl = localPreview || value || '';
@@ -241,9 +264,13 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
                     type="button"
                     size="sm"
                     onClick={handleApplyUrl}
-                    disabled={disabled || !pastedUrl.trim()}
+                    disabled={disabled || !pastedUrl.trim() || isImportingUrl}
                   >
-                    Apply
+                    {isImportingUrl ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Apply'
+                    )}
                   </Button>
                 </div>
               )}
@@ -419,9 +446,17 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
               <Button
                 type="button"
                 onClick={handleApplyUrl}
-                disabled={disabled || !pastedUrl.trim()}
+                disabled={disabled || !pastedUrl.trim() || isImportingUrl}
+                className="gap-1.5"
               >
-                Apply Link
+                {isImportingUrl ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Apply Link'
+                )}
               </Button>
             </div>
             {hasImage && !imageLoadError && (

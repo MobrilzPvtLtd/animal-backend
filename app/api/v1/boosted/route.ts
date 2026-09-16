@@ -6,17 +6,29 @@ export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get('search');
   const activeOnly = request.nextUrl.searchParams.get('active_only') === 'true';
   const entityType = request.nextUrl.searchParams.get('entity_type');
+  const groupBoost = request.nextUrl.searchParams.get('group_boost');
 
   let query = supabaseAdmin
     .from('entity_boosts')
-    .select('*, boost_packages(*), service_providers(*), veterinarians(*), breeders(*), pet_friendly_places(*)')
+    .select(
+      `*, boost_packages(*),
+       service_providers(service_provider_id, name, image_url, phone, email, address),
+       vets(vet_id, name, image_url, phone),
+       pet_friendly_places(pet_friendly_place_id, name, image_url, address)`
+    )
     .order('created_at', { ascending: false });
 
   if (activeOnly) {
-    query = query.eq('is_active', true);
+    const now = new Date().toISOString();
+    query = query
+      .eq('is_active', true)
+      .or(`end_date.is.null,end_date.gt.${now}`);
   }
   if (entityType) {
     query = query.eq('entity_type', entityType);
+  }
+  if (groupBoost !== null) {
+    query = query.eq('group_boost', groupBoost === 'true');
   }
   if (search) {
     query = query.ilike('entity_type', `%${search}%`);

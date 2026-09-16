@@ -110,6 +110,64 @@ export async function uploadAnimalImage(file: File, folder = 'uploads') {
   };
 }
 
+export async function uploadAnimalImageFromBuffer(
+  buffer: Buffer | Uint8Array,
+  originalName: string,
+  contentType: string,
+  folder = 'uploads'
+) {
+  await ensureAnimalImageBucketExists();
+
+  const sanitizedFolder = folder.replace(/(^\/+|\/+?$)/g, '');
+  const fileName = `${Date.now()}-${sanitizeFileName(originalName)}`;
+  const path = `${sanitizedFolder}/${fileName}`;
+
+  const { error: uploadError } = await supabaseAdmin.storage.from(ANIMAL_IMAGE_BUCKET).upload(path, buffer, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType,
+  });
+
+  if (uploadError) {
+    if (isBucketNotFound(uploadError.message)) {
+      bucketEnsured = false;
+      await ensureAnimalImageBucketExists();
+
+      const retryPath = `${sanitizedFolder}/${Date.now()}-${sanitizeFileName(originalName)}`;
+      const { error: retryError } = await supabaseAdmin.storage.from(ANIMAL_IMAGE_BUCKET).upload(retryPath, buffer, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType,
+      });
+
+      if (retryError) {
+        throw new Error(retryError.message);
+      }
+
+      const { data: retryUrlData } = supabaseAdmin.storage.from(ANIMAL_IMAGE_BUCKET).getPublicUrl(retryPath);
+      if (!retryUrlData?.publicUrl) {
+        throw new Error('Failed to generate public URL for uploaded image');
+      }
+
+      return { url: retryUrlData.publicUrl, path: retryPath };
+    } else {
+      throw new Error(uploadError.message);
+    }
+  }
+
+  const { data: publicUrlData } = supabaseAdmin.storage.from(ANIMAL_IMAGE_BUCKET).getPublicUrl(path);
+  const publicUrl = publicUrlData?.publicUrl;
+
+  if (!publicUrl) {
+    throw new Error('Failed to generate public URL for uploaded image');
+  }
+
+  return {
+    url: publicUrl,
+    path,
+  };
+}
+
 export async function deleteAnimalImageByUrl(url: string) {
   const filePath = extractAnimalImagePathFromUrl(url);
 
@@ -123,3 +181,4 @@ export async function deleteAnimalImageByUrl(url: string) {
     throw new Error(`Failed to delete image file: ${error.message}`);
   }
 }
+

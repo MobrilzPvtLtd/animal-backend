@@ -98,6 +98,51 @@ export class ImageUploadService {
   }
 
   /**
+   * Upload an image by downloading from an external URL and saving to Supabase storage
+   */
+  static async uploadImageFromUrl(imageUrl: string, folder?: string): Promise<UploadResult> {
+    try {
+      const trimmed = imageUrl.trim();
+      if (!trimmed) {
+        throw new Error('Image URL cannot be empty');
+      }
+
+      // If it's already hosted in our Supabase bucket, return directly
+      if (trimmed.includes('animalclickposts') && trimmed.includes('supabase.co')) {
+        return {
+          url: trimmed,
+          path: this.extractFilePathFromUrl(trimmed) || '',
+        };
+      }
+
+      const response = await fetch('/api/v1/upload-image-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: trimmed,
+          folder: folder || 'uploads',
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to download and upload image from link');
+      }
+
+      return {
+        url: payload.url,
+        path: payload.path,
+      };
+    } catch (error) {
+      console.error('Image upload from URL error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete an image from Supabase storage
    */
   static async deleteImage(filePath: string): Promise<void> {

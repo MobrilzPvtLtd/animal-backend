@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 import { normalizePlaceImages } from '@/lib/image-normalizer';
+import { resolveUserLocation, applyLocationFilterAndSort } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('pet_friendly_places')
-    .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*)`)
+    .select(`*, place_groups(group:groups(*)), service_provider:service_providers(*, locations(*))`)
     .order('name');
 
   if (!includeDeleted) {
@@ -30,7 +31,26 @@ export async function GET(request: NextRequest) {
   }
 
   const places = (data || []).map(normalizePlaceImages);
-  return NextResponse.json({ places });
+
+  // Resolve user location from query, user_id, or Bearer auth token
+  const userLocation = await resolveUserLocation(request);
+
+  const result = applyLocationFilterAndSort(places, userLocation, {
+    getLat: (place: any) => {
+      const lat = place.latitude ?? place.service_provider?.locations?.latitude;
+      return lat !== null && lat !== undefined && !isNaN(Number(lat)) ? Number(lat) : null;
+    },
+    getLng: (place: any) => {
+      const lng = place.longitude ?? place.service_provider?.locations?.longitude;
+      return lng !== null && lng !== undefined && !isNaN(Number(lng)) ? Number(lng) : null;
+    },
+  });
+
+  return NextResponse.json({
+    places: result.items,
+    user_location: result.user_location,
+    total: result.total,
+  });
 }
 
 export async function POST(request: NextRequest) {

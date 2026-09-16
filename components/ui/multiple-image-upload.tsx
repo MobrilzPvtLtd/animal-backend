@@ -197,6 +197,7 @@ export function MultipleImageUpload({
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [pastedUrl, setPastedUrl] = useState('');
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -291,7 +292,7 @@ export function MultipleImageUpload({
     }
   };
 
-  const handleAddUrl = () => {
+  const handleAddUrl = async () => {
     const trimmed = pastedUrl.trim();
     if (!trimmed) {
       toast.error('Please enter a valid image URL');
@@ -303,15 +304,45 @@ export function MultipleImageUpload({
       return;
     }
 
-    const newImage: ServiceProviderImage = {
-      image_url: trimmed,
-      order: value.length,
-      isNew: true,
-    };
+    // If already hosted in our Supabase storage bucket, add directly
+    if (trimmed.includes('animalclickposts') && trimmed.includes('supabase.co')) {
+      const newImage: ServiceProviderImage = {
+        image_url: trimmed,
+        order: value.length,
+        isNew: true,
+      };
+      onChange([...value, newImage]);
+      setPastedUrl('');
+      toast.success('Image link added successfully');
+      return;
+    }
 
-    onChange([...value, newImage]);
-    setPastedUrl('');
-    toast.success('Image link added successfully');
+    setIsImportingUrl(true);
+    const tempId = `upload-url-${Date.now()}`;
+    setUploadingFiles((prev) => [
+      ...prev,
+      { id: tempId, name: 'Saving link to permanent storage...', completed: false },
+    ]);
+    const toastId = toast.loading('Saving image to permanent storage...');
+
+    try {
+      const result = await ImageUploadService.uploadImageFromUrl(trimmed, folder);
+      const newImage: ServiceProviderImage = {
+        image_url: result.url,
+        order: value.length,
+        isNew: true,
+      };
+      onChange([...value, newImage]);
+      setPastedUrl('');
+      toast.success('Image downloaded & saved to permanent storage!', { id: toastId });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to import image from link';
+      toast.error(errorMsg, { id: toastId });
+      onError?.(errorMsg);
+    } finally {
+      setIsImportingUrl(false);
+      setUploadingFiles((prev) => prev.filter((u) => u.id !== tempId));
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -505,9 +536,17 @@ export function MultipleImageUpload({
               <Button
                 type="button"
                 onClick={handleAddUrl}
-                disabled={disabled || !pastedUrl.trim()}
+                disabled={disabled || !pastedUrl.trim() || isImportingUrl}
+                className="gap-1.5"
               >
-                Add Link
+                {isImportingUrl ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Add Link'
+                )}
               </Button>
             </div>
             <p className="text-xs text-gray-500">

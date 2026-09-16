@@ -1,0 +1,371 @@
+================================================================================
+                    BOOSTER PACKAGES - MOBILE APP API DOCUMENTATION
+================================================================================
+
+BASE URL:
+  Production / Staging: https://animal-backend-nine.vercel.app/api/v1
+
+AUTHENTICATION:
+  For authenticated endpoints, include this header:
+  Authorization: Bearer <access_token>
+
+================================================================================
+SUMMARY OF 3 OFFICIAL BOOSTER PACKAGES
+================================================================================
+
+1. Visibility Booster
+   - Price: R49.99
+   - Duration: 30 days
+   - Placement: Home Screen featured (feather placement)
+   - Scope: "home_screen"
+
+2. Premium Booster
+   - Price: R99.99
+   - Duration: 60 days
+   - Placement: Home Screen featured (feather placement)
+   - Scope: "home_screen"
+
+3. Visibility Booster 2
+   - Price: R129.99
+   - Duration: 30 days
+   - Placement: Home Screen AND Group View
+   - Scope: "home_and_group"
+
+
+================================================================================
+API 1: GET AVAILABLE BOOSTER PACKAGES
+================================================================================
+Purpose:
+  Display available booster packages on the mobile app purchase screen.
+
+Endpoint:
+  GET /api/v1/boost-packages?active_only=true
+
+Authentication:
+  None (Public)
+
+Headers:
+  None required
+
+Query Parameters:
+  - active_only (boolean, optional): Set to true to retrieve only active packages.
+
+Example Request:
+  curl --location 'https://animal-backend-nine.vercel.app/api/v1/boost-packages?active_only=true'
+
+Success Response (HTTP 200 OK):
+{
+  "packages": [
+    {
+      "boost_package_id": 1,
+      "name": "Visibility Booster",
+      "description": "Feather placement for your listed place on the home screen for 30 days.",
+      "duration_days": 30,
+      "price": 49.99,
+      "is_active": true,
+      "feature_scope": "home_screen",
+      "created_at": "2026-09-11T07:00:00.000Z",
+      "updated_at": "2026-09-11T07:00:00.000Z"
+    },
+    {
+      "boost_package_id": 2,
+      "name": "Premium Booster",
+      "description": "Feather placement for your listed place on the home screen for 60 days.",
+      "duration_days": 60,
+      "price": 99.99,
+      "is_active": true,
+      "feature_scope": "home_screen",
+      "created_at": "2026-09-11T07:00:00.000Z",
+      "updated_at": "2026-09-11T07:00:00.000Z"
+    },
+    {
+      "boost_package_id": 3,
+      "name": "Visibility Booster 2",
+      "description": "Feather placement for your listed place on the home screen AND in the Group view for 30 days.",
+      "duration_days": 30,
+      "price": 129.99,
+      "is_active": true,
+      "feature_scope": "home_and_group",
+      "created_at": "2026-09-11T07:00:00.000Z",
+      "updated_at": "2026-09-11T07:00:00.000Z"
+    }
+  ]
+}
+
+
+================================================================================
+API 2: PURCHASE A BOOSTER PACKAGE (SUBSCRIBER)
+================================================================================
+Purpose:
+  Subscriber selects a boost package, selects a service provider or pet-friendly place or vet,
+  and receives a PayFast payment URL to complete the purchase via WebView / in-app browser.
+
+Endpoint:
+  POST /api/v1/booster/purchase
+
+Authentication:
+  Required (Bearer Token of the logged-in subscriber)
+
+Headers:
+  Authorization: Bearer <access_token>
+  Content-Type: application/json
+
+Request Body Fields:
+  - boost_package_id (number, required): ID of the package (1, 2, or 3)
+  - service_provider_id (number, optional*): ID of the service provider being boosted
+  - pet_friendly_place_id (number, optional*): ID of the pet-friendly place being boosted
+  - vet_id (number, optional*): ID of the veterinarian being boosted
+
+  *NOTE: Exactly ONE of service_provider_id, pet_friendly_place_id, or vet_id must be provided.
+
+Example Request 1 (Boosting a Service Provider):
+  curl --location 'https://animal-backend-nine.vercel.app/api/v1/booster/purchase' \
+  --header 'Authorization: Bearer <access_token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "boost_package_id": 1,
+    "service_provider_id": 42
+  }'
+
+Example Request 2 (Boosting a Pet Friendly Place with Visibility Booster 2):
+  curl --location 'https://animal-backend-nine.vercel.app/api/v1/booster/purchase' \
+  --header 'Authorization: Bearer <access_token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "boost_package_id": 3,
+    "pet_friendly_place_id": 17
+  }'
+
+Success Response (HTTP 200 OK):
+{
+  "success": true,
+  "gateway": "payfast",
+  "payment_url": "https://sandbox.payfast.co.za/eng/process?uuid=abc12345-...",
+  "redirect_url": "https://sandbox.payfast.co.za/eng/process?uuid=abc12345-...",
+  "raw_query_url": "https://sandbox.payfast.co.za/eng/process?merchant_id=...",
+  "transaction_id": 88,
+  "payment_reference": "BOOST_1726036800000_4521",
+  "boost_package": {
+    "boost_package_id": 1,
+    "name": "Visibility Booster",
+    "price": 49.99,
+    "duration_days": 30,
+    "feature_scope": "home_screen"
+  }
+}
+
+Error Responses:
+  - 401 Unauthorized:
+    {"error": "Authentication required"}
+  - 400 Bad Request:
+    {"error": "boost_package_id is required"}
+    OR
+    {"error": "You must link the boost to a service_provider_id, pet_friendly_place_id, or vet_id"}
+  - 404 Not Found:
+    {"error": "Boost package not found or inactive"}
+    OR
+    {"error": "Service provider not found"}
+
+Mobile App Flow for Checkout:
+  1. User selects package and place to boost in the app.
+  2. Mobile app calls POST /api/v1/booster/purchase.
+  3. Mobile app opens `payment_url` inside an in-app WebView.
+  4. User enters card / PayFast details and completes payment.
+  5. PayFast sends an instant ITN webhook to the backend.
+  6. Backend automatically activates the boost (creates the entity_boost entry with valid dates).
+  7. PayFast redirects the WebView to the success deep-link / URL. Mobile app closes WebView.
+
+
+================================================================================
+API 3: GET MY BOOSTS (PURCHASED BY LOGGED-IN SUBSCRIBER)
+================================================================================
+Purpose:
+  View all booster packages purchased by the logged-in user (e.g. "My Boosts" / "Order History").
+
+Endpoint:
+  GET /api/v1/booster/my-boosts
+
+Authentication:
+  Required (Bearer Token)
+
+Headers:
+  Authorization: Bearer <access_token>
+
+Query Parameters:
+  - active_only (boolean, optional): Set to true to return only currently active (non-expired) boosts.
+
+Example Request:
+  curl --location 'https://animal-backend-nine.vercel.app/api/v1/booster/my-boosts?active_only=true' \
+  --header 'Authorization: Bearer <access_token>'
+
+Success Response (HTTP 200 OK):
+{
+  "boosts": [
+    {
+      "entity_boost_id": 12,
+      "user_id": 5,
+      "boosted_by_user_id": 5,
+      "boost_package_id": 1,
+      "service_provider_id": 42,
+      "pet_friendly_place_id": null,
+      "vet_id": null,
+      "entity_type": "service_provider",
+      "group_boost": false,
+      "is_active": true,
+      "start_date": "2026-09-11T07:00:00.000Z",
+      "end_date": "2026-10-11T07:00:00.000Z",
+      "transaction_id": 88,
+      "created_at": "2026-09-11T07:00:00.000Z",
+      "updated_at": "2026-09-11T07:00:00.000Z",
+      "boost_packages": {
+        "boost_package_id": 1,
+        "name": "Visibility Booster",
+        "description": "Feather placement for your listed place on the home screen for 30 days.",
+        "duration_days": 30,
+        "price": 49.99,
+        "feature_scope": "home_screen"
+      },
+      "service_providers": {
+        "service_provider_id": 42,
+        "name": "Happy Paws Grooming",
+        "image_url": "https://...",
+        "phone": "0215551234",
+        "email": "info@happypaws.co.za",
+        "address": "12 Paws Street, Cape Town"
+      },
+      "pet_friendly_places": null,
+      "vets": null
+    }
+  ]
+}
+
+
+================================================================================
+API 4: GET BOOSTED LISTINGS (FOR HOME SCREEN & GROUP VIEW)
+================================================================================
+Purpose:
+  Fetches active boosted service providers, places, and vets to display in the
+  "Featured" / Feather placement sections.
+
+Endpoint:
+  GET /api/v1/boosted?active_only=true
+
+Authentication:
+  None (Public)
+
+Headers:
+  None required
+
+Query Parameters:
+  - active_only (boolean, optional): Set to true to filter active and non-expired listings.
+  - group_boost (boolean, optional): Set to true to get only listings boosted for "Group View" (Visibility Booster 2).
+  - entity_type (string, optional): Filter by "service_provider", "pet_friendly_place", or "vet".
+  - search (string, optional): Search keyword.
+
+Usage in App:
+  1. Home Screen Featured Section:
+     GET /api/v1/boosted?active_only=true
+
+  2. Group View Featured Section:
+     GET /api/v1/boosted?active_only=true&group_boost=true
+
+  3. Vets Only Featured:
+     GET /api/v1/boosted?active_only=true&entity_type=vet
+
+Success Response (HTTP 200 OK):
+{
+  "boosts": [
+    {
+      "entity_boost_id": 12,
+      "user_id": 5,
+      "boosted_by_user_id": 5,
+      "boost_package_id": 3,
+      "service_provider_id": null,
+      "pet_friendly_place_id": 17,
+      "vet_id": null,
+      "entity_type": "pet_friendly_place",
+      "group_boost": true,
+      "is_active": true,
+      "start_date": "2026-09-11T07:00:00.000Z",
+      "end_date": "2026-10-11T07:00:00.000Z",
+      "boost_packages": {
+        "boost_package_id": 3,
+        "name": "Visibility Booster 2",
+        "price": 129.99,
+        "duration_days": 30,
+        "feature_scope": "home_and_group"
+      },
+      "pet_friendly_places": {
+        "pet_friendly_place_id": 17,
+        "name": "The Dog Park Café",
+        "image_url": "https://...",
+        "address": "45 Bark Avenue, Johannesburg"
+      },
+      "service_providers": null,
+      "vets": null
+    }
+  ]
+}
+
+
+================================================================================
+API 5: CHECK PAYMENT STATUS
+================================================================================
+Purpose:
+  Poll payment status if needed using the payment_reference returned from API 2.
+
+Endpoint:
+  GET /api/v1/payments/status?payment_reference=<payment_reference>
+
+Authentication:
+  Required (Bearer Token)
+
+Headers:
+  Authorization: Bearer <access_token>
+
+Example Request:
+  curl --location 'https://animal-backend-nine.vercel.app/api/v1/payments/status?payment_reference=BOOST_1726036800000_4521' \
+  --header 'Authorization: Bearer <access_token>'
+
+Success Response (HTTP 200 OK):
+{
+  "success": true,
+  "transaction": {
+    "transaction_id": 88,
+    "payment_reference": "BOOST_1726036800000_4521",
+    "status": "completed",
+    "amount": 49.99,
+    "currency": "ZAR"
+  }
+}
+
+
+================================================================================
+MOBILE APP IMPLEMENTATION QUICK REFERENCE CHEATSHEET
+================================================================================
+
+SCREENS & ENDPOINTS:
+  1. Booster Packages Screen:
+     -> Call: GET /api/v1/boost-packages?active_only=true
+     -> Render: 3 cards (Visibility Booster R49.99, Premium Booster R99.99, Visibility Booster 2 R129.99)
+
+  2. Select Provider/Place to Boost:
+     -> Choose which listing to boost (service_provider_id, pet_friendly_place_id, or vet_id)
+
+  3. Checkout / Buy Button:
+     -> Call: POST /api/v1/booster/purchase with package ID + entity ID
+     -> Receive response with `payment_url`
+     -> Open `payment_url` in in-app WebView
+
+  4. Home Screen Display:
+     -> Call: GET /api/v1/boosted?active_only=true
+     -> Display cards in the top "Featured Places / Feather" banner
+
+  5. Group View Display:
+     -> Call: GET /api/v1/boosted?active_only=true&group_boost=true
+     -> Display in the top of Group View
+
+  6. User Profile -> "My Boosts":
+     -> Call: GET /api/v1/booster/my-boosts?active_only=true
+     -> Display active boosts, expiration date (`end_date`), and boosted place name
+================================================================================
