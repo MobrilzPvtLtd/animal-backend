@@ -113,9 +113,16 @@ async function handleUpdateProfile(request: NextRequest) {
       if (locationVal !== undefined) updates.static_location = String(locationVal).trim();
 
       const radiusVal = body.preferred_radius ?? body.radius ?? body.radius_km ?? body.distance_radius;
-      if (radiusVal !== undefined && radiusVal !== null && radiusVal !== '') {
-        const parsed = Number(String(radiusVal).replace(/[^0-9.]/g, ''));
-        if (!isNaN(parsed) && parsed > 0) updates.preferred_radius = parsed;
+      if (radiusVal !== undefined && radiusVal !== null) {
+        const strRadius = String(radiusVal).trim().toLowerCase();
+        if (['all', 'none', 'unlimited', 'false', 'any', '0'].includes(strRadius)) {
+          updates.preferred_radius = null; // Represents "all" / no radius constraint in database
+        } else {
+          const parsed = Number(strRadius.replace(/[^0-9.]/g, ''));
+          if (!isNaN(parsed) && parsed > 0) {
+            updates.preferred_radius = parsed;
+          }
+        }
       }
 
       if (body.notification_preferences !== undefined) updates.notification_preferences = body.notification_preferences;
@@ -168,9 +175,16 @@ async function handleUpdateProfile(request: NextRequest) {
       if (locationVal !== null) updates.static_location = locationVal.toString().trim();
 
       const formRadiusVal = formData.get('preferred_radius') ?? formData.get('radius') ?? formData.get('radius_km');
-      if (formRadiusVal !== null && formRadiusVal.toString().trim() !== '') {
-        const parsed = Number(formRadiusVal.toString().replace(/[^0-9.]/g, ''));
-        if (!isNaN(parsed) && parsed > 0) updates.preferred_radius = parsed;
+      if (formRadiusVal !== null && formRadiusVal !== undefined) {
+        const strRadius = formRadiusVal.toString().trim().toLowerCase();
+        if (['all', 'none', 'unlimited', 'false', 'any', '0'].includes(strRadius)) {
+          updates.preferred_radius = null; // Represents "all" / no radius constraint in database
+        } else {
+          const parsed = Number(strRadius.replace(/[^0-9.]/g, ''));
+          if (!isNaN(parsed) && parsed > 0) {
+            updates.preferred_radius = parsed;
+          }
+        }
       }
 
       const prefsVal = formData.get('notification_preferences');

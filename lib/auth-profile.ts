@@ -41,7 +41,8 @@ export type AuthProfile = {
   static_location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  preferred_radius?: number | null;
+  preferred_radius?: number | string | null;
+  is_radius_all?: boolean;
   user_roles: AuthProfileRole[];
   permissions: PermissionRecord[];
 };
@@ -278,13 +279,27 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
 
   const planDetails = await loadSubscriptionPlanDetails(baseProfile.subscription_plan);
 
+  const rawPrefRadius = baseProfile.preferred_radius;
+  const isRadiusAll =
+    rawPrefRadius === null ||
+    rawPrefRadius === undefined ||
+    rawPrefRadius === 0 ||
+    String(rawPrefRadius).toLowerCase().trim() === 'all';
+
+  const resolvedRadius = isRadiusAll
+    ? 'all'
+    : !isNaN(Number(rawPrefRadius)) && Number(rawPrefRadius) > 0
+    ? Number(rawPrefRadius)
+    : 'all';
+
   return {
     profile: {
       ...baseProfile,
       static_location: baseProfile.static_location || null,
       latitude: baseProfile.latitude !== null && baseProfile.latitude !== undefined ? Number(baseProfile.latitude) : null,
       longitude: baseProfile.longitude !== null && baseProfile.longitude !== undefined ? Number(baseProfile.longitude) : null,
-      preferred_radius: baseProfile.preferred_radius !== null && baseProfile.preferred_radius !== undefined ? Number(baseProfile.preferred_radius) : 25,
+      preferred_radius: resolvedRadius,
+      is_radius_all: isRadiusAll,
       is_subscribed: isSubscribed,
       is_cancelled: isCancelled,
       subscription_status: baseProfile.subscription_status || null,
@@ -297,7 +312,8 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
     static_location: baseProfile.static_location || null,
     latitude: baseProfile.latitude !== null && baseProfile.latitude !== undefined ? Number(baseProfile.latitude) : null,
     longitude: baseProfile.longitude !== null && baseProfile.longitude !== undefined ? Number(baseProfile.longitude) : null,
-    preferred_radius: baseProfile.preferred_radius !== null && baseProfile.preferred_radius !== undefined ? Number(baseProfile.preferred_radius) : 25,
+    preferred_radius: resolvedRadius,
+    is_radius_all: isRadiusAll,
     is_subscribed: isSubscribed,
     is_cancelled: isCancelled,
     roleIds,

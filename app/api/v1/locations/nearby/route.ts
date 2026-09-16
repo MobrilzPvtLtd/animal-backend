@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const radiusKm = userLocation.radiusKm ?? 25; // Default to 25 km if unspecified
+    const isAll = Boolean(userLocation.isAllRadius || userLocation.radiusKm === null);
+    const radiusKm = isAll ? null : userLocation.radiusKm;
 
     // 2. Fetch Pet-Friendly Places
     const shouldFetchPlaces = !type || type === 'all' || type === 'places';
@@ -77,8 +78,8 @@ export async function GET(request: NextRequest) {
     const rawPlaces = (placesRes.data || []).map(normalizePlaceImages);
     const rawProviders = providersRes.data || [];
 
-    // 4. Apply distance calculation, radius circle filtering (distance_km <= radiusKm) and closest-first sorting
-    const filteredPlaces = applyLocationFilterAndSort(rawPlaces, { ...userLocation, radiusKm }, {
+    // 4. Apply distance calculation, radius circle filtering (if not 'all') and closest-first sorting
+    const filteredPlaces = applyLocationFilterAndSort(rawPlaces, { ...userLocation, radiusKm, isAllRadius: isAll }, {
       getLat: (place: any) => {
         const lat = place.latitude ?? place.service_provider?.locations?.latitude;
         return lat !== null && lat !== undefined && !isNaN(Number(lat)) ? Number(lat) : null;
@@ -87,10 +88,10 @@ export async function GET(request: NextRequest) {
         const lng = place.longitude ?? place.service_provider?.locations?.longitude;
         return lng !== null && lng !== undefined && !isNaN(Number(lng)) ? Number(lng) : null;
       },
-      filterByRadius: true,
+      filterByRadius: !isAll,
     });
 
-    const filteredProviders = applyLocationFilterAndSort(rawProviders, { ...userLocation, radiusKm }, {
+    const filteredProviders = applyLocationFilterAndSort(rawProviders, { ...userLocation, radiusKm, isAllRadius: isAll }, {
       getLat: (provider: any) => {
         const rawLat = provider.locations?.latitude ?? provider.pet_friendly_places?.[0]?.latitude ?? provider.latitude;
         return rawLat !== null && rawLat !== undefined && !isNaN(Number(rawLat)) ? Number(rawLat) : null;
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
         const rawLng = provider.locations?.longitude ?? provider.pet_friendly_places?.[0]?.longitude ?? provider.longitude;
         return rawLng !== null && rawLng !== undefined && !isNaN(Number(rawLng)) ? Number(rawLng) : null;
       },
-      filterByRadius: true,
+      filterByRadius: !isAll,
     });
 
     return NextResponse.json({
@@ -107,11 +108,13 @@ export async function GET(request: NextRequest) {
       user_location: {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
-        radius_km: radiusKm,
+        radius_km: isAll ? 'all' : radiusKm,
+        is_all_radius: isAll,
         address: userLocation.address,
         source: userLocation.source,
       },
-      radius_km: radiusKm,
+      radius_km: isAll ? 'all' : radiusKm,
+      is_all_radius: isAll,
       counts: {
         places: filteredPlaces.total,
         service_providers: filteredProviders.total,

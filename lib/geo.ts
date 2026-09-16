@@ -6,6 +6,7 @@ export interface UserLocationContext {
   latitude: number | null;
   longitude: number | null;
   radiusKm: number | null;
+  isAllRadius?: boolean;
   address: string | null;
   source: 'query' | 'body' | 'profile' | 'geocoded' | null;
   userId?: number | null;
@@ -109,14 +110,23 @@ export async function resolveUserLocation(
   if (isNaN(latitude as number)) latitude = null;
   if (isNaN(longitude as number)) longitude = null;
 
-  // Check radius parameter (supports: 50, "50", "50km", "all", "0", "false")
-  const rawRadius = searchParams.get('radius') ?? searchParams.get('radius_km') ?? bodyData?.radius ?? bodyData?.radius_km;
+  // Check radius parameter (supports: 10, "20", "50km", "all", "0", "false")
+  const rawRadius =
+    searchParams.get('radius') ??
+    searchParams.get('radius_km') ??
+    searchParams.get('distance') ??
+    bodyData?.radius ??
+    bodyData?.radius_km ??
+    bodyData?.preferred_radius;
+
   let radiusKm: number | null = null;
+  let isAllRadius = false;
 
   if (rawRadius !== null && rawRadius !== undefined && rawRadius !== '') {
     const strRadius = String(rawRadius).toLowerCase().trim();
-    if (['all', '0', 'none', 'false', 'unlimited'].includes(strRadius)) {
-      radiusKm = null; // explicit request to disable radius filter
+    if (['all', '0', 'none', 'false', 'unlimited', 'any'].includes(strRadius)) {
+      radiusKm = null;
+      isAllRadius = true; // explicitly requested to disable radius constraint
     } else {
       const parsedRadius = parseFloat(strRadius.replace(/[^0-9.]/g, ''));
       if (!isNaN(parsedRadius) && parsedRadius > 0) {
@@ -174,15 +184,25 @@ export async function resolveUserLocation(
               address = userRow.static_location;
             }
 
-            // Inherit preferred_radius if not explicitly passed
+            // Inherit preferred_radius if not explicitly passed in request
             if (
               radiusKm === null &&
-              (rawRadius === null || rawRadius === undefined || rawRadius === '') &&
-              userRow.preferred_radius
+              !isAllRadius &&
+              (rawRadius === null || rawRadius === undefined || rawRadius === '')
             ) {
-              const prefRadius = parseFloat(String(userRow.preferred_radius));
-              if (!isNaN(prefRadius) && prefRadius > 0) {
-                radiusKm = prefRadius;
+              if (
+                userRow.preferred_radius === null ||
+                userRow.preferred_radius === undefined ||
+                Number(userRow.preferred_radius) === 0 ||
+                String(userRow.preferred_radius).toLowerCase().trim() === 'all'
+              ) {
+                radiusKm = null;
+                isAllRadius = true;
+              } else {
+                const prefRadius = parseFloat(String(userRow.preferred_radius));
+                if (!isNaN(prefRadius) && prefRadius > 0) {
+                  radiusKm = prefRadius;
+                }
               }
             }
           }
@@ -194,7 +214,7 @@ export async function resolveUserLocation(
   }
 
   // Fetch user profile location & preferred radius if userId resolved from param
-  if (userId && (latitude === null || longitude === null || radiusKm === null)) {
+  if (userId && (latitude === null || longitude === null || (radiusKm === null && !isAllRadius))) {
     try {
       const { data: userProfile } = await supabaseAdmin
         .from('users')
@@ -215,11 +235,25 @@ export async function resolveUserLocation(
           address = userProfile.static_location;
         }
 
-        // If radius was not explicitly passed in request, inherit user's preferred_radius
-        if (radiusKm === null && (rawRadius === null || rawRadius === undefined || rawRadius === '') && userProfile.preferred_radius) {
-          const prefRadius = parseFloat(String(userProfile.preferred_radius));
-          if (!isNaN(prefRadius) && prefRadius > 0) {
-            radiusKm = prefRadius;
+        // Inherit preferred_radius if not explicitly passed
+        if (
+          radiusKm === null &&
+          !isAllRadius &&
+          (rawRadius === null || rawRadius === undefined || rawRadius === '')
+        ) {
+          if (
+            userProfile.preferred_radius === null ||
+            userProfile.preferred_radius === undefined ||
+            Number(userProfile.preferred_radius) === 0 ||
+            String(userProfile.preferred_radius).toLowerCase().trim() === 'all'
+          ) {
+            radiusKm = null;
+            isAllRadius = true;
+          } else {
+            const prefRadius = parseFloat(String(userProfile.preferred_radius));
+            if (!isNaN(prefRadius) && prefRadius > 0) {
+              radiusKm = prefRadius;
+            }
           }
         }
       }
@@ -242,6 +276,7 @@ export async function resolveUserLocation(
     latitude,
     longitude,
     radiusKm,
+    isAllRadius,
     address,
     source,
     userId,
@@ -268,14 +303,16 @@ export function applyLocationFilterAndSort<T extends Record<string, any>>(
   user_location: {
     latitude: number | null;
     longitude: number | null;
-    radius_km: number | null;
+    radius_km: number | string | null;
+    is_all_radius?: boolean;
     address: string | null;
     source: string | null;
   };
   total: number;
 } {
-  const { latitude: userLat, longitude: userLng, radiusKm } = userLocation;
+  const { latitude: userLat, longitude: userLng, radiusKm, isAllRadius } = userLocation;
   const hasUserLocation = userLat !== null && userLng !== null;
+  const isAll = Boolean(isAllRadius || radiusKm === null);
 
   const enriched = items.map((item) => {
     const itemLat = options.getLat(item);
@@ -287,8 +324,9 @@ export function applyLocationFilterAndSort<T extends Record<string, any>>(
       distance_km = calculateDistanceKm(userLat!, userLng!, itemLat, itemLng);
     }
 
-    const is_within_radius =
-      distance_km !== null && (radiusKm === null || distance_km <= radiusKm);
+    const is_within_radius = isAll
+      ? true
+      : distance_km !== null && radiusKm !== null && distance_km <= radiusKm;
 
     return {
       ...item,
@@ -298,8 +336,8 @@ export function applyLocationFilterAndSort<T extends Record<string, any>>(
     };
   });
 
-  // Filter by radius if radiusKm is set and filtering is enabled
-  const shouldFilter = options.filterByRadius !== false && radiusKm !== null && hasUserLocation;
+  // Filter by radius ONLY if user did not request "all", radiusKm is set, and filtering is enabled
+  const shouldFilter = options.filterByRadius !== false && !isAll && radiusKm !== null && hasUserLocation;
   const filtered = shouldFilter
     ? enriched.filter((item) => item.distance_km !== null && item.distance_km <= radiusKm)
     : enriched;
@@ -319,7 +357,8 @@ export function applyLocationFilterAndSort<T extends Record<string, any>>(
     user_location: {
       latitude: userLocation.latitude,
       longitude: userLocation.longitude,
-      radius_km: userLocation.radiusKm,
+      radius_km: isAll ? 'all' : userLocation.radiusKm,
+      is_all_radius: isAll,
       address: userLocation.address,
       source: userLocation.source,
     },

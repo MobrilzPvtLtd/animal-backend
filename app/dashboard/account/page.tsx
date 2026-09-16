@@ -41,7 +41,7 @@ interface UserProfile {
   static_location?: string;
   latitude?: number | null;
   longitude?: number | null;
-  preferred_radius?: number | null;
+  preferred_radius?: number | string | null;
   permissions?: Array<{
     permission_id: number;
     name: string;
@@ -83,7 +83,7 @@ interface NearbyData {
   }>;
 }
 
-const RADIUS_OPTIONS = [5, 10, 20, 50, 100];
+const RADIUS_OPTIONS: (number | 'all')[] = ['all', 5, 10, 20, 50, 100];
 
 export default function AccountPage() {
   const { session, logOutFunction } = useAuth();
@@ -102,7 +102,7 @@ export default function AccountPage() {
     name: "",
     phone: "",
     static_location: "",
-    preferred_radius: 25,
+    preferred_radius: 25 as number | string,
   });
 
   const { toast } = useToast();
@@ -115,7 +115,7 @@ export default function AccountPage() {
     }
   }, [session?.access_token]);
 
-  const fetchNearbyDiscovery = async (radiusKm: number) => {
+  const fetchNearbyDiscovery = async (radiusKm: number | string) => {
     if (!session?.access_token) return;
     try {
       setNearbyLoading(true);
@@ -169,7 +169,9 @@ export default function AccountPage() {
 
         setProfile(transformedProfile);
 
-        const currentRadius = data.preferred_radius ? Number(data.preferred_radius) : 25;
+        const currentRadius = data.preferred_radius === 'all' || !data.preferred_radius || data.preferred_radius === 0
+          ? 'all'
+          : Number(data.preferred_radius);
 
         setFormData({
           user_name: data.user_name || "",
@@ -194,7 +196,7 @@ export default function AccountPage() {
     }
   };
 
-  const handleQuickRadiusSelect = async (radiusKm: number) => {
+  const handleQuickRadiusSelect = async (radiusKm: number | 'all') => {
     setFormData((prev) => ({ ...prev, preferred_radius: radiusKm }));
     fetchNearbyDiscovery(radiusKm);
 
@@ -211,7 +213,9 @@ export default function AccountPage() {
         if (res.ok) {
           toast({
             title: "Discovery Radius Updated",
-            description: `Places and providers within ${radiusKm} km will now show up.`,
+            description: radiusKm === 'all'
+              ? "Showing all places and providers without radius constraint."
+              : `Places and providers within ${radiusKm} km will now show up.`,
           });
           setProfile((prev) => (prev ? { ...prev, preferred_radius: radiusKm } : null));
         }
@@ -341,7 +345,14 @@ export default function AccountPage() {
     .join("")
     .toUpperCase();
 
-  const activeRadius = isEditing ? Number(formData.preferred_radius) : Number(profile.preferred_radius || 25);
+  const rawActive = isEditing ? formData.preferred_radius : profile.preferred_radius;
+  const isAllRadius =
+    rawActive === 'all' ||
+    rawActive === null ||
+    rawActive === undefined ||
+    rawActive === 0 ||
+    rawActive === '0';
+  const activeRadius: number | 'all' = isAllRadius ? 'all' : Number(rawActive);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -454,7 +465,7 @@ export default function AccountPage() {
                 <span className="text-muted-foreground">Tap a distance to instantly filter</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {RADIUS_OPTIONS.map((km) => {
                   const isSelected = activeRadius === km;
                   return (
@@ -469,7 +480,7 @@ export default function AccountPage() {
                       }`}
                       onClick={() => handleQuickRadiusSelect(km)}
                     >
-                      {km} km
+                      {km === 'all' ? 'All (No limit)' : `${km} km`}
                     </Button>
                   );
                 })}
@@ -633,30 +644,43 @@ export default function AccountPage() {
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="preferred_radius" className="flex items-center justify-between">
                     <span className="flex items-center gap-1">
-                      <Compass className="h-4 w-4 text-blue-500" /> Discovery Radius (Kilometers)
+                      <Compass className="h-4 w-4 text-blue-500" /> Discovery Radius
                     </span>
-                    <span className="text-xs text-blue-600 font-semibold">{formData.preferred_radius} km circle</span>
+                    <span className="text-xs text-blue-600 font-semibold">
+                      {formData.preferred_radius === 'all' ? 'All (No radius limit)' : `${formData.preferred_radius} km circle`}
+                    </span>
                   </Label>
                   <Input
                     id="preferred_radius"
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={formData.preferred_radius}
-                    onChange={(e) => setFormData({ ...formData, preferred_radius: Number(e.target.value) })}
-                    placeholder="e.g. 10, 20, 50"
+                    type="text"
+                    value={formData.preferred_radius === 'all' ? 'all' : formData.preferred_radius}
+                    onChange={(e) => {
+                      const val = e.target.value.trim().toLowerCase();
+                      if (val === 'all' || val === '0' || val === '') {
+                        setFormData({ ...formData, preferred_radius: 'all' });
+                      } else {
+                        const num = parseFloat(val);
+                        setFormData({ ...formData, preferred_radius: !isNaN(num) ? num : val });
+                      }
+                    }}
+                    placeholder="Enter km (e.g. 10, 20) or 'all'"
                   />
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2">
                     {RADIUS_OPTIONS.map((km) => (
                       <Button
                         key={km}
                         type="button"
                         size="sm"
-                        variant={Number(formData.preferred_radius) === km ? "default" : "outline"}
+                        variant={
+                          formData.preferred_radius === km ||
+                          (km === 'all' && (formData.preferred_radius === 'all' || !formData.preferred_radius || formData.preferred_radius === 0))
+                            ? "default"
+                            : "outline"
+                        }
                         className="h-8 text-xs font-semibold rounded-lg"
                         onClick={() => setFormData({ ...formData, preferred_radius: km })}
                       >
-                        {km} km
+                        {km === 'all' ? 'All (No limit)' : `${km} km`}
                       </Button>
                     ))}
                   </div>

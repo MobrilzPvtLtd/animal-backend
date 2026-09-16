@@ -2133,16 +2133,40 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/can
   - `Authorization: Bearer <user_token>` *(Required)*
   - `Content-Type: application/json`
 
-> **Description:** Updates the user's location address and preferred distance radius (e.g. 10 km, 20 km, 50 km). When `static_location` or `address` is provided, the backend automatically geocodes it into `latitude` and `longitude` coordinates!
+> **Description:** Updates the user's location address and preferred distance radius (e.g. `10`, `20`, or `"all"`). When `static_location`, `location`, or `address` is provided, the backend automatically geocodes it into `latitude` and `longitude` coordinates!
+>
+> **Special Radius Behavior:**
+> - **When specific radius is passed (e.g. `10`, `20`, `50`):** Only pet-friendly places and service providers inside that distance circle will show up.
+> - **When `"all"` is passed (`preferred_radius: "all"` or `radius: "all"`):** **ALL** places and service providers show up with **no radius constraint**. If user location is set, distances are still calculated and results are sorted from closest to farthest!
 
-#### Request Body (JSON):
+#### Request Body A: Set Unlimited / All Radius (Show all places & providers without constraint):
+```json
+{
+  "location": "noida",
+  "static_location": "noida",
+  "address": "noida",
+  "preferred_radius": "all",
+  "radius": "all"
+}
+```
+
+```bash
+curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer YOUR_USER_TOKEN' \
+--data '{
+  "location": "noida",
+  "preferred_radius": "all"
+}'
+```
+
+#### Request Body B: Set Specific Radius (e.g. 20 km circle):
 ```json
 {
   "address": "Rosebank, Johannesburg, South Africa",
   "preferred_radius": 20
 }
 ```
-*(Also accepts `radius` or `radius_km` as alternative keys for `preferred_radius`)*
 
 ```bash
 curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/auth/me' \
@@ -2165,7 +2189,7 @@ curl --location --request PATCH 'https://animal-backend-nine.vercel.app/api/v1/a
 #### Query Parameters (All Optional):
 | Parameter | Type | Default | Description | Example |
 | :--- | :--- | :--- | :--- | :--- |
-| `radius` | `number` / `string` | User's `preferred_radius` or `25` | Radius distance circle in kilometers | `10`, `20`, `50` (use `all` or `0` to disable filter) |
+| `radius` | `number` / `string` | User's profile radius (or `25`) | Radius circle in km (e.g. `10`, `20`, `50`). Pass `all` to disable radius filter and show all places & providers! | `10`, `20`, `all` |
 | `latitude` | `number` | User's profile latitude | Explicit center latitude coordinate | `-26.145` |
 | `longitude` | `number` | User's profile longitude | Explicit center longitude coordinate | `28.041` |
 | `type` | `string` | `all` | Filter by type: `all`, `places`, or `providers` | `all` |
