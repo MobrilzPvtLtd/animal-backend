@@ -152,8 +152,11 @@ export async function POST(request: NextRequest) {
   const host = request.headers.get('host');
   const protocol =
     request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL;
   const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
+    (envAppUrl && !envAppUrl.includes('localhost'))
+      ? envAppUrl
+      : (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
 
   const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY?.trim();

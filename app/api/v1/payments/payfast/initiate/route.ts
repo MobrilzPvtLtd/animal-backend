@@ -92,7 +92,10 @@ export async function POST(request: NextRequest) {
   // 2. Prepare Callback URLs
   const host = request.headers.get('host');
   const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
+  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const baseUrl = (envAppUrl && !envAppUrl.includes('localhost'))
+    ? envAppUrl
+    : (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
 
   // 3. Prepare PayFast Integration Credentials
   const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
