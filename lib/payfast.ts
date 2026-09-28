@@ -127,7 +127,9 @@ export function generatePayFastSignature(
     pfOutput += `&passphrase=${payFastEncode(pfPassphrase)}`;
   }
 
-  return crypto.createHash('md5').update(pfOutput).digest('hex');
+  const signature = crypto.createHash('md5').update(pfOutput).digest('hex');
+  console.log(`[PAYFAST_LIB] Generated signature: ${signature} (string hashed: "${pfOutput.substring(0, 100)}...")`);
+  return signature;
 }
 
 /**
@@ -175,41 +177,55 @@ export async function verifyPayFastItn(
   pfData: Record<string, string>,
   rawPfParamString?: string
 ): Promise<{ isValid: boolean; error?: string }> {
+  console.log('[PAYFAST_LIB] [verifyPayFastItn] Starting ITN verification...');
+  console.log('[PAYFAST_LIB] [verifyPayFastItn] Received pfData keys:', Object.keys(pfData));
+
   // 1. Verify Signature using exact parameter sequence sent by PayFast
   const receivedSignature = pfData.signature;
   if (!receivedSignature) {
+    console.error('[PAYFAST_LIB] [verifyPayFastItn] Missing signature in PayFast ITN payload');
     return { isValid: false, error: 'Missing signature in PayFast ITN payload' };
   }
 
   let calculatedSignature = '';
 
   if (rawPfParamString && rawPfParamString.trim() !== '') {
-    // Preserve exact raw POST body parameter order as sent by PayFast
-    const paramPairs = rawPfParamString.split('&').filter(p => p.trim() !== '' && !p.startsWith('signature='));
+    // Preserve exact raw POST body parameter order as sent by PayFast (strip signature)
+    const paramPairs = rawPfParamString
+      .split('&')
+      .filter((p) => p.trim() !== '' && !p.startsWith('signature='));
     let pfParamStr = paramPairs.join('&');
 
     const pfPassphrase = process.env.PAYFAST_PASSPHRASE;
-
     if (pfPassphrase && pfPassphrase.trim() !== '') {
       pfParamStr += `&passphrase=${payFastEncode(pfPassphrase)}`;
     }
 
     calculatedSignature = crypto.createHash('md5').update(pfParamStr).digest('hex');
+    console.log(`[PAYFAST_LIB] [verifyPayFastItn] Raw body signature check: received=${receivedSignature}, calculated=${calculatedSignature}`);
   } else {
     calculatedSignature = generatePayFastSignature(pfData);
+    console.log(`[PAYFAST_LIB] [verifyPayFastItn] Canonical signature check: received=${receivedSignature}, calculated=${calculatedSignature}`);
   }
 
   if (receivedSignature.toLowerCase() !== calculatedSignature.toLowerCase()) {
-    console.error(`PayFast ITN Signature mismatch. Received: ${receivedSignature}, Calculated: ${calculatedSignature}`);
+    console.error(`[PAYFAST_LIB] [verifyPayFastItn] Signature mismatch! Received: ${receivedSignature}, Calculated: ${calculatedSignature}`);
     return { isValid: false, error: 'PayFast ITN signature mismatch' };
   }
+  console.log('[PAYFAST_LIB] [verifyPayFastItn] Signature verification PASSED');
 
-  // 2. Server-to-Server Validation with PayFast
+  // 2. Server-to-Server Validation with PayFast (body must NOT contain signature)
   try {
     const validateUrl = getPayFastValidateUrl();
+    console.log(`[PAYFAST_LIB] [verifyPayFastItn] Sending validation to: ${validateUrl}`);
 
-    let paramString = rawPfParamString;
-    if (!paramString) {
+    let validateParamString = '';
+    if (rawPfParamString && rawPfParamString.trim() !== '') {
+      const pairs = rawPfParamString
+        .split('&')
+        .filter((p) => p.trim() !== '' && !p.startsWith('signature='));
+      validateParamString = pairs.join('&');
+    } else {
       const params: string[] = [];
       for (const key in pfData) {
         if (Object.prototype.hasOwnProperty.call(pfData, key) && key !== 'signature') {
@@ -217,7 +233,7 @@ export async function verifyPayFastItn(
           params.push(`${key}=${payFastEncode(val)}`);
         }
       }
-      paramString = params.join('&');
+      validateParamString = params.join('&');
     }
 
     const response = await fetch(validateUrl, {
@@ -225,16 +241,21 @@ export async function verifyPayFastItn(
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: paramString,
+      body: validateParamString,
     });
 
     const responseText = await response.text();
+    console.log(`[PAYFAST_LIB] [verifyPayFastItn] PayFast validate response: "${responseText.trim()}"`);
+
     if (responseText.trim() !== 'VALID') {
+      console.warn(`[PAYFAST_LIB] [verifyPayFastItn] PayFast validation returned: ${responseText}`);
       return { isValid: false, error: `PayFast server validation failed: ${responseText}` };
     }
 
+    console.log('[PAYFAST_LIB] [verifyPayFastItn] Server validation PASSED (VALID)');
     return { isValid: true };
   } catch (err: any) {
+    console.error(`[PAYFAST_LIB] [verifyPayFastItn] Error validating with PayFast server: ${err.message}`);
     return { isValid: false, error: `Error validating with PayFast server: ${err.message}` };
   }
 }
@@ -249,6 +270,8 @@ export async function createPayFastSessionUrl(
   const queryString = buildPayFastQueryString(payFastFields);
   const fallbackUrl = `${payfastUrl}?${queryString}`;
 
+  console.log(`[PAYFAST_LIB] [createPayFastSessionUrl] Requesting session from: ${payfastUrl}`);
+
   try {
     const response = await fetch(payfastUrl, {
       method: 'POST',
@@ -261,6 +284,7 @@ export async function createPayFastSessionUrl(
 
     const locationHeader = response.headers.get('location');
     if (locationHeader) {
+      console.log(`[PAYFAST_LIB] [createPayFastSessionUrl] Direct location redirect received: ${locationHeader}`);
       return locationHeader;
     }
 
@@ -269,12 +293,14 @@ export async function createPayFastSessionUrl(
       text.match(/href=["'](https?:\/\/[^"']+)["']/i) ||
       text.match(/url=['"](https?:\/\/[^"']+)['"]/i);
     if (match && match[1]) {
+      console.log(`[PAYFAST_LIB] [createPayFastSessionUrl] Extracted session redirect URL: ${match[1]}`);
       return match[1];
     }
 
+    console.log(`[PAYFAST_LIB] [createPayFastSessionUrl] Using fallback URL: ${fallbackUrl}`);
     return fallbackUrl;
   } catch (err) {
-    console.error('Failed to create direct PayFast session URL:', err);
+    console.error('[PAYFAST_LIB] [createPayFastSessionUrl] Failed to create direct PayFast session URL:', err);
     return fallbackUrl;
   }
 }

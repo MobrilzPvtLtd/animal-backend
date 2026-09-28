@@ -37,16 +37,21 @@ export const dynamic = 'force-dynamic';
  * POST /api/v1/payments/payfast/notify will activate the boost.
  */
 export async function POST(request: NextRequest) {
+  console.log('[BOOSTER_PURCHASE] Incoming purchase request...');
+
   // 1. Authenticate – any logged-in subscriber
   const user = await getUserFromRequest(request);
   if (!user || !user.internalUserId) {
+    console.warn('[BOOSTER_PURCHASE] Unauthorized – no user found');
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   let body: any;
   try {
     body = await request.json();
+    console.log(`[BOOSTER_PURCHASE] User ID: ${user.internalUserId}, Body:`, JSON.stringify(body));
   } catch {
+    console.warn('[BOOSTER_PURCHASE] Invalid JSON payload');
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
@@ -73,6 +78,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (pkgError || !boostPackage) {
+    console.error(`[BOOSTER_PURCHASE] Boost package #${boost_package_id} not found or inactive`);
     return NextResponse.json({ error: 'Boost package not found or inactive' }, { status: 404 });
   }
 
@@ -144,32 +150,38 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (txnError || !txnData) {
-    console.error('Failed to create pending boost transaction:', txnError?.message);
+    console.error('[BOOSTER_PURCHASE] Failed to create pending boost transaction:', txnError?.message);
     return NextResponse.json({ error: 'Failed to create transaction record' }, { status: 500 });
   }
+  console.log(`[BOOSTER_PURCHASE] Created pending transaction #${txnData.transaction_id} (${paymentReference})`);
 
   // 7. Build PayFast redirect
   const host = request.headers.get('host');
   const protocol =
     request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
   const envAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  const isLocalHost = !host || host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('192.168.') || host.startsWith('10.');
+
   const baseUrl =
     (envAppUrl && !envAppUrl.includes('localhost'))
       ? envAppUrl
-      : (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
+      : (!isLocalHost ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
 
   const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY?.trim();
 
   if (!merchantId || !merchantKey) {
+    console.error('[BOOSTER_PURCHASE] PayFast merchant credentials are not configured');
     return NextResponse.json(
       { error: 'PayFast merchant credentials are not configured' },
       { status: 500 }
     );
   }
 
-  const notifyBaseUrl = baseUrl.includes('localhost')
-    ? process.env.PUBLIC_NOTIFY_URL || 'https://animal-backend-nine.vercel.app'
+  // PayFast webhook ITN requires a publicly accessible URL to reach our server
+  const notifyBaseUrl = isLocalHost
+    ? (process.env.PUBLIC_NOTIFY_URL || 'https://animal-backend-nine.vercel.app')
     : baseUrl;
 
   const payFastFields: PayFastPaymentPayload = {
@@ -197,12 +209,16 @@ export async function POST(request: NextRequest) {
     }).slice(0, 255),
   };
 
+  console.log(`[BOOSTER_PURCHASE] PayFast Fields prepared. notify_url: ${payFastFields.notify_url}`);
+
   const signature = generatePayFastSignature(payFastFields as Record<string, string>);
   payFastFields.signature = signature;
 
   const payfastUrl = getPayFastUrl();
   const queryString = buildPayFastQueryString(payFastFields as Record<string, string>);
   const directSessionUrl = await createPayFastSessionUrl(payFastFields as Record<string, string>);
+
+  console.log(`[BOOSTER_PURCHASE] Payment initiation complete. Session URL: ${directSessionUrl}`);
 
   return NextResponse.json({
     success: true,

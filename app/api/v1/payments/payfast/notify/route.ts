@@ -3,36 +3,49 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { verifyPayFastItn } from '@/lib/payfast';
 
 export async function POST(request: NextRequest) {
+  console.log(`[PAYFAST_NOTIFY] ==================== INCOMING ITN WEBHOOK ====================`);
+  console.log(`[PAYFAST_NOTIFY] Time: ${new Date().toISOString()}`);
+
   let rawBody = '';
   const pfData: Record<string, string> = {};
 
   try {
     rawBody = await request.text();
+    console.log(`[PAYFAST_NOTIFY] Raw ITN Body length: ${rawBody.length} characters`);
+    console.log(`[PAYFAST_NOTIFY] Raw ITN Body: ${rawBody}`);
+
     const params = new URLSearchParams(rawBody);
     params.forEach((value, key) => {
       pfData[key] = value;
     });
+    console.log('[PAYFAST_NOTIFY] Parsed ITN Parameters:', JSON.stringify(pfData, null, 2));
   } catch (err: any) {
-    console.error('Failed to parse PayFast ITN body:', err);
+    console.error('[PAYFAST_NOTIFY] Failed to parse PayFast ITN body:', err);
     return new Response('Invalid Body', { status: 400 });
   }
 
   // 1. Verify ITN Signature & Query PayFast Validation Server
+  console.log(`[PAYFAST_NOTIFY] [Step 1] Verifying signature and PayFast server validation...`);
   const verification = await verifyPayFastItn(pfData, rawBody);
   if (!verification.isValid) {
-    console.error('PayFast ITN Verification Failed:', verification.error);
+    console.error('[PAYFAST_NOTIFY] Verification FAILED:', verification.error);
     return new Response(verification.error || 'Verification Failed', { status: 400 });
   }
+  console.log('[PAYFAST_NOTIFY] [Step 1] Verification SUCCESSFUL');
 
   const paymentStatus = pfData.payment_status; // e.g. "COMPLETE", "FAILED", "CANCELLED"
   const mPaymentId = pfData.m_payment_id;       // Our payment_reference
   const grossAmount = pfData.amount_gross;
 
+  console.log(`[PAYFAST_NOTIFY] Transaction Ref: ${mPaymentId}, Status: ${paymentStatus}, Gross: ${grossAmount}`);
+
   if (!mPaymentId) {
+    console.error('[PAYFAST_NOTIFY] Missing m_payment_id in payload');
     return new Response('Missing m_payment_id', { status: 400 });
   }
 
   // 2. Fetch Transaction Record from Database
+  console.log(`[PAYFAST_NOTIFY] [Step 2] Fetching transaction record for ${mPaymentId}...`);
   const { data: txn, error: fetchError } = await supabaseAdmin
     .from('transactions')
     .select('*')
@@ -40,13 +53,14 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (fetchError || !txn) {
-    console.error('Transaction not found for reference:', mPaymentId, fetchError?.message);
+    console.error('[PAYFAST_NOTIFY] Transaction not found for reference:', mPaymentId, fetchError?.message);
     return new Response('Transaction Not Found', { status: 404 });
   }
+  console.log(`[PAYFAST_NOTIFY] [Step 2] Found transaction #${txn.transaction_id}, current status: ${txn.status}, user_id: ${txn.user_id}`);
 
   // 3. Amount Verification
   if (grossAmount && Number(txn.amount) !== Number(grossAmount)) {
-    console.error(`Amount mismatch for ${mPaymentId}: expected ${txn.amount}, received ${grossAmount}`);
+    console.error(`[PAYFAST_NOTIFY] Amount mismatch for ${mPaymentId}: expected ${txn.amount}, received ${grossAmount}`);
     await supabaseAdmin
       .from('transactions')
       .update({
@@ -67,6 +81,7 @@ export async function POST(request: NextRequest) {
   const newStatus = isSuccess ? 'completed' : 'failed';
 
   // 4. Update Transaction Status in Database
+  console.log(`[PAYFAST_NOTIFY] [Step 3] Updating transaction #${txn.transaction_id} to status: ${newStatus}`);
   const { error: updateError } = await supabaseAdmin
     .from('transactions')
     .update({
@@ -82,11 +97,13 @@ export async function POST(request: NextRequest) {
     .eq('transaction_id', txn.transaction_id);
 
   if (updateError) {
-    console.error('Failed to update transaction status:', updateError.message);
+    console.error('[PAYFAST_NOTIFY] Failed to update transaction status in database:', updateError.message);
     return new Response('Database Update Failed', { status: 500 });
   }
+  console.log(`[PAYFAST_NOTIFY] [Step 3] Transaction #${txn.transaction_id} status updated to: ${newStatus}`);
 
   if (!isSuccess || !txn.user_id) {
+    console.log(`[PAYFAST_NOTIFY] Payment status was not COMPLETE (or missing user_id). Finished.`);
     return new Response('OK', { status: 200 });
   }
 
@@ -97,11 +114,13 @@ export async function POST(request: NextRequest) {
     txn.object?.custom_str1 ||
     txn.object?.subscription_plan;
 
+  console.log(`[PAYFAST_NOTIFY] [Step 4] Processing fulfillment. Payment Type: "${paymentType}"`);
+
   // ─────────────────────────────────────────────────────────────────────────
   // 5a. BOOST payment – activate an entity_boost record
   // ─────────────────────────────────────────────────────────────────────────
   if (paymentType === 'BOOST') {
-    // Context was stored in custom_str2 (JSON) or directly in the transaction object
+    console.log('[PAYFAST_NOTIFY] Activating BOOST fulfillment...');
     let boostCtx: Record<string, any> = {};
     try {
       const raw = pfData.custom_str2 || txn.object?.custom_str2 || '{}';
@@ -119,7 +138,7 @@ export async function POST(request: NextRequest) {
     const storedTxnId       = boostCtx.transaction_id       || txn.transaction_id;
 
     if (!boostPackageId) {
-      console.error('BOOST payment completed but boost_package_id is missing from transaction context');
+      console.error('[PAYFAST_NOTIFY] BOOST payment completed but boost_package_id is missing from transaction context');
       return new Response('OK', { status: 200 });
     }
 
@@ -150,14 +169,17 @@ export async function POST(request: NextRequest) {
       boostInsert.entity_type = 'vet';
     }
 
-    const { error: boostError } = await supabaseAdmin
+    console.log('[PAYFAST_NOTIFY] Inserting entity_boost record:', JSON.stringify(boostInsert));
+    const { data: boostData, error: boostError } = await supabaseAdmin
       .from('entity_boosts')
-      .insert([boostInsert]);
+      .insert([boostInsert])
+      .select('entity_boost_id')
+      .single();
 
     if (boostError) {
-      console.error('Failed to create entity_boost on BOOST payment completion:', boostError.message);
+      console.error('[PAYFAST_NOTIFY] Failed to create entity_boost on BOOST payment completion:', boostError.message);
     } else {
-      console.log(`✅ Boost activated – user ${txn.user_id}, package ${boostPackageId}`);
+      console.log(`[PAYFAST_NOTIFY] ✅ Boost activated! entity_boost_id: ${boostData?.entity_boost_id}, user: ${txn.user_id}, package: ${boostPackageId}`);
     }
 
     return new Response('OK', { status: 200 });
@@ -180,7 +202,8 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (durationDays > 0 ? durationDays : 30));
 
-    await supabaseAdmin
+    console.log(`[PAYFAST_NOTIFY] Activating SUBSCRIPTION: user_id=${txn.user_id}, plan=${planName}, durationDays=${durationDays}, expiresAt=${expiresAt.toISOString()}`);
+    const { error: userError } = await supabaseAdmin
       .from('users')
       .update({
         subscription_status: 'active',
@@ -188,7 +211,14 @@ export async function POST(request: NextRequest) {
         subscription_expires_at: expiresAt.toISOString(),
       })
       .eq('user_id', txn.user_id);
+
+    if (userError) {
+      console.error('[PAYFAST_NOTIFY] Failed to update user subscription:', userError.message);
+    } else {
+      console.log(`[PAYFAST_NOTIFY] ✅ User subscription updated successfully for user_id: ${txn.user_id}`);
+    }
   }
 
+  console.log(`[PAYFAST_NOTIFY] Finished processing ITN successfully for ${mPaymentId}`);
   return new Response('OK', { status: 200 });
 }

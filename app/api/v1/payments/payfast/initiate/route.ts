@@ -4,16 +4,20 @@ import { getUserFromRequest } from '@/lib/server-auth';
 import { generatePayFastSignature, getPayFastUrl, buildPayFastQueryString, createPayFastSessionUrl, PayFastPaymentPayload } from '@/lib/payfast';
 
 export async function POST(request: NextRequest) {
+  console.log('[PAYFAST_INITIATE] Incoming initiate payment request...');
 
   const user = await getUserFromRequest(request);
   if (!user || !user.internalUserId) {
+    console.warn('[PAYFAST_INITIATE] Unauthorized – no user found');
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   let body: any;
   try {
     body = await request.json();
+    console.log(`[PAYFAST_INITIATE] User ID: ${user.internalUserId}, Body:`, JSON.stringify(body));
   } catch {
+    console.warn('[PAYFAST_INITIATE] Invalid JSON payload');
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
@@ -30,6 +34,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (planError || !plan) {
+    console.error(`[PAYFAST_INITIATE] Subscription plan #${subscription_plan_id} not found:`, planError?.message);
     return NextResponse.json(
       { error: `Subscription plan with ID ${subscription_plan_id} not found` },
       { status: 404 }
@@ -85,23 +90,28 @@ export async function POST(request: NextRequest) {
   }
 
   if (txnError || !txnData) {
-    console.error('Failed to create pending transaction:', txnError?.message);
+    console.error('[PAYFAST_INITIATE] Failed to create pending transaction:', txnError?.message);
     return NextResponse.json({ error: 'Failed to create transaction record' }, { status: 500 });
   }
+  console.log(`[PAYFAST_INITIATE] Created pending transaction #${txnData.transaction_id} (${paymentReference})`);
 
   // 2. Prepare Callback URLs
   const host = request.headers.get('host');
   const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
   const envAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  const isLocalHost = !host || host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('192.168.') || host.startsWith('10.');
+
   const baseUrl = (envAppUrl && !envAppUrl.includes('localhost'))
     ? envAppUrl
-    : (host && !host.includes('localhost') ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
+    : (!isLocalHost ? `${protocol}://${host}` : 'https://animal-backend-nine.vercel.app');
 
   // 3. Prepare PayFast Integration Credentials
   const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
   const merchantKey = process.env.PAYFAST_MERCHANT_KEY?.trim();
 
   if (!merchantId || !merchantKey) {
+    console.error('[PAYFAST_INITIATE] PayFast merchant credentials are not configured');
     return NextResponse.json(
       { error: 'PayFast merchant credentials (PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY) are not configured in environment variables.' },
       { status: 500 }
@@ -109,7 +119,7 @@ export async function POST(request: NextRequest) {
   }
 
   // PayFast webhook ITN requires a publicly accessible URL to reach our server
-  const notifyBaseUrl = baseUrl.includes('localhost')
+  const notifyBaseUrl = isLocalHost
     ? (process.env.PUBLIC_NOTIFY_URL || 'https://animal-backend-nine.vercel.app')
     : baseUrl;
 
@@ -130,6 +140,8 @@ export async function POST(request: NextRequest) {
     custom_str4: custom_int2 ? String(custom_int2) : undefined,
   };
 
+  console.log(`[PAYFAST_INITIATE] PayFast Fields prepared. notify_url: ${payFastFields.notify_url}`);
+
   // 3. Generate Signature
   const signature = generatePayFastSignature(payFastFields as Record<string, string>);
   payFastFields.signature = signature;
@@ -139,6 +151,8 @@ export async function POST(request: NextRequest) {
   // 4. Construct Direct PayFast Checkout Session URL & Auto-submitting HTML Form
   const queryString = buildPayFastQueryString(payFastFields as Record<string, string>);
   const directSessionUrl = await createPayFastSessionUrl(payFastFields as Record<string, string>);
+
+  console.log(`[PAYFAST_INITIATE] Payment initiation complete. Session URL: ${directSessionUrl}`);
 
   let formFieldsHtml = '';
   for (const [key, value] of Object.entries(payFastFields)) {
