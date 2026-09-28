@@ -50,6 +50,44 @@ export function getPayFastValidateUrl(): string {
 }
 
 /**
+ * PayFast canonical parameter order required for signature verification:
+ * https://developers.payfast.co.za/docs#step_1_form_approval
+ */
+export const PAYFAST_CANONICAL_ORDER = [
+  'merchant_id',
+  'merchant_key',
+  'return_url',
+  'cancel_url',
+  'notify_url',
+  'name_first',
+  'name_last',
+  'email_address',
+  'cell_number',
+  'm_payment_id',
+  'amount',
+  'item_name',
+  'item_description',
+  'custom_int1',
+  'custom_int2',
+  'custom_int3',
+  'custom_int4',
+  'custom_int5',
+  'custom_str1',
+  'custom_str2',
+  'custom_str3',
+  'custom_str4',
+  'custom_str5',
+  'email_confirmation',
+  'confirmation_address',
+  'payment_method',
+  'subscription_type',
+  'billing_date',
+  'recurring_amount',
+  'frequency',
+  'cycles',
+];
+
+/**
  * Generate MD5 Signature for PayFast payment payload or ITN verification
  */
 export function generatePayFastSignature(
@@ -58,11 +96,24 @@ export function generatePayFastSignature(
 ): string {
   let pfOutput = '';
 
-  for (const key in data) {
+  // 1. Iterate strictly over canonical order first
+  for (const key of PAYFAST_CANONICAL_ORDER) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const val = data[key];
-      if (val !== undefined && val !== null && String(val).trim() !== '' && key !== 'signature') {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
         pfOutput += `${key}=${payFastEncode(String(val))}&`;
+      }
+    }
+  }
+
+  // 2. Iterate any remaining custom fields
+  for (const key in data) {
+    if (!PAYFAST_CANONICAL_ORDER.includes(key) && key !== 'signature') {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        const val = data[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          pfOutput += `${key}=${payFastEncode(String(val))}&`;
+        }
       }
     }
   }
@@ -70,9 +121,9 @@ export function generatePayFastSignature(
   // Remove trailing '&'
   pfOutput = pfOutput.slice(0, -1);
 
-  const pfPassphrase = passphrase || process.env.PAYFAST_PASSPHRASE;
+  const pfPassphrase = (passphrase !== undefined ? passphrase : process.env.PAYFAST_PASSPHRASE)?.trim();
 
-  if (pfPassphrase && pfPassphrase.trim() !== '') {
+  if (pfPassphrase && pfPassphrase !== '') {
     pfOutput += `&passphrase=${payFastEncode(pfPassphrase)}`;
   }
 
@@ -80,20 +131,38 @@ export function generatePayFastSignature(
 }
 
 /**
- * Build URL Query String matching exact PayFast encoding and field order
+ * Build URL Query String matching exact PayFast canonical order and encoding
  */
 export function buildPayFastQueryString(
   data: Record<string, string | number | undefined | null>
 ): string {
   const params: string[] = [];
 
-  for (const key in data) {
+  // Canonical fields first
+  for (const key of PAYFAST_CANONICAL_ORDER) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const val = data[key];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
         params.push(`${key}=${payFastEncode(String(val))}`);
       }
     }
+  }
+
+  // Any extra fields
+  for (const key in data) {
+    if (!PAYFAST_CANONICAL_ORDER.includes(key) && key !== 'signature') {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        const val = data[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          params.push(`${key}=${payFastEncode(String(val))}`);
+        }
+      }
+    }
+  }
+
+  // Signature must always be last
+  if (data.signature) {
+    params.push(`signature=${data.signature}`);
   }
 
   return params.join('&');
@@ -181,19 +250,12 @@ export async function createPayFastSessionUrl(
   const fallbackUrl = `${payfastUrl}?${queryString}`;
 
   try {
-    const bodyParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(payFastFields)) {
-      if (value !== undefined && value !== null && String(value).trim() !== '') {
-        bodyParams.append(key, String(value).trim());
-      }
-    }
-
     const response = await fetch(payfastUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: bodyParams.toString(),
+      body: queryString,
       redirect: 'manual',
     });
 
@@ -203,7 +265,9 @@ export async function createPayFastSessionUrl(
     }
 
     const text = await response.text();
-    const match = text.match(/href=["'](https?:\/\/[^"']+)["']/i) || text.match(/url=['"](https?:\/\/[^"']+)['"]/i);
+    const match =
+      text.match(/href=["'](https?:\/\/[^"']+)["']/i) ||
+      text.match(/url=['"](https?:\/\/[^"']+)['"]/i);
     if (match && match[1]) {
       return match[1];
     }
