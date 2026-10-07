@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../../../../../lib/server-supabase';
 import { buildAuthProfile } from '@/lib/auth-profile';
 import { setCurrentTokenHashes } from '@/lib/auth-session';
 
+import { hasManagementRole } from '@/lib/server-auth';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -99,14 +101,6 @@ async function handleLogin(
         .eq('email', email);
     }
 
-    if (data.session?.access_token && data.session?.refresh_token) {
-      try {
-        await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token, deviceInfo);
-      } catch (tokenErr) {
-        console.warn('setCurrentTokenHashes warning:', tokenErr);
-      }
-    }
-
     // 3. Build auth profile (with fallback)
     let authProfile: any = null;
     try {
@@ -128,6 +122,19 @@ async function handleLogin(
       }
     } catch (profileErr) {
       console.warn('buildAuthProfile warning:', profileErr);
+    }
+
+    const isManagement = authProfile?.roleNames && hasManagementRole(authProfile.roleNames);
+
+    if (data.session?.access_token && data.session?.refresh_token) {
+      try {
+        await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token, {
+          ...deviceInfo,
+          skipTerminateOtherSessions: Boolean(isManagement || !deviceInfo?.device_id),
+        });
+      } catch (tokenErr) {
+        console.warn('setCurrentTokenHashes warning:', tokenErr);
+      }
     }
 
     const sessionObj = data.session

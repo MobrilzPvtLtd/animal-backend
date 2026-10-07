@@ -13,17 +13,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const refreshTokenHash = hashRefreshToken(refresh_token);
-  const { data: userSessionRow, error: sessionRowError } = await supabaseAdmin
-    .from('users')
-    .select('auth_user_id, current_refresh_token_hash')
-    .eq('current_refresh_token_hash', refreshTokenHash)
-    .maybeSingle();
-
-  if (sessionRowError || !userSessionRow || userSessionRow.current_refresh_token_hash !== refreshTokenHash) {
-    return NextResponse.json({ error: 'Invalid or expired refresh token' }, { status: 401 });
-  }
-
   const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token });
 
   if (error || !data?.session) {
@@ -37,14 +26,22 @@ export async function POST(request: NextRequest) {
   }
 
   if (data?.user?.id && data?.session?.access_token && data?.session?.refresh_token) {
-    await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token);
+    try {
+      await setCurrentTokenHashes(data.user.id, data.session.access_token, data.session.refresh_token, {
+        skipTerminateOtherSessions: true,
+      });
+    } catch (hashErr) {
+      console.warn('Failed to update token hashes on refresh:', hashErr);
+    }
   }
 
   return NextResponse.json({
     message: 'Token refreshed successfully',
+    session: data.session,
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
-    expires_in: 2592000, // 30 days (720 hours)
-    expires_at: Math.floor(Date.now() / 1000) + 2592000,
+    expires_in: data.session.expires_in ?? 2592000,
+    expires_at: data.session.expires_at ?? (Math.floor(Date.now() / 1000) + 2592000),
+    user: data.user,
   });
 }

@@ -228,7 +228,7 @@ export function ServicesAndBreedsTab({
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Services</CardTitle>
-            <Button onClick={addNewService} size="sm">
+            <Button type="button" onClick={addNewService} size="sm">
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Service
             </Button>
@@ -298,6 +298,7 @@ export function ServicesAndBreedsTab({
                     </div>
                   </div>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => removeService(service.id)}

@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw, ThumbsUp, ThumbsDown, Maximize2, Minimize2, ZoomIn, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { MultipleImageUpload, ServiceProviderImage } from "@/components/ui/multiple-image-upload";
+import { ImageLightboxModal } from "@/components/ui/image-lightbox-modal";
 
 type CommunityPost = {
   post_id: number;
@@ -65,6 +66,17 @@ export default function CommunityPage() {
   const [form, setForm] = useState<CommunityFormState>(emptyForm);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [userReactions, setUserReactions] = useState<Record<number, 'like' | 'dislike'>>({});
+  const [lightbox, setLightbox] = useState<{
+    open: boolean;
+    images: string[];
+    initialIndex: number;
+    title?: string;
+  }>({
+    open: false,
+    images: [],
+    initialIndex: 0,
+  });
+  const [postFitModes, setPostFitModes] = useState<Record<number, "contain" | "cover">>({});
 
   const isEditing = useMemo(() => Boolean(selected), [selected]);
 
@@ -408,15 +420,117 @@ export default function CommunityPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {post.image_url ? (
-                  <div className="mb-4 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50 flex items-center justify-center max-h-64 sm:max-h-72">
-                    <img
-                      src={post.image_url}
-                      alt={post.title || "Community post image"}
-                      className="max-h-64 sm:max-h-72 w-full object-cover rounded-xl"
-                    />
-                  </div>
-                ) : null}
+                {(() => {
+                  const postImages = (post.images && post.images.length > 0)
+                    ? post.images
+                    : (post.image_url ? [post.image_url] : []);
+                  const fitMode = postFitModes[post.post_id] || "contain";
+
+                  if (postImages.length === 0) return null;
+
+                  return (
+                    <div className="mb-4 space-y-2">
+                      {/* Main Image Container */}
+                      <div className="relative group overflow-hidden rounded-xl border border-slate-200/90 bg-slate-950/5 flex items-center justify-center min-h-[220px] max-h-[460px]">
+                        <img
+                          src={postImages[0]}
+                          alt={post.title || "Community post image"}
+                          className={`w-full cursor-pointer transition-all duration-200 rounded-xl ${
+                            fitMode === "contain"
+                              ? "max-h-[440px] object-contain"
+                              : "max-h-[380px] object-cover"
+                          }`}
+                          onClick={() =>
+                            setLightbox({
+                              open: true,
+                              images: postImages,
+                              initialIndex: 0,
+                              title: post.title || "Community Post",
+                            })
+                          }
+                        />
+
+                        {/* Floating Action Badges: View & Drag, Fit/Fill */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs bg-black/70 hover:bg-black/90 text-white border-0 shadow-md backdrop-blur-md gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPostFitModes((prev) => ({
+                                ...prev,
+                                [post.post_id]: prev[post.post_id] === "cover" ? "contain" : "cover",
+                              }));
+                            }}
+                            title={fitMode === "cover" ? "Fit whole image" : "Fill card frame"}
+                          >
+                            {fitMode === "cover" ? (
+                              <Minimize2 className="h-3 w-3" />
+                            ) : (
+                              <Maximize2 className="h-3 w-3" />
+                            )}
+                            <span>{fitMode === "cover" ? "Fit" : "Fill"}</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs bg-black/70 hover:bg-black/90 text-white border-0 shadow-md backdrop-blur-md gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLightbox({
+                                open: true,
+                                images: postImages,
+                                initialIndex: 0,
+                                title: post.title || "Community Post",
+                              });
+                            }}
+                            title="Click to zoom and drag/pan full view"
+                          >
+                            <ZoomIn className="h-3 w-3" />
+                            <span>View & Drag</span>
+                          </Button>
+                        </div>
+
+                        {/* Multi-image count badge */}
+                        {postImages.length > 1 && (
+                          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white text-[11px] font-medium pointer-events-none">
+                            1 of {postImages.length} images
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Multi-image Thumbnail Strip */}
+                      {postImages.length > 1 && (
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+                          {postImages.map((imgUrl, imgIdx) => (
+                            <button
+                              key={imgIdx}
+                              type="button"
+                              onClick={() =>
+                                setLightbox({
+                                  open: true,
+                                  images: postImages,
+                                  initialIndex: imgIdx,
+                                  title: post.title || "Community Post",
+                                })
+                              }
+                              className="relative h-14 w-14 rounded-lg overflow-hidden border border-slate-200/80 hover:border-primary transition-all flex-shrink-0 group"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Thumb ${imgIdx + 1}`}
+                                className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <p className="whitespace-pre-wrap text-sm">{post.body}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -572,6 +686,15 @@ export default function CommunityPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Interactive Lightbox with Zoom & Drag to Pan */}
+      <ImageLightboxModal
+        open={lightbox.open}
+        onOpenChange={(open) => setLightbox((prev) => ({ ...prev, open }))}
+        images={lightbox.images}
+        initialIndex={lightbox.initialIndex}
+        title={lightbox.title}
+      />
     </div>
   );
 }

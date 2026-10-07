@@ -31,7 +31,7 @@ export async function setCurrentTokenHashes(
   authUserId: string,
   accessToken: string | null,
   refreshToken: string | null,
-  deviceInfo?: { device_id?: string | null; device_type?: string | null }
+  deviceInfo?: { device_id?: string | null; device_type?: string | null; skipTerminateOtherSessions?: boolean }
 ) {
   const current_access_token_hash = accessToken ? hashAccessToken(accessToken) : null;
   const current_refresh_token_hash = refreshToken ? hashRefreshToken(refreshToken) : null;
@@ -48,8 +48,8 @@ export async function setCurrentTokenHashes(
     } catch (_) {}
   }
 
-  // Invalidate any other active Supabase sessions for this user
-  if (sessionId) {
+  // Invalidate any other active Supabase sessions for this user only if not explicitly skipped
+  if (sessionId && !deviceInfo?.skipTerminateOtherSessions) {
     await terminateOtherSessions(authUserId, sessionId);
   }
 

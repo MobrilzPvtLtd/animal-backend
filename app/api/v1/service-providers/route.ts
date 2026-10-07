@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { name, description, service_category_id, phone, emergency_number, number_2, email, website, image_url, bio, is_verified, is_active, featured, rating, total_reviews, operating_hours, images } = body;
+  const { name, description, service_category_id, phone, emergency_number, number_2, email, website, image_url, bio, is_verified, is_active, featured, rating, total_reviews, operating_hours, show_operating_hours, images, services, breed_ids } = body;
 
   const categoryIds = parseCategoryIds(body.category_ids, service_category_id);
   const primaryCategoryId = categoryIds[0] || (service_category_id ? Number(service_category_id) : undefined);
@@ -188,7 +188,9 @@ export async function POST(request: NextRequest) {
   }
 
   const finalPhone = (phone as string | undefined)?.trim() || null;
-  const finalEmergency = (emergency_number as string | undefined)?.trim() || finalPhone;
+  const finalEmergency = (emergency_number as string | undefined)?.trim() || null;
+  const imageList: string[] = Array.isArray(images) ? images : [];
+  const primaryImage = imageList.length > 0 ? imageList[0] : (image_url || null);
 
   const { data: provider, error } = await supabaseAdmin
     .from('service_providers')
@@ -201,13 +203,15 @@ export async function POST(request: NextRequest) {
       number_2: number_2 || null,
       email: email || null,
       website: website || null,
-      image_url: image_url || null,
+      image_url: primaryImage,
+      images: imageList,
       bio: bio || null,
       is_verified: is_verified ?? false,
       is_active: is_active ?? true,
       featured: featured ?? false,
       rating: rating ?? 0,
       total_reviews: total_reviews ?? 0,
+      show_operating_hours: show_operating_hours ?? true,
       operating_hours: operating_hours || null,
     }])
     .select()
@@ -217,8 +221,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (Array.isArray(images) && images.length > 0) {
-    const imageRows = images.map((url: string, idx: number) => ({
+  if (imageList.length > 0) {
+    const imageRows = imageList.map((url: string, idx: number) => ({
       service_provider_id: provider.service_provider_id,
       image_url: url,
       order: idx,
@@ -233,6 +237,35 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Sync services if provided
+  if (Array.isArray(services) && services.length > 0) {
+    const validServices = services
+      .filter((s: any) => s && s.name && s.name.trim())
+      .map((s: any) => ({
+        service_provider_id: provider.service_provider_id,
+        name: s.name.trim(),
+        description: s.description || null,
+        price: s.price !== undefined && s.price !== null && s.price !== '' ? Number(s.price) : null,
+        duration_minutes: s.duration_minutes ? Number(s.duration_minutes) : null,
+        is_active: s.is_active ?? true,
+      }));
+
+    if (validServices.length > 0) {
+      const { error: srvError } = await supabaseAdmin.from('services').insert(validServices);
+      if (srvError) console.error('Failed to save services:', srvError.message);
+    }
+  }
+
+  // Sync breeds if provided
+  if (Array.isArray(breed_ids) && breed_ids.length > 0) {
+    const breedRows = breed_ids.map((bId: number) => ({
+      service_provider_id: provider.service_provider_id,
+      breed_id: Number(bId),
+    }));
+    const { error: brdError } = await supabaseAdmin.from('service_provider_breeds').insert(breedRows);
+    if (brdError) console.error('Failed to save breeds:', brdError.message);
+  }
+
   // Sync service_provider_categories junction table
   if (categoryIds.length > 0) {
     const categoryRows = categoryIds.map((catId: number) => ({
@@ -240,6 +273,28 @@ export async function POST(request: NextRequest) {
       service_category_id: catId,
     }));
     await supabaseAdmin.from('service_provider_categories').insert(categoryRows);
+  }
+
+  // Sync pet friendly place if requested
+  const petFriendlyInfo = {
+    is_pet_friendly_place: body.is_pet_friendly_place as boolean | undefined,
+    pet_friendly_name: body.pet_friendly_name as string | null | undefined,
+    pet_friendly_group_id: body.pet_friendly_group_id as number | null | undefined,
+    amenities: body.amenities as string[] | null | undefined,
+  };
+  const locationPayload = {
+    address: body.address as string | null | undefined,
+    latitude: body.latitude as string | number | null | undefined,
+    longitude: body.longitude as string | number | null | undefined,
+  };
+
+  if (petFriendlyInfo.is_pet_friendly_place) {
+    syncServiceProviderToPetFriendlyPlace(
+      provider.service_provider_id,
+      { ...provider, ...locationPayload },
+      { ...petFriendlyInfo, is_pet_friendly_place: true },
+      supabaseAdmin
+    );
   }
 
   return NextResponse.json({ provider });
@@ -296,13 +351,11 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  // If phone is updated and emergency_number is empty or omitted, sync emergency_number with phone
   if (updates.phone !== undefined) {
-    const updatedPhone = (updates.phone as string | undefined)?.trim() || null;
-    updates.phone = updatedPhone;
-    if (updates.emergency_number === undefined || updates.emergency_number === '' || updates.emergency_number === null) {
-      updates.emergency_number = updatedPhone;
-    }
+    updates.phone = (updates.phone as string | undefined)?.trim() || null;
+  }
+  if (updates.emergency_number !== undefined) {
+    updates.emergency_number = (updates.emergency_number as string | undefined)?.trim() || null;
   }
 
   // Extract petFriendlyInfo and location fields from the payload (not DB columns)
@@ -318,11 +371,81 @@ export async function PATCH(request: NextRequest) {
     longitude: updates.longitude as string | number | null | undefined,
   };
 
-  // Strip non-column fields before sending to Supabase
-  // 'images' is stored in service_provider_images table (not a column on service_providers)
-  // petFriendly/location fields are virtual fields from the form, not DB columns
+  // Strip non-column/relation fields before sending to Supabase
   const { is_pet_friendly_place, pet_friendly_name, pet_friendly_group_id, amenities,
-    address, latitude, longitude, show_publicly, category_ids, images, ...providerUpdates } = updates as any;
+    address, latitude, longitude, show_publicly, category_ids, images, services, breed_ids, ...providerUpdates } = updates as any;
+
+  // Sync images if provided
+  if (images !== undefined && Array.isArray(images)) {
+    // Delete old images from service_provider_images
+    await supabaseAdmin
+      .from('service_provider_images')
+      .delete()
+      .eq('service_provider_id', providerId);
+
+    // Insert updated images
+    if (images.length > 0) {
+      const imageRows = images.map((url: string, idx: number) => ({
+        service_provider_id: Number(providerId),
+        image_url: url,
+        order: idx,
+      }));
+      await supabaseAdmin
+        .from('service_provider_images')
+        .insert(imageRows);
+    }
+
+    // Keep images JSONB column and image_url column in sync
+    providerUpdates.images = images;
+    providerUpdates.image_url = images.length > 0 ? images[0] : null;
+  }
+
+  // Sync services if provided
+  if (services !== undefined && Array.isArray(services)) {
+    await supabaseAdmin
+      .from('services')
+      .delete()
+      .eq('service_provider_id', providerId);
+
+    const validServices = services
+      .filter((s: any) => s && s.name && s.name.trim())
+      .map((s: any) => ({
+        service_provider_id: Number(providerId),
+        name: s.name.trim(),
+        description: s.description || null,
+        price: s.price !== undefined && s.price !== null && s.price !== '' ? Number(s.price) : null,
+        duration_minutes: s.duration_minutes ? Number(s.duration_minutes) : null,
+        is_active: s.is_active ?? true,
+      }));
+
+    if (validServices.length > 0) {
+      await supabaseAdmin.from('services').insert(validServices);
+    }
+  }
+
+  // Sync breeds if provided
+  if (breed_ids !== undefined && Array.isArray(breed_ids)) {
+    await supabaseAdmin
+      .from('service_provider_breeds')
+      .delete()
+      .eq('service_provider_id', providerId);
+
+    if (breed_ids.length > 0) {
+      const breedRows = breed_ids.map((bId: number) => ({
+        service_provider_id: Number(providerId),
+        breed_id: Number(bId),
+      }));
+      await supabaseAdmin.from('service_provider_breeds').insert(breedRows);
+    }
+  }
+
+  // Sync operating hours logic
+  if (updates.show_operating_hours !== undefined) {
+    providerUpdates.show_operating_hours = Boolean(updates.show_operating_hours);
+    if (!providerUpdates.show_operating_hours) {
+      providerUpdates.operating_hours = null;
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from('service_providers')

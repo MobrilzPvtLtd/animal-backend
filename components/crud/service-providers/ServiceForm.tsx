@@ -67,11 +67,11 @@ export function ServiceForm({ service, onSave, onCancel }: ServiceFormProps) {
           <span>Active</span>
         </div>
         <div className="flex space-x-2">
-          <Button onClick={handleSubmit} disabled={!formData.name.trim()}>
+          <Button type="button" onClick={handleSubmit} disabled={!formData.name.trim()}>
             <Save className="mr-2 h-4 w-4" />
             Save
           </Button>
-          <Button variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel}>
             <X className="mr-2 h-4 w-4" />
             Cancel
           </Button>

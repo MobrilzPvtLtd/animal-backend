@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload, Link as LinkIcon, FileUp, Camera } from 'lucide-react';
+import { X, Loader2, Image as ImageIcon, GripVertical, Plus, Upload, Link as LinkIcon, FileUp, Camera, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUploadService } from '@/lib/image-upload';
 import { toast } from 'sonner';
+import { ImageCropperModal } from '@/components/ui/image-cropper-modal';
 import {
   DndContext,
   closestCenter,
@@ -60,6 +61,7 @@ interface SortableImageItemProps {
   image: ServiceProviderImage;
   index: number;
   onRemove: (index: number) => void;
+  onCrop?: (index: number) => void;
   disabled?: boolean;
 }
 
@@ -69,7 +71,7 @@ export const getImageId = (image: ServiceProviderImage, index: number): string =
   return `idx-${index}`;
 };
 
-function SortableImageItem({ image, index, onRemove, disabled }: SortableImageItemProps) {
+function SortableImageItem({ image, index, onRemove, onCrop, disabled }: SortableImageItemProps) {
   const itemId = getImageId(image, index);
   const {
     attributes,
@@ -121,23 +123,45 @@ function SortableImageItem({ image, index, onRemove, disabled }: SortableImageIt
               <span>{index + 1}</span>
             </div>
 
-            {/* Remove Button */}
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="absolute top-2 right-2 h-7 w-7 p-0 rounded-full shadow-md z-20 opacity-80 group-hover:opacity-100 transition-opacity"
-              onPointerDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onRemove(index);
-              }}
-              disabled={disabled}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            {/* Action Buttons: Crop & Remove */}
+            <div className="absolute top-2 right-2 flex items-center gap-1 z-20">
+              {onCrop && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-full shadow-md bg-white/95 hover:bg-white text-slate-700 hover:text-black opacity-90 group-hover:opacity-100 transition-opacity"
+                  title="Adjust & Crop Image"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onCrop(index);
+                  }}
+                  disabled={disabled}
+                >
+                  <Crop className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-7 w-7 p-0 rounded-full shadow-md opacity-80 group-hover:opacity-100 transition-opacity"
+                title="Remove Image"
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onRemove(index);
+                }}
+                disabled={disabled}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -199,6 +223,7 @@ export function MultipleImageUpload({
   const [pastedUrl, setPastedUrl] = useState('');
   const [isImportingUrl, setIsImportingUrl] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [cropModalIndex, setCropModalIndex] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -603,6 +628,7 @@ export function MultipleImageUpload({
                     image={image}
                     index={index}
                     onRemove={handleRemoveImage}
+                    onCrop={setCropModalIndex}
                     disabled={disabled}
                   />
                 ))}
@@ -626,6 +652,27 @@ export function MultipleImageUpload({
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
           <p className="text-sm">No images added yet</p>
         </div>
+      )}
+
+      {/* Interactive Crop Modal */}
+      {cropModalIndex !== null && value[cropModalIndex] && (
+        <ImageCropperModal
+          open={cropModalIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) setCropModalIndex(null);
+          }}
+          imageUrl={value[cropModalIndex].image_url}
+          folder={folder}
+          onCropComplete={(newUrl) => {
+            const updated = [...value];
+            updated[cropModalIndex] = {
+              ...updated[cropModalIndex],
+              image_url: newUrl,
+            };
+            onChange(updated);
+            setCropModalIndex(null);
+          }}
+        />
       )}
     </div>
   );

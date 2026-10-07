@@ -257,6 +257,7 @@ export function ServicesAndBreedsManager({
           <div className="flex justify-between items-center">
             <h4 className="text-md font-medium">Services</h4>
             <Button
+              type="button"
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew || !!editingService}
               size="sm"

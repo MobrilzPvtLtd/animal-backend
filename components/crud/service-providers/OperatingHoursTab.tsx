@@ -28,7 +28,7 @@ interface OperatingHoursTabProps {
 }
 
 // Default operating hours structure
-const DEFAULT_HOURS = {
+export const DEFAULT_HOURS = {
   monday: { isOpen: true, openTime: "09:00", closeTime: "17:00" },
   tuesday: { isOpen: true, openTime: "09:00", closeTime: "17:00" },
   wednesday: { isOpen: true, openTime: "09:00", closeTime: "17:00" },

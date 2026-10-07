@@ -30,16 +30,20 @@ import { DataTableToolbar } from "./DataTableToolbar"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  filterKey: string
+  filterKey?: string
   filterPlaceholder?: string
+  customToolbar?: React.ReactNode
+  hideToolbar?: boolean
   onAdd?: () => void
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  filterKey,
+  filterKey = "name",
   filterPlaceholder,
+  customToolbar,
+  hideToolbar = false,
   onAdd,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
@@ -76,12 +80,17 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar 
-        table={table} 
-        filterKey={filterKey} 
-        placeholder={filterPlaceholder}
-        onAdd={onAdd}
-      />
+      {!hideToolbar &&
+        (customToolbar ? (
+          customToolbar
+        ) : (
+          <DataTableToolbar
+            table={table}
+            filterKey={filterKey}
+            placeholder={filterPlaceholder}
+            onAdd={onAdd}
+          />
+        ))}
       <div className="rounded-md border">
         <Table>
           <TableHeader>

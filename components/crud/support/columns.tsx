@@ -21,6 +21,16 @@ const priorityStyles: Record<string, string> = {
   urgent: "bg-red-100 text-red-700 hover:bg-red-100",
 }
 
+function getCategoryBadgeClass(category: string | null): string {
+  if (!category) return "bg-gray-50 text-gray-700 border-gray-200";
+  const lower = category.toLowerCase();
+  if (lower.includes("general")) return "bg-blue-50 text-blue-700 border-blue-200";
+  if (lower.includes("billing") || lower.includes("subscription")) return "bg-purple-50 text-purple-700 border-purple-200";
+  if (lower.includes("provider")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (lower.includes("tech") || lower.includes("bug") || lower.includes("issue")) return "bg-rose-50 text-rose-700 border-rose-200";
+  return "bg-indigo-50 text-indigo-700 border-indigo-200";
+}
+
 export const columns: ColumnDef<SupportTicket>[] = [
   {
     id: "select",
@@ -47,23 +57,28 @@ export const columns: ColumnDef<SupportTicket>[] = [
   {
     accessorKey: "subject",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Subject" />
+      <DataTableColumnHeader column={column} title="Subject & Label" />
     ),
     cell: ({ row }) => {
       const ticket = row.original
       const { category } = parseTicketMessage(ticket.initial_message)
       return (
-        <div className="flex items-center gap-2">
-          <Avatar className="h-7 w-7">
+        <div className="flex items-center gap-2.5">
+          <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage src={ticket.users?.profile_image_url || ""} />
             <AvatarFallback className="text-xs">
               {ticket.users?.name?.charAt(0) || ticket.users?.email?.charAt(0) || "?"}
             </AvatarFallback>
           </Avatar>
-          <div className="space-y-0.5">
-            <div className="font-medium truncate max-w-[250px]">{ticket.subject}</div>
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                #{ticket.support_ticket_id}
+              </span>
+              <span className="font-medium text-sm truncate max-w-[280px]">{ticket.subject}</span>
+            </div>
             {category && (
-              <span className="inline-block text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200/70 px-1.5 py-0.2 rounded">
+              <span className={`inline-block text-[11px] font-medium border px-2 py-0.5 rounded-full ${getCategoryBadgeClass(category)}`}>
                 {category}
               </span>
             )}
@@ -79,8 +94,18 @@ export const columns: ColumnDef<SupportTicket>[] = [
     ),
     cell: ({ row }) => {
       const user = row.original.users
-      const name = user ? `${user.name || ""} ${user.surname || ""}`.trim() || user.email : "—"
-      return <div className="text-sm">{name}</div>
+      if (!user) {
+        return <div className="text-xs text-muted-foreground italic">Anonymous / Guest</div>
+      }
+      const fullName = `${user.name || ""} ${user.surname || ""}`.trim()
+      return (
+        <div className="space-y-0.5 max-w-[190px]">
+          <div className="text-sm font-medium truncate">{fullName || user.email}</div>
+          {fullName && user.email && (
+            <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+          )}
+        </div>
+      )
     },
   },
   {

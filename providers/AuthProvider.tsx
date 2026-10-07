@@ -106,33 +106,52 @@ export default function AuthProvider({ children }: any) {
     []
   );
 
-  const refreshSessionFromServer = async (currentSession: Session | null) => {
+  const refreshSessionFromServer = async (currentSession: Session | null): Promise<Session | null> => {
     if (!currentSession?.refresh_token) {
       return null;
     }
 
-    const response = await fetch("/api/v1/auth/refresh-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
-    });
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok || !payload?.session?.access_token || !payload?.session?.refresh_token) {
-      return null;
+    // 1. Direct Supabase client refresh
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data?.session) {
+        return data.session;
+      }
+    } catch (directErr) {
+      console.warn("Direct supabase.auth.refreshSession error:", directErr);
     }
 
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: payload.session.access_token,
-      refresh_token: payload.session.refresh_token,
-    });
+    // 2. Server refresh endpoint fallback
+    try {
+      const response = await fetch("/api/v1/auth/refresh-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
+      });
 
-    if (sessionError) {
+      const payload = await response.json().catch(() => ({}));
+
+      const accessToken = payload?.session?.access_token || payload?.access_token;
+      const refreshToken = payload?.session?.refresh_token || payload?.refresh_token;
+
+      if (!response.ok || !accessToken || !refreshToken) {
+        return null;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError || !sessionData?.session) {
+        return null;
+      }
+
+      return sessionData.session;
+    } catch (serverErr) {
+      console.error("Backend /api/v1/auth/refresh-token error:", serverErr);
       return null;
     }
-
-    return payload.session as Session;
   };
 
   useEffect(() => {
@@ -142,40 +161,81 @@ export default function AuthProvider({ children }: any) {
     }
   }, [loading, session, path, router]);
 
-  // Proactively refresh token before it expires (or logout if refresh fails)
+  // Proactively refresh token before it expires
   useEffect(() => {
     if (!session?.expires_at) return;
 
     const expiresAtMs = session.expires_at * 1000;
     const timeUntilExpiry = expiresAtMs - Date.now();
 
-    // Refresh 1 minute before token expires
-    const refreshTime = Math.max(timeUntilExpiry - 60000, 1000);
+    // Refresh 2 minutes before token expires, or immediately (1s) if already within 2 minutes
+    const refreshDelay = Math.max(timeUntilExpiry - 120000, 1000);
 
     const timeout = setTimeout(async () => {
-      if (session?.refresh_token) {
+      if (!session?.refresh_token) return;
+
+      // Do not attempt refresh when offline
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return;
+      }
+
+      const refreshed = await refreshSessionFromServer(session);
+      if (refreshed) {
+        setSession(refreshed);
+        return;
+      }
+
+      // If refresh failed, verify whether token has truly expired
+      const remainingMs = session.expires_at ? (session.expires_at * 1000) - Date.now() : 0;
+      if (remainingMs <= 0) {
+        const { data: { session: checkSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+        if (checkSession) {
+          setSession(checkSession);
+        } else {
+          setSession(null);
+          setUserDetails(null);
+          setRoles([]);
+          setSelected_vendor(null);
+          setSelected_roles([]);
+          setPermissions([]);
+          setSelected_vendor_location_id(null);
+          storage.clear();
+          localStorage.clear();
+        }
+      }
+    }, refreshDelay);
+
+    return () => clearTimeout(timeout);
+  }, [session?.access_token, session?.expires_at]);
+
+  // Handle tab visibility, focus, and network reconnection to ensure token stays fresh
+  useEffect(() => {
+    const handleRecheckSession = async () => {
+      if (!session?.expires_at) return;
+      const remainingMs = (session.expires_at * 1000) - Date.now();
+      if (remainingMs < 120000) {
         const refreshed = await refreshSessionFromServer(session);
         if (refreshed) {
           setSession(refreshed);
-          return;
         }
       }
-      
-      // If refresh failed and token is expired, clear session
-      if (timeUntilExpiry <= 0) {
-        setSession(null);
-        setUserDetails(null);
-        setRoles([]);
-        setSelected_vendor(null);
-        setSelected_roles([]);
-        setPermissions([]);
-        setSelected_vendor_location_id(null);
-        storage.clear();
-        localStorage.clear();
-      }
-    }, refreshTime);
+    };
 
-    return () => clearTimeout(timeout);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void handleRecheckSession();
+      }
+    };
+
+    window.addEventListener("focus", handleRecheckSession);
+    window.addEventListener("online", handleRecheckSession);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleRecheckSession);
+      window.removeEventListener("online", handleRecheckSession);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [session?.access_token, session?.expires_at]);
 
   const fetchSession = async (newSession: Session | null) => {
@@ -186,12 +246,19 @@ export default function AuthProvider({ children }: any) {
           requestHeaders.Authorization = `Bearer ${newSession.access_token}`;
         }
 
-        const response = await fetch("/api/v1/auth/me", {
-          cache: "no-store",
-          headers: requestHeaders,
-        });
+        let response: Response;
+        try {
+          response = await fetch("/api/v1/auth/me", {
+            cache: "no-store",
+            headers: requestHeaders,
+          });
+        } catch (fetchErr) {
+          console.warn("Network error fetching user profile:", fetchErr);
+          setSession(newSession);
+          return;
+        }
 
-        const payload = await response.json();
+        const payload = await response.json().catch(() => ({}));
 
         if (response.status === 401) {
           if (newSession?.refresh_token) {
@@ -201,6 +268,13 @@ export default function AuthProvider({ children }: any) {
               await fetchSession(refreshedSession);
               return;
             }
+          }
+
+          // Check if Supabase client has a valid session before logging out
+          const { data: { session: checkSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+          if (checkSession && checkSession.access_token !== newSession.access_token) {
+            await fetchSession(checkSession);
+            return;
           }
 
           // Token expired and refresh failed - sign out & auto redirect to login
@@ -269,11 +343,6 @@ export default function AuthProvider({ children }: any) {
           if (storedRoles) setSelected_roles(storedRoles);
           if (storedLocationId)
             setSelected_vendor_location_id(storedLocationId);
-        } else {
-          setUserDetails(null);
-          setRoles([]);
-          setSelected_roles([]);
-          setPermissions([]);
         }
 
         setSession(newSession);

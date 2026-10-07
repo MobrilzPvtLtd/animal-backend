@@ -18,20 +18,10 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!session) {
-        router.replace("/login");
-      } else if (roles.length > 1) {
-        checkIfNeedToGoToSelect();
-      }
+    if (!loading && !session) {
+      router.replace("/login");
     }
-  }, [loading, session, roles]);
-
-  const checkIfNeedToGoToSelect = () => {
-    if (roles.length > 1 && !selected_vendor && selected_roles.length == 0) {
-      router.push("/select-vendor");
-    }
-  };
+  }, [loading, session, router]);
 
   // Show loading spinner while checking authentication or if no valid session
   if (loading || !session) {

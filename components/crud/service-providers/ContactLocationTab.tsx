@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { PlacesAutocomplete } from "@/components/ui/places-autocomplete"
-import { Loader2, MapPin, Plus, X, Building2, PawPrint } from "lucide-react"
+import { Loader2, MapPin, Plus, X, Building2, PawPrint, Pencil } from "lucide-react"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
 
@@ -52,6 +52,13 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupDesc, setNewGroupDesc] = useState("")
   const [isSavingGroup, setIsSavingGroup] = useState(false)
+
+  // Group Edit state
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false)
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null)
+  const [editGroupName, setEditGroupName] = useState("")
+  const [editGroupDesc, setEditGroupDesc] = useState("")
+  const [isUpdatingGroup, setIsUpdatingGroup] = useState(false)
 
   // Load groups from database
   useEffect(() => {
@@ -123,6 +130,57 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
       toast.error(err?.message || "Failed to create group")
     } finally {
       setIsSavingGroup(false)
+    }
+  }
+
+  const handleOpenEditGroup = () => {
+    const selectedId = form.getValues("pet_friendly_group_id")
+    if (!selectedId) return
+    const grp = groups.find(g => g.group_id === Number(selectedId))
+    if (grp) {
+      setEditingGroupId(grp.group_id)
+      setEditGroupName(grp.name || "")
+      setEditGroupDesc(grp.description || "")
+      setIsEditGroupOpen(true)
+    }
+  }
+
+  const handleSaveEditGroup = async () => {
+    if (!editingGroupId || !editGroupName.trim()) {
+      toast.error("Group name is required")
+      return
+    }
+    setIsUpdatingGroup(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      const res = await fetch(`/api/v1/groups?group_id=${editingGroupId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          name: editGroupName.trim(),
+          description: editGroupDesc.trim() || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to update group")
+      }
+
+      const { group: updatedGroup } = await res.json()
+      setGroups(prev => prev.map(g => g.group_id === editingGroupId ? updatedGroup : g))
+      setIsEditGroupOpen(false)
+      toast.success(`Group "${updatedGroup.name}" updated successfully!`)
+    } catch (err: any) {
+      console.error("Error updating group:", err)
+      toast.error(err.message || "Failed to update group")
+    } finally {
+      setIsUpdatingGroup(false)
     }
   }
 
@@ -236,16 +294,30 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
                   <FormLabel className="font-semibold text-sm">
                     Pet-Friendly Group / Category <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs gap-1 border-amber-300 text-amber-800 hover:bg-amber-100"
-                    onClick={() => setIsQuickCreateOpen(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Quick Add Group
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {form.watch("pet_friendly_group_id") && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1 border-amber-300 text-amber-800 hover:bg-amber-100"
+                        onClick={handleOpenEditGroup}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit Group
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1 border-amber-300 text-amber-800 hover:bg-amber-100"
+                      onClick={() => setIsQuickCreateOpen(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Quick Add Group
+                    </Button>
+                  </div>
                 </div>
 
                 <FormField
@@ -460,6 +532,66 @@ export function ContactLocationTab({ form }: ContactLocationTabProps) {
                 </>
               ) : (
                 "Create & Select"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Group Dialog */}
+      <Dialog open={isEditGroupOpen} onOpenChange={setIsEditGroupOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <span>Edit Pet-Friendly Group</span>
+            </DialogTitle>
+            <DialogDescription>
+              Update the name or description of this existing group.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <FormLabel className="text-sm font-medium">Group Name *</FormLabel>
+              <Input
+                placeholder="e.g. Pet Friendly Restaurants"
+                value={editGroupName}
+                onChange={(e) => setEditGroupName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <FormLabel className="text-sm font-medium">Description (Optional)</FormLabel>
+              <Textarea
+                placeholder="Describe what kind of places belong to this group..."
+                value={editGroupDesc}
+                onChange={(e) => setEditGroupDesc(e.target.value)}
+                className="resize-none h-20 text-sm"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditGroupOpen(false)}
+              disabled={isUpdatingGroup}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveEditGroup}
+              disabled={isUpdatingGroup || !editGroupName.trim()}
+            >
+              {isUpdatingGroup ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>

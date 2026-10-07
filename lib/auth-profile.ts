@@ -260,6 +260,9 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
   const roleIds = userRoles.map((role) => role.role_id);
   const permissions = await loadPermissions(roleIds);
 
+  const roleNames = userRoles.map((role) => role.roles?.name).filter(Boolean) as string[];
+  const isPrivilegedRole = roleNames.some((r) => ['Owner', 'Admin', 'Manager', 'Subscriber'].includes(r));
+
   const rawStatus = String(baseProfile.subscription_status || '').toLowerCase();
   const expiresAtStr = baseProfile.subscription_expires_at;
   const expiresAt = expiresAtStr ? new Date(expiresAtStr) : null;
@@ -267,15 +270,22 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
 
   const isCancelled = rawStatus === 'cancelled';
   const isSubscribed = Boolean(
+    isPrivilegedRole ||
     (
-      rawStatus === 'active' ||
-      rawStatus === 'subscribed' ||
-      rawStatus === 'paid' ||
-      rawStatus === 'true' ||
-      (isCancelled && expiresAt && expiresAt > now)
-    ) &&
-    (!expiresAt || expiresAt > now)
+      (
+        rawStatus === 'active' ||
+        rawStatus === 'subscribed' ||
+        rawStatus === 'paid' ||
+        rawStatus === 'true' ||
+        (isCancelled && expiresAt && expiresAt > now)
+      ) &&
+      (!expiresAt || expiresAt > now)
+    )
   );
+
+  const effectiveSubscriptionStatus = isPrivilegedRole && (rawStatus === 'guest' || !rawStatus)
+    ? 'active'
+    : baseProfile.subscription_status || (isPrivilegedRole ? 'active' : 'guest');
 
   const planDetails = await loadSubscriptionPlanDetails(baseProfile.subscription_plan);
 
@@ -302,8 +312,8 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
       is_radius_all: isRadiusAll,
       is_subscribed: isSubscribed,
       is_cancelled: isCancelled,
-      subscription_status: baseProfile.subscription_status || null,
-      subscription_plan: baseProfile.subscription_plan || null,
+      subscription_status: effectiveSubscriptionStatus,
+      subscription_plan: baseProfile.subscription_plan || (isPrivilegedRole ? 'lifetime_admin' : null),
       subscription_expires_at: baseProfile.subscription_expires_at || null,
       subscription_plan_details: planDetails || null,
       user_roles: userRoles,
@@ -316,6 +326,8 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
     is_radius_all: isRadiusAll,
     is_subscribed: isSubscribed,
     is_cancelled: isCancelled,
+    subscription_status: effectiveSubscriptionStatus,
+    subscription_plan: baseProfile.subscription_plan || (isPrivilegedRole ? 'lifetime_admin' : null),
     roleIds,
     roleNames: userRoles.map((role) => role.roles?.name).filter(Boolean) as string[],
     permissions,

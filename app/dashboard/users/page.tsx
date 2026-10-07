@@ -7,12 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers/AuthProvider";
-import { UsersIcon, Plus, Search, Edit, Trash2, UserPlus } from "lucide-react";
+import { UsersIcon, Plus, Search, Edit, Trash2, UserPlus, Filter, ShieldCheck, UserCheck, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface User {
   user_id: string;
@@ -20,6 +27,7 @@ interface User {
   email: string;
   avatar_url: string;
   is_verified: boolean;
+  subscription_status?: string | null;
   created_at: string;
   user_roles: UserRole[];
 }
@@ -50,6 +58,8 @@ export default function UsersPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -79,6 +89,7 @@ export default function UsersPage() {
           email,
           avatar_url:profile_image_url,
           is_verified,
+          subscription_status,
           created_at,
           user_roles (
             role_id,
@@ -96,6 +107,7 @@ export default function UsersPage() {
           user_name,
           email,
           avatar_url:profile_image_url,
+          subscription_status,
           created_at,
           user_roles (
             role_id,
@@ -230,9 +242,19 @@ export default function UsersPage() {
         if (error) throw error;
       }
 
+      // Sync subscription_status if user is assigned privileged roles or Subscriber
+      const hasPrivilegedRole = roles
+        .filter((r) => selectedUserRoles.includes(r.role_id))
+        .some((r) => ["Owner", "Admin", "Manager", "Subscriber"].includes(r.name));
+
+      await supabase
+        .from("users")
+        .update({ subscription_status: hasPrivilegedRole ? "active" : "guest" })
+        .eq("user_id", selectedUser.user_id);
+
       toast({
         title: "Success",
-        description: "User roles updated successfully",
+        description: "User roles & permissions updated successfully",
       });
 
       setIsRoleDialogOpen(false);
@@ -247,10 +269,39 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    (user.user_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users.filter((user) => {
+    const term = searchTerm.toLowerCase().trim();
+    const userRoleNames = user.user_roles.map((ur) => ur.roles?.name?.toLowerCase() || "");
+    const subStatus = (user.subscription_status || "guest").toLowerCase();
+
+    // 1. Check Search Term (Matches Name, Email, Role name, or Subscription Status)
+    const matchesSearch =
+      !term ||
+      (user.user_name?.toLowerCase() || "").includes(term) ||
+      (user.email?.toLowerCase() || "").includes(term) ||
+      userRoleNames.some((r) => r.includes(term)) ||
+      subStatus.includes(term);
+
+    // 2. Check Role Filter
+    const matchesRole =
+      selectedRoleFilter === "all" ||
+      user.user_roles.some((ur) => ur.roles?.name?.toLowerCase() === selectedRoleFilter.toLowerCase());
+
+    // 3. Check Subscription Status Filter
+    const isSubscriber =
+      subStatus === "active" ||
+      subStatus === "subscribed" ||
+      userRoleNames.includes("subscriber") ||
+      userRoleNames.includes("owner") ||
+      userRoleNames.includes("admin");
+
+    const matchesStatus =
+      selectedStatusFilter === "all" ||
+      (selectedStatusFilter === "subscriber" && isSubscriber) ||
+      (selectedStatusFilter === "guest" && !isSubscriber);
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -269,60 +320,187 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center space-x-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search users..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      {/* Search and Filters Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-muted/40 p-4 rounded-xl border">
+        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Search Bar - Supports searching User, Email, or Role */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by user, email, or role (e.g. Owner, Subscriber, Guest)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 bg-background"
+            />
+          </div>
+
+          {/* Role Filter Dropdown */}
+          <div className="w-full sm:w-[200px]">
+            <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                  <SelectValue placeholder="Filter by Role" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {roles.map((r) => (
+                  <SelectItem key={r.role_id} value={r.name.toLowerCase()}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subscription Status Filter */}
+          <div className="w-full sm:w-[200px]">
+            <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <SelectValue placeholder="All Access Types" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Access Types</SelectItem>
+                <SelectItem value="subscriber">Subscribers / Active</SelectItem>
+                <SelectItem value="guest">Guest / Free Users</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Quick Statistics Counters */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground self-end md:self-center">
+          <Badge variant="outline" className="text-xs">
+            Showing {filteredUsers.length} of {users.length} users
+          </Badge>
+          {(searchTerm || selectedRoleFilter !== "all" || selectedStatusFilter !== "all") && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedRoleFilter("all");
+                setSelectedStatusFilter("all");
+              }}
+              className="h-7 text-xs px-2 text-primary"
+            >
+              Reset filters
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Users Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredUsers.map((user) => (
-          <Card key={user.user_id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {user.user_name || user.email}
-              </CardTitle>
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openRoleDialog(user)}
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  disabled={user.user_roles.some(ur => ur.roles?.name === "Owner")}
-                  title={user.user_roles.some(ur => ur.roles?.name === "Owner") ? "Owner accounts cannot be deleted" : "Delete user"}
-                  onClick={() => handleDeleteUser(user)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">{user.email}</div>
-              {user.is_verified && (
-                <div className="text-xs text-green-600">✓ Verified</div>
-              )}
-              <div className="flex flex-wrap gap-1 mt-2">
-                {user.user_roles.map((ur) => (
-                  <Badge key={ur.role_id} variant="secondary" className="text-xs">
-                    {ur.roles.name}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {filteredUsers.length === 0 ? (
+          <div className="col-span-full py-12 text-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+            <UsersIcon className="h-10 w-10 mx-auto mb-2 opacity-40" />
+            <p className="font-medium">No users match your search or filter</p>
+            <p className="text-xs mt-1">Try resetting the role or search filters above.</p>
+          </div>
+        ) : (
+          filteredUsers.map((user) => {
+            const userRoleNames = user.user_roles.map((ur) => ur.roles?.name || "");
+            const isSubscriber =
+              (user.subscription_status || "").toLowerCase() === "active" ||
+              userRoleNames.includes("Subscriber") ||
+              userRoleNames.includes("Owner") ||
+              userRoleNames.includes("Admin");
+
+            return (
+              <Card key={user.user_id} className="transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="space-y-0.5 max-w-[70%]">
+                    <CardTitle className="text-sm font-semibold truncate">
+                      {user.user_name || user.email}
+                    </CardTitle>
+                    <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openRoleDialog(user)}
+                      title="Manage User Roles"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={user.user_roles.some((ur) => ur.roles?.name === "Owner")}
+                      title={
+                        user.user_roles.some((ur) => ur.roles?.name === "Owner")
+                          ? "Owner accounts cannot be deleted"
+                          : "Delete user"
+                      }
+                      onClick={() => handleDeleteUser(user)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Status & Verification Badges */}
+                  <div className="flex items-center gap-2 pt-1">
+                    {isSubscriber ? (
+                      <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1 shadow-sm">
+                        <Sparkles className="h-3 w-3" />
+                        Active Subscriber
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-slate-600 border-slate-300 text-[11px]">
+                        Guest Access
+                      </Badge>
+                    )}
+
+                    {user.is_verified && (
+                      <span className="text-xs text-emerald-600 font-medium">✓ Verified</span>
+                    )}
+                  </div>
+
+                  {/* Role Badges */}
+                  <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
+                    <span className="text-[11px] text-muted-foreground mr-1 self-center">Roles:</span>
+                    {user.user_roles.length === 0 ? (
+                      <Badge variant="secondary" className="text-xs">
+                        Guest
+                      </Badge>
+                    ) : (
+                      user.user_roles.map((ur) => {
+                        const rName = ur.roles?.name || "";
+                        const isOwner = rName === "Owner";
+                        const isAdmin = rName === "Admin";
+                        const isSub = rName === "Subscriber";
+
+                        let badgeClass = "text-xs";
+                        if (isOwner) badgeClass = "bg-purple-100 text-purple-800 border-purple-200";
+                        else if (isAdmin) badgeClass = "bg-blue-100 text-blue-800 border-blue-200";
+                        else if (isSub) badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+
+                        return (
+                          <Badge
+                            key={ur.role_id}
+                            variant="secondary"
+                            className={badgeClass}
+                          >
+                            {rName}
+                          </Badge>
+                        );
+                      })
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* Delete User Dialog */}

@@ -82,18 +82,53 @@ export default function DonationsPage() {
         .select("rescue_centre_id, name")
         .order("name");
 
-      // Also pull Service Providers that act as Rescue/Shelter centres
-      const { data: providerShelters } = await supabase
-        .from("service_providers")
-        .select("service_provider_id, name")
-        .or("is_deleted.eq.false,is_deleted.is.null")
-        .ilike("name", "%rescue%")
-        .order("name");
+      // Fetch rescue/shelter/spca category IDs
+      const { data: categoriesData } = await supabase
+        .from("service_categories")
+        .select("service_category_id, name");
 
-      const combinedOptions: RescueCentreOption[] = [
-        ...(centresData || []).map((c) => ({ rescue_centre_id: c.rescue_centre_id, name: c.name, type: "Rescue Centre" })),
-        ...(providerShelters || []).map((p) => ({ rescue_centre_id: p.service_provider_id, name: `${p.name} (Service Provider)`, type: "Provider Shelter" })),
-      ];
+      const rescueCategoryIds = (categoriesData || [])
+        .filter((c) => /rescue|shelter|spca|welfare/i.test(c.name || ""))
+        .map((c) => c.service_category_id);
+
+      // Fetch providers directly in those categories or matching rescue/shelter/spca in name
+      let providerQuery = supabase
+        .from("service_providers")
+        .select("service_provider_id, name, service_category_id")
+        .or("is_deleted.eq.false,is_deleted.is.null");
+
+      if (rescueCategoryIds.length > 0) {
+        providerQuery = providerQuery.or(
+          `service_category_id.in.(${rescueCategoryIds.join(",")}),name.ilike.%rescue%,name.ilike.%shelter%,name.ilike.%spca%`
+        );
+      } else {
+        providerQuery = providerQuery.or("name.ilike.%rescue%,name.ilike.%shelter%,name.ilike.%spca%");
+      }
+
+      const { data: providerShelters } = await providerQuery.order("name");
+
+      // Deduplicate rescue centres so each centre name appears only once
+      const seenNames = new Set<string>();
+      const seenIds = new Set<number>();
+      const combinedOptions: RescueCentreOption[] = [];
+
+      for (const c of centresData || []) {
+        const norm = (c.name || "").trim().toLowerCase();
+        if (norm && !seenNames.has(norm) && !seenIds.has(c.rescue_centre_id)) {
+          seenNames.add(norm);
+          seenIds.add(c.rescue_centre_id);
+          combinedOptions.push({ rescue_centre_id: c.rescue_centre_id, name: c.name.trim(), type: "Rescue Centre" });
+        }
+      }
+
+      // Add provider shelters ONLY if the centre name is not already present
+      for (const p of providerShelters || []) {
+        const norm = (p.name || "").trim().toLowerCase();
+        if (norm && !seenNames.has(norm)) {
+          seenNames.add(norm);
+          combinedOptions.push({ rescue_centre_id: p.service_provider_id, name: p.name.trim(), type: "Provider Shelter" });
+        }
+      }
 
       setCampaigns(campaignsData || []);
       setRescueCentres(combinedOptions);
@@ -151,15 +186,26 @@ export default function DonationsPage() {
         // Find if this was selected from service_providers
         const selectedOption = rescueCentres.find((rc) => rc.rescue_centre_id === rescueCentreIdNum);
         if (selectedOption) {
-          // Auto-create a matching rescue_centre entry so FK constraint passes
-          const { data: createdCentre, error: createError } = await supabase
+          const cleanName = selectedOption.name.replace(" (Service Provider)", "").trim();
+          const { data: matchedCentre } = await supabase
             .from("rescue_centres")
-            .insert([{ name: selectedOption.name.replace(" (Service Provider)", ""), address: "N/A", is_verified: true }])
             .select("rescue_centre_id")
-            .single();
+            .ilike("name", cleanName)
+            .maybeSingle();
 
-          if (createError) throw createError;
-          validRescueCentreId = createdCentre.rescue_centre_id;
+          if (matchedCentre) {
+            validRescueCentreId = matchedCentre.rescue_centre_id;
+          } else {
+            // Auto-create a matching rescue_centre entry so FK constraint passes
+            const { data: createdCentre, error: createError } = await supabase
+              .from("rescue_centres")
+              .insert([{ name: cleanName, address: "N/A", is_verified: true }])
+              .select("rescue_centre_id")
+              .single();
+
+            if (createError) throw createError;
+            validRescueCentreId = createdCentre.rescue_centre_id;
+          }
         }
       }
 

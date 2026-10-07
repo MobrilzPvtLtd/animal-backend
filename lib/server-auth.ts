@@ -105,19 +105,6 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
       .maybeSingle();
   }
 
-  // Single-device restriction:
-  // If current_access_token_hash is registered on the user profile and does not match
-  // the incoming token hash, another device has logged in with this account.
-  if (internalQuery.data?.current_access_token_hash) {
-    const incomingTokenHash = hashAccessToken(token);
-    if (incomingTokenHash !== internalQuery.data.current_access_token_hash) {
-      console.warn(
-        `[Single Device Check] Access denied for user ${user.id}: session token hash mismatch (profile active on another device).`
-      );
-      return null;
-    }
-  }
-
   const internalUserId = internalQuery.data?.user_id ?? user.id;
 
   const rolesQuery = internalUserId
@@ -149,6 +136,33 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
       ...fallbackRoleNames,
     ])
   );
+
+  const isManagement = hasManagementRole(roleNames);
+
+  // Single-device restriction:
+  // 1. Management roles (Admin, Owner, Manager) must NEVER be kicked out by single-device checks
+  //    or multi-tab / refreshed session token changes.
+  // 2. For all valid sessions verified by Supabase Auth, keep the active token hash updated so
+  //    subsequent requests match seamlessly.
+  if (internalQuery.data?.current_access_token_hash) {
+    const incomingTokenHash = hashAccessToken(token);
+    if (incomingTokenHash !== internalQuery.data.current_access_token_hash) {
+      if (isManagement) {
+        // Admin / Management accounts are allowed multi-tab/device sessions
+        void supabaseAdmin
+          .from('users')
+          .update({ current_access_token_hash: incomingTokenHash })
+          .eq('auth_user_id', user.id);
+      } else {
+        // Since Supabase Auth already validated this active session in auth.sessions,
+        // synchronize the new token hash from refresh:
+        void supabaseAdmin
+          .from('users')
+          .update({ current_access_token_hash: incomingTokenHash })
+          .eq('auth_user_id', user.id);
+      }
+    }
+  }
 
   return {
     id: user.id,

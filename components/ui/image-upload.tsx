@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Loader2, Image as ImageIcon, Link as LinkIcon, FileUp, Check, Camera } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, Link as LinkIcon, FileUp, Check, Camera, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ImageUploadService } from '@/lib/image-upload';
 import { toast } from 'sonner';
+import { ImageCropperModal } from '@/components/ui/image-cropper-modal';
 
 interface ImageUploadProps {
   value?: string;
@@ -47,6 +48,7 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
   const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
   const [pastedUrl, setPastedUrl] = useState(value || '');
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -359,18 +361,34 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
                   </div>
                 )}
                 {!isUploading && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 z-10 h-6 w-6 p-0 rounded-full"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImage();
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+                  <div className="absolute -top-2 -right-2 z-10 flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 w-6 p-0 rounded-full bg-white shadow-md hover:bg-slate-100 text-slate-700"
+                      title="Adjust & Crop"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCropOpen(true);
+                      }}
+                    >
+                      <Crop className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="h-6 w-6 p-0 rounded-full shadow-md"
+                      title="Remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveImage();
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -506,6 +524,20 @@ export const ImageUpload = React.forwardRef<HTMLDivElement, ImageUploadProps>(
         className="hidden"
         disabled={disabled}
       />
+
+      {cropOpen && displayUrl && (
+        <ImageCropperModal
+          open={cropOpen}
+          onOpenChange={setCropOpen}
+          imageUrl={displayUrl}
+          folder={folder}
+          onCropComplete={(newUrl) => {
+            onChange(newUrl);
+            setPastedUrl(newUrl);
+            setLocalPreview(null);
+          }}
+        />
+      )}
     </div>
   );
 }

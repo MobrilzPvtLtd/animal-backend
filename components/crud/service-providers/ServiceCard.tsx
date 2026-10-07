@@ -34,6 +34,7 @@ export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
           </div>
           <div className="flex space-x-2">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => onEdit(service)}
@@ -41,6 +42,7 @@ export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
               <Edit className="h-4 w-4" />
             </Button>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="text-destructive"

@@ -16,7 +16,7 @@ import { BasicInfoTab } from "./BasicInfoTab"
 import { ContactLocationTab } from "./ContactLocationTab"
 import { SettingsTab } from "./SettingsTab"
 import { ServicesAndBreedsTab } from "./ServicesAndBreedsTab"
-import { OperatingHoursTab } from "./OperatingHoursTab"
+import { OperatingHoursTab, DEFAULT_HOURS } from "./OperatingHoursTab"
 import { ImagesTab } from "./ImagesTab"
 import { ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { ImageUploadService } from "@/lib/image-upload"
@@ -60,8 +60,8 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       latitude: provider.location?.latitude || "",
       longitude: provider.location?.longitude || "",
       show_publicly: provider.location?.show_publicly ?? true,
-      show_operating_hours: (provider as any).show_operating_hours ?? (provider.operating_hours ? true : false),
-      operating_hours: provider.operating_hours || undefined,
+      show_operating_hours: (provider as any).show_operating_hours ?? true,
+      operating_hours: provider.operating_hours || DEFAULT_HOURS,
     } : {
       service_category_id: preselectedCategoryId ? parseInt(preselectedCategoryId) : 0,
       name: "",
@@ -83,7 +83,8 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       latitude: "",
       longitude: "",
       show_publicly: true,
-      show_operating_hours: false,
+      show_operating_hours: true,
+      operating_hours: DEFAULT_HOURS,
     },
   })
 
@@ -212,7 +213,19 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
       }
 
       const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
-      const allImageUrls = images.map(img => img.image_url)
+      const allImages: ServiceProviderImage[] = []
+
+      if (profileImage && !images.some(img => img.image_url === profileImage)) {
+        allImages.push({ image_url: profileImage, order: 0 })
+      }
+
+      images.forEach((img) => {
+        if (!allImages.some(i => i.image_url === img.image_url)) {
+          allImages.push({ ...img, order: allImages.length })
+        }
+      })
+
+      const finalImageUrls = allImages.map(img => img.image_url)
       const categoryIds: number[] = (submissionValues as any).category_ids || (submissionValues.service_category_id ? [submissionValues.service_category_id] : [])
       const primaryCategoryId = categoryIds[0] || submissionValues.service_category_id || null
 
@@ -222,9 +235,9 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         description: submissionValues.description || null,
         bio: submissionValues.bio || null,
         image_url: profileImage,
-        images: allImageUrls.length > 0 ? allImageUrls : (profileImage ? [profileImage] : []),
+        images: finalImageUrls.length > 0 ? finalImageUrls : (profileImage ? [profileImage] : []),
         phone: submissionValues.phone || null,
-        emergency_number: submissionValues.emergency_number || submissionValues.phone || null,
+        emergency_number: submissionValues.emergency_number?.trim() || null,
         number_2: submissionValues.number_2 || null,
         email: submissionValues.email || null,
         website: submissionValues.website || null,
@@ -234,7 +247,8 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         is_verified: submissionValues.is_verified,
         is_active: submissionValues.is_active,
         featured: submissionValues.featured,
-        operating_hours: submissionValues.operating_hours || null,
+        show_operating_hours: submissionValues.show_operating_hours ?? true,
+        operating_hours: (submissionValues.show_operating_hours !== false) ? (submissionValues.operating_hours || DEFAULT_HOURS) : null,
       }
 
       const petFriendlyInfo = {
@@ -250,10 +264,25 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         longitude: submissionValues.longitude || null,
       }
 
+      const validServices = services
+        .filter(service => service.name?.trim())
+        .map(service => ({
+          name: service.name.trim(),
+          description: service.description || null,
+          price: service.price !== undefined && service.price !== null && service.price !== '' ? Number(service.price) : null,
+          duration_minutes: service.duration_minutes ? Number(service.duration_minutes) : null,
+          is_active: service.is_active ?? true,
+        }))
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
       if (provider) {
-        // Get session token to authenticate the PATCH request
-        const { data: { session } } = await supabase.auth.getSession()
-        const accessToken = session?.access_token
+        // Fetch existing images before updating to clean up storage
+        const { data: existingImages } = await supabase
+          .from("service_provider_images")
+          .select("image_url")
+          .eq("service_provider_id", provider.service_provider_id)
 
         // Use the API endpoint (supabaseAdmin) instead of direct Supabase client
         // to bypass RLS restrictions that would silently block updates
@@ -270,6 +299,9 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
               ...locationPayload,
               category_ids: categoryIds,
               ...petFriendlyInfo,
+              images: finalImageUrls,
+              services: validServices,
+              breed_ids: selectedBreeds.map(breed => breed.breed_id),
             }),
           }
         )
@@ -278,104 +310,9 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
           throw new Error(errBody.error || `Update failed with status ${patchRes.status}`)
         }
 
-
-
-
-        // Update services - always delete existing first, then insert new ones if any
-        await supabase
-          .from("services")
-          .delete()
-          .eq("service_provider_id", provider.service_provider_id)
-
-        // Then insert new services if any
-        if (services.length > 0) {
-          const validServices = services.filter(service => service.name.trim())
-          if (validServices.length > 0) {
-            const servicesData = validServices.map(service => ({
-              service_provider_id: provider.service_provider_id,
-              name: service.name,
-              description: service.description || null,
-              price: service.price,
-              duration_minutes: service.duration_minutes,
-              is_active: service.is_active
-            }))
-
-            const { error: servicesError } = await supabase
-              .from("services")
-              .insert(servicesData)
-
-            if (servicesError) {
-              console.error("Error updating services:", servicesError)
-              toast.error("Service provider updated but failed to update services")
-            }
-          }
-        }
-
-        // Update breeds
-        await supabase
-          .from("service_provider_breeds")
-          .delete()
-          .eq("service_provider_id", provider.service_provider_id)
-
-        if (selectedBreeds.length > 0) {
-          const breedsData = selectedBreeds.map(breed => ({
-            service_provider_id: provider.service_provider_id,
-            breed_id: breed.breed_id
-          }))
-
-          const { error: breedsError } = await supabase
-            .from("service_provider_breeds")
-            .insert(breedsData)
-
-          if (breedsError) {
-            console.error("Error updating breeds:", breedsError)
-            toast.error("Service provider updated but failed to update breeds")
-          }
-        }
-
-        // Fetch existing images before updating to clean up storage
-        const { data: existingImages } = await supabase
-          .from("service_provider_images")
-          .select("image_url")
-          .eq("service_provider_id", provider.service_provider_id)
-
-        await supabase
-          .from("service_provider_images")
-          .delete()
-          .eq("service_provider_id", provider.service_provider_id)
-
-        const allImages: ServiceProviderImage[] = []
-
-        if (profileImage && !images.some(img => img.image_url === profileImage)) {
-          allImages.push({ image_url: profileImage, order: 0 })
-        }
-
-        images.forEach((img) => {
-          if (!allImages.some(i => i.image_url === img.image_url)) {
-            allImages.push({ ...img, order: allImages.length })
-          }
-        })
-
-        if (allImages.length > 0) {
-          const imageData = allImages.map((img, index) => ({
-            service_provider_id: provider.service_provider_id,
-            image_url: img.image_url,
-            order: index,
-          }))
-
-          const { error: imagesError } = await supabase
-            .from("service_provider_images")
-            .insert(imageData)
-
-          if (imagesError) {
-            console.error("Error saving images:", imagesError)
-            toast.error("Service provider updated but failed to save images")
-          }
-        }
-
         // Delete removed images from storage
         if (existingImages) {
-          const newUrls = new Set(allImages.map(img => img.image_url))
+          const newUrls = new Set(finalImageUrls)
           for (const img of existingImages) {
             if (!newUrls.has(img.image_url)) {
               const filePath = ImageUploadService.extractFilePathFromUrl(img.image_url)
@@ -392,99 +329,26 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
 
         toast.success("Service provider updated successfully")
       } else {
-        const { data: providerResult, error } = await supabase
-          .from("service_providers")
-          .insert([providerData])
-          .select()
-          .single()
-
-        if (error) throw error
-
-        const serviceProviderId = providerResult.service_provider_id
-
-        await syncServiceProviderToPetFriendlyPlace(
-          serviceProviderId,
-          { ...providerData, ...locationPayload },
-          petFriendlyInfo
-        )
-
-        // Sync service_provider_categories
-        if (categoryIds.length > 0) {
-          const categoryData = categoryIds.map((catId: number) => ({
-            service_provider_id: serviceProviderId,
-            service_category_id: catId,
-          }))
-          await supabase.from("service_provider_categories").insert(categoryData)
-        }
-
-        // Save services if any
-        if (services.length > 0) {
-          const validServices = services.filter(service => service.name.trim())
-          if (validServices.length > 0) {
-            const servicesData = validServices.map(service => ({
-              service_provider_id: serviceProviderId,
-              name: service.name,
-              description: service.description || null,
-              price: service.price,
-              duration_minutes: service.duration_minutes,
-              is_active: service.is_active
-            }))
-
-            const { error: servicesError } = await supabase
-              .from("services")
-              .insert(servicesData)
-
-            if (servicesError) {
-              console.error("Error saving services:", servicesError)
-              toast.error("Service provider created but failed to save services")
-            }
-          }
-        }
-
-        if (selectedBreeds.length > 0) {
-          const breedsData = selectedBreeds.map(breed => ({
-            service_provider_id: serviceProviderId,
-            breed_id: breed.breed_id
-          }))
-
-          const { error: breedsError } = await supabase
-            .from("service_provider_breeds")
-            .insert(breedsData)
-
-          if (breedsError) {
-            console.error("Error saving breeds:", breedsError)
-            toast.error("Service provider created but failed to save breeds")
-          }
-        }
-
-        // Save images if any (includes profile image as first)
-        const allImages: ServiceProviderImage[] = []
-
-        if (providerData.image_url && !images.some(img => img.image_url === providerData.image_url)) {
-          allImages.push({ image_url: providerData.image_url, order: 0 })
-        }
-
-        images.forEach((img) => {
-          if (!allImages.some(i => i.image_url === img.image_url)) {
-            allImages.push({ ...img, order: allImages.length })
-          }
+        const createRes = await fetch('/api/v1/service-providers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            ...providerData,
+            ...locationPayload,
+            category_ids: categoryIds,
+            ...petFriendlyInfo,
+            images: finalImageUrls,
+            services: validServices,
+            breed_ids: selectedBreeds.map(breed => breed.breed_id),
+          }),
         })
 
-        if (allImages.length > 0) {
-          const imageData = allImages.map((img, index) => ({
-            service_provider_id: serviceProviderId,
-            image_url: img.image_url,
-            order: index,
-          }))
-
-          const { error: imagesError } = await supabase
-            .from("service_provider_images")
-            .insert(imageData)
-
-          if (imagesError) {
-            console.error("Error saving images:", imagesError)
-            toast.error("Service provider created but failed to save images")
-          }
+        if (!createRes.ok) {
+          const errBody = await createRes.json().catch(() => ({}))
+          throw new Error(errBody.error || `Create failed with status ${createRes.status}`)
         }
 
         toast.success("Service provider created successfully")

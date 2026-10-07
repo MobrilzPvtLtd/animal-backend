@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useAuth } from "@/providers/AuthProvider"
 import { SupportTicket, SupportReply, TICKET_STATUSES, parseTicketMessage } from "./schema"
 import { columns } from "./columns"
 import { DataTable } from "../DataTable"
 import { Button } from "@/components/ui/button"
-import { Loader2, MessageSquare, Send, Paperclip, ImageIcon, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Loader2, MessageSquare, Send, Paperclip, ImageIcon, X, Search, Tag, User, Filter, RotateCcw, RefreshCw, AlertCircle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,13 @@ export function SupportCrud() {
   const replyFileInputRef = useRef<HTMLInputElement>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [sendingReply, setSendingReply] = useState(false)
+
+  // Search and Filter states
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedLabel, setSelectedLabel] = useState<string>("all")
+  const [selectedUserId, setSelectedUserId] = useState<string>("all")
+  const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const [selectedPriority, setSelectedPriority] = useState<string>("all")
 
   const authHeaders = (): HeadersInit => {
     if (session?.access_token) {
@@ -164,6 +172,127 @@ export function SupportCrud() {
     }
   }
 
+  // Dynamic list of unique labels/categories from tickets
+  const availableLabels = useMemo(() => {
+    const set = new Set<string>()
+    ;["General Inquiry", "Billing/Subscription", "Provider Support", "Technical Issue"].forEach((c) =>
+      set.add(c)
+    )
+    tickets.forEach((t) => {
+      const { category } = parseTicketMessage(t.initial_message)
+      if (category) set.add(category)
+    })
+    return Array.from(set).sort()
+  }, [tickets])
+
+  // Dynamic list of unique users who logged tickets
+  const availableUsers = useMemo(() => {
+    const userMap = new Map<string, { id: string; name: string; email: string; count: number }>()
+    tickets.forEach((t) => {
+      if (t.users) {
+        const key = String(t.users.user_id || t.users.email)
+        const existing = userMap.get(key)
+        const fullName = `${t.users.name || ""} ${t.users.surname || ""}`.trim()
+        if (existing) {
+          existing.count += 1
+        } else {
+          userMap.set(key, {
+            id: key,
+            name: fullName || t.users.email,
+            email: t.users.email,
+            count: 1,
+          })
+        }
+      }
+    })
+    return Array.from(userMap.values()).sort((a, b) => b.count - a.count)
+  }, [tickets])
+
+  const guestTicketCount = useMemo(() => {
+    return tickets.filter((t) => !t.users).length
+  }, [tickets])
+
+  // Comprehensive filtered tickets
+  const filteredTickets = useMemo(() => {
+    return tickets.filter((ticket) => {
+      const { category, cleanMessage } = parseTicketMessage(ticket.initial_message)
+      const term = searchTerm.toLowerCase().trim()
+
+      const userFullName = ticket.users
+        ? `${ticket.users.name || ""} ${ticket.users.surname || ""}`.toLowerCase()
+        : ""
+      const userEmail = ticket.users?.email?.toLowerCase() || ""
+      const ticketIdStr = String(ticket.support_ticket_id)
+      const categoryStr = (category || "").toLowerCase()
+      const subjectStr = (ticket.subject || "").toLowerCase()
+      const messageStr = (cleanMessage || "").toLowerCase()
+      const statusStr = (ticket.status || "").toLowerCase()
+      const priorityStr = (ticket.priority || "").toLowerCase()
+
+      // 1. Free-text search matches Subject, Label, User name, User email, Ticket ID, message body, status, priority
+      const matchesSearch =
+        !term ||
+        subjectStr.includes(term) ||
+        categoryStr.includes(term) ||
+        userFullName.includes(term) ||
+        userEmail.includes(term) ||
+        ticketIdStr === term.replace(/^#/, "") ||
+        ticketIdStr.includes(term.replace(/^#/, "")) ||
+        messageStr.includes(term) ||
+        statusStr.includes(term) ||
+        priorityStr.includes(term)
+
+      // 2. Label / Category filter
+      const matchesLabel =
+        selectedLabel === "all" ||
+        (selectedLabel === "uncategorized" && !category) ||
+        (category && category.toLowerCase() === selectedLabel.toLowerCase())
+
+      // 3. User filter
+      const matchesUser =
+        selectedUserId === "all" ||
+        (selectedUserId === "guest" && !ticket.users) ||
+        (ticket.users &&
+          (String(ticket.users.user_id) === selectedUserId || ticket.users.email === selectedUserId))
+
+      // 4. Status filter
+      const matchesStatus =
+        selectedStatus === "all" || ticket.status === selectedStatus
+
+      // 5. Priority filter
+      const matchesPriority =
+        selectedPriority === "all" || ticket.priority === selectedPriority
+
+      return matchesSearch && matchesLabel && matchesUser && matchesStatus && matchesPriority
+    })
+  }, [tickets, searchTerm, selectedLabel, selectedUserId, selectedStatus, selectedPriority])
+
+  const counts = useMemo(() => {
+    return {
+      total: tickets.length,
+      open: tickets.filter((t) => t.status === "open").length,
+      inProgress: tickets.filter((t) => t.status === "in_progress").length,
+      resolved: tickets.filter((t) => t.status === "resolved").length,
+      closed: tickets.filter((t) => t.status === "closed").length,
+    }
+  }, [tickets])
+
+  const isFiltered = Boolean(
+    searchTerm ||
+      selectedLabel !== "all" ||
+      selectedUserId !== "all" ||
+      selectedStatus !== "all" ||
+      selectedPriority !== "all"
+  )
+
+  const handleResetFilters = () => {
+    setSearchTerm("")
+    setSelectedLabel("all")
+    setSelectedUserId("all")
+    setSelectedStatus("all")
+    setSelectedPriority("all")
+  }
+
   const enhancedColumns = [
     ...columns,
     {
@@ -186,7 +315,160 @@ export function SupportCrud() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Support Tickets</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Support Tickets</h2>
+          <p className="text-sm text-muted-foreground">Manage and respond to user assistance inquiries.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchTickets} disabled={loading} className="gap-1.5">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Advanced Search & Filtering Engine */}
+      <div className="bg-muted/40 p-4 rounded-xl border space-y-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+          {/* Universal Search Input */}
+          <div className="relative flex-1 min-w-[260px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by subject, label, user name, email, or #ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-8 bg-background"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Label / Category Filter Dropdown */}
+          <div className="w-full sm:w-[220px]">
+            <Select value={selectedLabel} onValueChange={setSelectedLabel}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <Tag className="h-3.5 w-3.5 text-indigo-600 flex-shrink-0" />
+                  <SelectValue placeholder="All Labels" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Labels / Categories</SelectItem>
+                {availableLabels.map((label) => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="uncategorized">Uncategorized</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* User Filter Dropdown */}
+          <div className="w-full sm:w-[240px]">
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <User className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                  <SelectValue placeholder="All Users" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users ({tickets.length} tickets)</SelectItem>
+                {availableUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name} ({u.count} {u.count === 1 ? "ticket" : "tickets"})
+                  </SelectItem>
+                ))}
+                {guestTicketCount > 0 && (
+                  <SelectItem value="guest">
+                    Anonymous / Guest ({guestTicketCount} tickets)
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Filter Dropdown */}
+          <div className="w-full sm:w-[170px]">
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <SelectValue placeholder="All Statuses" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Priority Filter Dropdown */}
+          <div className="w-full sm:w-[160px]">
+            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+              <SelectTrigger className="bg-background">
+                <div className="flex items-center gap-2 truncate">
+                  <AlertCircle className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <SelectValue placeholder="All Priorities" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Status Counters & Active Filter Notice */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground border-t border-slate-200/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-slate-700">Quick Stats:</span>
+            <Badge variant="outline" className="text-xs bg-background">
+              Total: {counts.total}
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-800 border-yellow-200">
+              Open: {counts.open}
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-800 border-blue-200">
+              In Progress: {counts.inProgress}
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-green-50 text-green-800 border-green-200">
+              Resolved: {counts.resolved}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-foreground">{filteredTickets.length}</strong> of {tickets.length} tickets
+            </span>
+            {isFiltered && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-6 text-xs px-2 text-primary hover:text-primary/80 gap-1"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset filters
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -196,9 +478,8 @@ export function SupportCrud() {
       ) : (
         <DataTable
           columns={enhancedColumns}
-          data={tickets}
-          filterKey="subject"
-          filterPlaceholder="Filter tickets..."
+          data={filteredTickets}
+          hideToolbar={true}
         />
       )}
 

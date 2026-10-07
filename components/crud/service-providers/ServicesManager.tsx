@@ -116,6 +116,7 @@ export function ServicesManager({ serviceProviderId, providerName }: ServicesMan
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Services for {providerName}</h3>
         <Button
+          type="button"
           onClick={() => setIsAddingNew(true)}
           disabled={isAddingNew || !!editingService}
           size="sm"

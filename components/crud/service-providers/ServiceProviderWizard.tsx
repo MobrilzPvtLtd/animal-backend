@@ -18,7 +18,7 @@ import { BasicInfoTab } from "./BasicInfoTab"
 import { ContactLocationTab } from "./ContactLocationTab"
 import { SettingsTab } from "./SettingsTab"
 import { ServicesAndBreedsTab } from "./ServicesAndBreedsTab"
-import { OperatingHoursTab } from "./OperatingHoursTab"
+import { OperatingHoursTab, DEFAULT_HOURS } from "./OperatingHoursTab"
 import { ImagesTab } from "./ImagesTab"
 import { ServiceProviderImage } from "@/components/ui/multiple-image-upload"
 import { syncServiceProviderToPetFriendlyPlace } from "@/lib/sync-pet-friendly-places"
@@ -69,8 +69,8 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
       latitude: "",
       longitude: "",
       show_publicly: true,
-      show_operating_hours: false,
-      operating_hours: undefined,
+      show_operating_hours: true,
+      operating_hours: DEFAULT_HOURS,
     },
   })
 
@@ -244,7 +244,7 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         image_url: profileImage,
         images: allImageUrls.length > 0 ? allImageUrls : (profileImage ? [profileImage] : []),
         phone: submissionValues.phone || null,
-        emergency_number: submissionValues.emergency_number || null,
+        emergency_number: submissionValues.emergency_number?.trim() || null,
         number_2: submissionValues.number_2 || null,
         email: submissionValues.email || null,
         website: submissionValues.website || null,
@@ -252,7 +252,8 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         is_verified: submissionValues.is_verified,
         is_active: submissionValues.is_active,
         featured: submissionValues.featured,
-        operating_hours: submissionValues.operating_hours || null,
+        show_operating_hours: submissionValues.show_operating_hours ?? true,
+        operating_hours: (submissionValues.show_operating_hours !== false) ? (submissionValues.operating_hours || DEFAULT_HOURS) : null,
       }
 
       const petFriendlyInfo = {
@@ -268,102 +269,33 @@ export function ServiceProviderWizard({ preselectedCategoryId }: ServiceProvider
         longitude: submissionValues.longitude || null,
       }
 
-      const { data: providerResult, error } = await supabase
-        .from("service_providers")
-        .insert([providerData])
-        .select()
-        .single()
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
 
-      if (error) throw error
-
-      const serviceProviderId = providerResult.service_provider_id
-
-      await syncServiceProviderToPetFriendlyPlace(
-        serviceProviderId,
-        { ...providerData, ...locationPayload },
-        petFriendlyInfo
-      )
-
-      // Sync service_provider_categories
-      if (categoryIds.length > 0) {
-        const categoryData = categoryIds.map((catId: number) => ({
-          service_provider_id: serviceProviderId,
-          service_category_id: catId,
-        }))
-        await supabase.from("service_provider_categories").insert(categoryData)
-      }
-
-      // Save services if any
-      if (services.length > 0) {
-        const validServices = services.filter(service => service.name?.trim())
-        if (validServices.length > 0) {
-          const servicesData = validServices.map(service => ({
-            service_provider_id: serviceProviderId,
-            name: service.name,
-            description: service.description || null,
-            price: service.price,
-            duration_minutes: service.duration_minutes,
-            is_active: service.is_active
-          }))
-
-          const { error: servicesError } = await supabase
-            .from("services")
-            .insert(servicesData)
-
-          if (servicesError) {
-            console.error("Error saving services:", servicesError)
-            toast.error("Service provider created but failed to save services")
-          }
-        }
-      }
-
-      if (selectedBreeds.length > 0) {
-        const breedsData = selectedBreeds.map(breed => ({
-          service_provider_id: serviceProviderId,
-          breed_id: breed.breed_id
-        }))
-
-        const { error: breedsError } = await supabase
-          .from("service_provider_breeds")
-          .insert(breedsData)
-
-        if (breedsError) {
-          console.error("Error saving breeds:", breedsError)
-          toast.error("Service provider created but failed to save breeds")
-        }
-      }
-
-      // Save images if any (includes profile image as first)
-      const allImages: ServiceProviderImage[] = []
-
-      if (profileImage && !images.some(img => img.image_url === profileImage)) {
-        allImages.push({ image_url: profileImage, order: 0 })
-      }
-
-      images.forEach((img) => {
-        if (!allImages.some(i => i.image_url === img.image_url)) {
-          allImages.push({ ...img, order: allImages.length })
-        }
+      const createRes = await fetch('/api/v1/service-providers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          ...providerData,
+          ...locationPayload,
+          category_ids: categoryIds,
+          ...petFriendlyInfo,
+          images: allImageUrls.length > 0 ? allImageUrls : (profileImage ? [profileImage] : []),
+          services: services.filter(service => service.name?.trim()),
+          breed_ids: selectedBreeds.map(breed => breed.breed_id),
+        }),
       })
 
-      if (allImages.length > 0) {
-        const imageData = allImages.map((img, index) => ({
-          service_provider_id: serviceProviderId,
-          image_url: img.image_url,
-          order: index,
-        }))
-
-        const { error: imagesError } = await supabase
-          .from("service_provider_images")
-          .insert(imageData)
-
-        if (imagesError) {
-          console.error("Error saving images:", imagesError)
-          toast.error("Service provider created but failed to save images")
-        }
+      if (!createRes.ok) {
+        const errBody = await createRes.json().catch(() => ({}))
+        throw new Error(errBody.error || `Failed to create service provider (status ${createRes.status})`)
       }
       
       toast.success("Service provider created successfully")
+      router.push("/dashboard/service-providers")
       router.push("/dashboard/service-providers")
     } catch (error: any) {
       console.error("Error saving service provider:", error)
