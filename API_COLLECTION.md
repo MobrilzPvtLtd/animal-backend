@@ -1936,38 +1936,57 @@ curl --location 'https://animal-backend-nine.vercel.app/api/v1/subscriptions/pla
   "success": true,
   "plans": [
     {
-      "subscription_plan_id": 1,
-      "plan_code": "MONTHLY_99",
-      "name": "Monthly Plan",
-      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
-      "price": 99.00,
+      "subscription_plan_id": 4,
+      "plan_code": "USER_MONTHLY_29",
+      "name": "User Monthly Plan",
+      "description": "Monthly subscription for pet owners & users to unlock community posts, event reminders, lost pet alerts, and ad-free experience.",
+      "price": 29.99,
       "currency": "ZAR",
       "billing_cycle": "monthly",
       "duration_days": 30,
       "features": [
-        "List up to 5 places",
-        "Basic Analytics",
-        "Support Access"
+        "Create community posts & discussions",
+        "Submit pet events & set reminders",
+        "Lost pet community alerts",
+        "Ad-free experience"
       ],
       "badge_text": null,
       "is_active": true
     },
     {
+      "subscription_plan_id": 1,
+      "plan_code": "MONTHLY_99",
+      "name": "Service Provider Monthly Plan",
+      "description": "Monthly subscription for service providers. List places, manage rescues, and access the provider dashboard.",
+      "price": 99.99,
+      "currency": "ZAR",
+      "billing_cycle": "monthly",
+      "duration_days": 30,
+      "features": [
+        "List and manage service provider profiles",
+        "List up to 5 places & rescues",
+        "Provider dashboard & analytics",
+        "Verified provider badge & support"
+      ],
+      "badge_text": "PROVIDER",
+      "is_active": true
+    },
+    {
       "subscription_plan_id": 2,
       "plan_code": "YEARLY_899",
-      "name": "Yearly Plan",
-      "description": "Subscribe to list your places, manage rescues, and access the provider dashboard.",
+      "name": "Service Provider Yearly Plan",
+      "description": "Annual subscription for service providers. List places, manage rescues, and access the provider dashboard with 2 months free.",
       "price": 899.00,
       "currency": "ZAR",
       "billing_cycle": "yearly",
       "duration_days": 365,
       "features": [
-        "Unlimited places",
-        "Priority Support",
+        "Unlimited places & service listings",
+        "Priority Support Access",
         "2 Months Free",
-        "Verified Badge"
+        "Verified Badge on listings"
       ],
-      "badge_text": "MOST POPULAR",
+      "badge_text": "BEST VALUE",
       "is_active": true
     }
   ]

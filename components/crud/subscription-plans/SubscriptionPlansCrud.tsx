@@ -201,6 +201,7 @@ export function SubscriptionPlansCrud() {
             billing_cycle: formData.billing_cycle,
             duration_days: parseInt(formData.duration_days) || 30,
             features: formData.features,
+            badge_text: formData.badge_text.trim() || null,
             is_active: formData.is_active,
             updated_at: new Date().toISOString(),
           })
@@ -220,6 +221,7 @@ export function SubscriptionPlansCrud() {
               billing_cycle: formData.billing_cycle,
               duration_days: parseInt(formData.duration_days) || 30,
               features: formData.features,
+              badge_text: formData.badge_text.trim() || null,
               is_active: formData.is_active,
             },
           ]);
@@ -319,7 +321,14 @@ export function SubscriptionPlansCrud() {
           <Card key={pkg.subscription_plan_id} className={!pkg.is_active ? "opacity-60" : ""}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="space-y-1">
-                <CardTitle className="text-lg font-medium">{pkg.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg font-medium">{pkg.name}</CardTitle>
+                  {pkg.badge_text && (
+                    <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
+                      {pkg.badge_text}
+                    </Badge>
+                  )}
+                </div>
                 <span className="text-xs text-muted-foreground font-mono">{pkg.plan_code}</span>
               </div>
               <div className="flex space-x-1">
@@ -350,8 +359,8 @@ export function SubscriptionPlansCrud() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Price:</span>
-                  <Badge className="flex items-center gap-1">
-                    R{pkg.price}
+                  <Badge className="flex items-center gap-1 font-bold text-sm">
+                    R{Number(pkg.price).toFixed(2)}
                   </Badge>
                 </div>
                 {pkg.description && (
@@ -400,14 +409,26 @@ export function SubscriptionPlansCrud() {
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Package Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Monthly Plan"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Package Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Service Provider Monthly Plan"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="badge_text">Badge Text (Optional)</Label>
+                <Input
+                  id="badge_text"
+                  value={formData.badge_text}
+                  onChange={(e) => setFormData({ ...formData, badge_text: e.target.value })}
+                  placeholder="e.g., PROVIDER, BEST VALUE"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

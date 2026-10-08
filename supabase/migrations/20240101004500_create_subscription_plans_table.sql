@@ -34,27 +34,39 @@ CREATE POLICY "Allow admin modify subscription plans"
 INSERT INTO public.subscription_plans (plan_code, name, description, price, currency, billing_cycle, duration_days, features, badge_text, is_active)
 VALUES 
 (
-  'MONTHLY_99',
-  'Monthly Plan',
-  'Subscribe to list your places, manage rescues, and access the provider dashboard.',
-  99.00,
+  'USER_MONTHLY_29',
+  'User Monthly Plan',
+  'Monthly subscription for pet owners & users to unlock community posts, event reminders, lost pet alerts, and ad-free experience.',
+  29.99,
   'ZAR',
   'monthly',
   30,
-  '["List up to 5 places", "Basic Analytics", "Support Access"]'::jsonb,
+  '["Create community posts & discussions", "Submit pet events & set reminders", "Lost pet community alerts", "Ad-free experience"]'::jsonb,
   NULL,
   true
 ),
 (
+  'MONTHLY_99',
+  'Service Provider Monthly Plan',
+  'Monthly subscription for service providers. List places, manage rescues, and access the provider dashboard.',
+  99.99,
+  'ZAR',
+  'monthly',
+  30,
+  '["List and manage service provider profiles", "List up to 5 places & rescues", "Provider dashboard & analytics", "Verified provider badge & support"]'::jsonb,
+  'PROVIDER',
+  true
+),
+(
   'YEARLY_899',
-  'Yearly Plan',
-  'Subscribe to list your places, manage rescues, and access the provider dashboard.',
+  'Service Provider Yearly Plan',
+  'Annual subscription for service providers. List places, manage rescues, and access the provider dashboard with 2 months free.',
   899.00,
   'ZAR',
   'yearly',
   365,
-  '["Unlimited places", "Priority Support", "2 Months Free", "Verified Badge"]'::jsonb,
-  'MOST POPULAR',
+  '["Unlimited places & service listings", "Priority Support Access", "2 Months Free", "Verified Badge on listings"]'::jsonb,
+  'BEST VALUE',
   true
 )
 ON CONFLICT (plan_code) DO UPDATE 
