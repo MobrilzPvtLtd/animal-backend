@@ -142,18 +142,6 @@ export async function POST(request: NextRequest) {
       return new Response('OK', { status: 200 });
     }
 
-    // Prevent duplicate boost activations on repeated PayFast ITN webhooks
-    const { data: existingBoost } = await supabaseAdmin
-      .from('entity_boosts')
-      .select('entity_boost_id')
-      .eq('transaction_id', storedTxnId)
-      .maybeSingle();
-
-    if (existingBoost?.entity_boost_id) {
-      console.log(`[PAYFAST_NOTIFY] Boost already active (entity_boost_id: ${existingBoost.entity_boost_id}) for transaction #${storedTxnId}`);
-      return new Response('OK', { status: 200 });
-    }
-
     const startDate = new Date();
     const endDate   = new Date();
     endDate.setDate(endDate.getDate() + durationDays);
@@ -192,17 +180,6 @@ export async function POST(request: NextRequest) {
       console.error('[PAYFAST_NOTIFY] Failed to create entity_boost on BOOST payment completion:', boostError.message);
     } else {
       console.log(`[PAYFAST_NOTIFY] ✅ Boost activated! entity_boost_id: ${boostData?.entity_boost_id}, user: ${txn.user_id}, package: ${boostPackageId}`);
-      if (boostData?.entity_boost_id) {
-        await supabaseAdmin
-          .from('transactions')
-          .update({
-            object: {
-              ...(txn.object || {}),
-              entity_boost_id: boostData.entity_boost_id,
-            },
-          })
-          .eq('transaction_id', txn.transaction_id);
-      }
     }
 
     return new Response('OK', { status: 200 });
