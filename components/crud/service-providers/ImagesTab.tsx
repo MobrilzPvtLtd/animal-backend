@@ -8,16 +8,24 @@ import { Loader2 } from "lucide-react"
 
 interface ImagesTabProps {
   serviceProviderId?: number
+  initialImages?: string[]
   onImagesChange?: (images: ServiceProviderImage[]) => void
 }
 
-export function ImagesTab({ serviceProviderId, onImagesChange }: ImagesTabProps) {
+export function ImagesTab({ serviceProviderId, initialImages, onImagesChange }: ImagesTabProps) {
   const [allImages, setAllImages] = useState<ServiceProviderImage[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (serviceProviderId) {
       fetchImages()
+    } else if (initialImages && initialImages.length > 0) {
+      const formatted: ServiceProviderImage[] = initialImages.filter(Boolean).map((url, idx) => ({
+        image_url: url,
+        order: idx,
+      }))
+      setAllImages(formatted)
+      onImagesChange?.(formatted)
     }
   }, [serviceProviderId])
 
@@ -34,11 +42,19 @@ export function ImagesTab({ serviceProviderId, onImagesChange }: ImagesTabProps)
 
       if (error) throw error
 
-      const formattedImages: ServiceProviderImage[] = (data || []).map(img => ({
+      let formattedImages: ServiceProviderImage[] = (data || []).map(img => ({
         service_provider_image: img.service_provider_image,
         image_url: img.image_url,
         order: img.order,
       }))
+
+      // Fallback: if service_provider_images has no rows, check initialImages from provider profile
+      if (formattedImages.length === 0 && initialImages && initialImages.length > 0) {
+        formattedImages = initialImages.filter(Boolean).map((url, idx) => ({
+          image_url: url,
+          order: idx,
+        }))
+      }
 
       setAllImages(formattedImages)
       onImagesChange?.(formattedImages)

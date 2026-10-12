@@ -37,6 +37,11 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
   const [selectedBreeds, setSelectedBreeds] = useState<any[]>([])
   const [images, setImages] = useState<ServiceProviderImage[]>([])
 
+  const handleImagesChange = (newImages: ServiceProviderImage[]) => {
+    setImages(newImages)
+    form.setValue("image_url", newImages.length > 0 ? newImages[0].image_url : "")
+  }
+
   const form = useForm({
     resolver: zodResolver(serviceProviderSchema),
     defaultValues: provider ? {
@@ -212,20 +217,9 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         }
       }
 
-      const profileImage = images.length > 0 ? images[0].image_url : (submissionValues.image_url || null)
-      const allImages: ServiceProviderImage[] = []
-
-      if (profileImage && !images.some(img => img.image_url === profileImage)) {
-        allImages.push({ image_url: profileImage, order: 0 })
-      }
-
-      images.forEach((img) => {
-        if (!allImages.some(i => i.image_url === img.image_url)) {
-          allImages.push({ ...img, order: allImages.length })
-        }
-      })
-
-      const finalImageUrls = allImages.map(img => img.image_url)
+      // Source of truth for images is the user-managed images state from ImagesTab
+      const finalImageUrls = images.map(img => img.image_url).filter(Boolean)
+      const profileImage = finalImageUrls.length > 0 ? finalImageUrls[0] : null
       const categoryIds: number[] = (submissionValues as any).category_ids || (submissionValues.service_category_id ? [submissionValues.service_category_id] : [])
       const primaryCategoryId = categoryIds[0] || submissionValues.service_category_id || null
 
@@ -235,7 +229,7 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
         description: submissionValues.description || null,
         bio: submissionValues.bio || null,
         image_url: profileImage,
-        images: finalImageUrls.length > 0 ? finalImageUrls : (profileImage ? [profileImage] : []),
+        images: finalImageUrls,
         phone: submissionValues.phone || null,
         emergency_number: submissionValues.emergency_number?.trim() || null,
         number_2: submissionValues.number_2 || null,
@@ -398,7 +392,12 @@ export function ServiceProviderForm({ provider, preselectedCategoryId, onSuccess
           <TabsContent forceMount value="images">
             <ImagesTab 
               serviceProviderId={provider?.service_provider_id}
-              onImagesChange={setImages}
+              initialImages={
+                Array.isArray((provider as any)?.images) && (provider as any).images.length > 0
+                  ? (provider as any).images
+                  : (provider?.image_url ? [provider.image_url] : [])
+              }
+              onImagesChange={handleImagesChange}
             />
           </TabsContent>
 

@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from "@/components/ui/switch";
 import { Loader2, PlusCircle, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { validateRescueCentreName } from "@/lib/name-validation";
 
 type RescueCentre = {
   rescue_centre_id: number;
@@ -47,6 +48,7 @@ export default function RescueCentresPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState<RescueCentre | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const isEditing = useMemo(() => Boolean(selected), [selected]);
 
@@ -75,11 +77,13 @@ export default function RescueCentresPage() {
   function openCreate() {
     setSelected(null);
     setForm(emptyForm);
+    setNameError(null);
     setFormOpen(true);
   }
 
   function openEdit(centre: RescueCentre) {
     setSelected(centre);
+    setNameError(null);
     setForm({
       name: centre.name || "",
       description: centre.description || "",
@@ -95,14 +99,41 @@ export default function RescueCentresPage() {
 
   async function submitForm(event: React.FormEvent) {
     event.preventDefault();
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      setNameError("Name is required");
+      toast.error("Name is required");
+      return;
+    }
+
     setSaving(true);
+    setNameError(null);
     try {
+      // Validate name uniqueness
+      const { isUnique, error: validationError } = await validateRescueCentreName(
+        trimmedName,
+        isEditing && selected ? selected.rescue_centre_id : undefined
+      );
+
+      if (validationError) {
+        toast.error(validationError);
+        setSaving(false);
+        return;
+      }
+
+      if (!isUnique) {
+        setNameError("A rescue centre with this name already exists");
+        toast.error("A rescue centre with this name already exists");
+        setSaving(false);
+        return;
+      }
+
       if (isEditing && selected) {
         // Update existing rescue centre
         const { error } = await supabase
           .from("rescue_centres")
           .update({
-            name: form.name,
+            name: trimmedName,
             description: form.description || null,
             address: form.address,
             latitude: form.latitude,
@@ -121,7 +152,7 @@ export default function RescueCentresPage() {
         const { error } = await supabase
           .from("rescue_centres")
           .insert([{
-            name: form.name,
+            name: trimmedName,
             description: form.description || null,
             address: form.address,
             latitude: form.latitude,
@@ -138,6 +169,7 @@ export default function RescueCentresPage() {
       setFormOpen(false);
       setSelected(null);
       setForm(emptyForm);
+      setNameError(null);
       loadCentres();
     } catch (error: any) {
       console.error("Error saving rescue centre:", error);
@@ -244,7 +276,7 @@ export default function RescueCentresPage() {
         </div>
       )}
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+      <Dialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) setNameError(null); }}>
         <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Rescue Centre" : "Add Rescue Centre"}</DialogTitle>
@@ -255,7 +287,20 @@ export default function RescueCentresPage() {
           <form onSubmit={submitForm} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, name: e.target.value }));
+                  if (nameError) setNameError(null);
+                }}
+                className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
+                placeholder="Enter rescue centre name"
+                required
+              />
+              {nameError && (
+                <p className="text-sm font-medium text-destructive">{nameError}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Address</Label>

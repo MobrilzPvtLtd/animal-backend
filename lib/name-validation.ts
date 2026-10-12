@@ -155,3 +155,12 @@ export const validateWhatsNewTitle = (title: string, excludeId?: number) =>
     excludeId,
     idField: 'whats_new_id'
   });
+
+export const validateRescueCentreName = (name: string, excludeId?: number) =>
+  checkNameUniqueness(name, {
+    table: 'rescue_centres',
+    nameField: 'name',
+    excludeId,
+    idField: 'rescue_centre_id'
+  });
+

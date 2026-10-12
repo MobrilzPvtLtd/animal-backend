@@ -413,6 +413,7 @@ export function MultipleImageUpload({
       order: i,
     }));
     onChange(reorderedImages);
+    toast.info("Image removed");
   };
 
   const handleDragStart = (event: DragStartEvent) => {

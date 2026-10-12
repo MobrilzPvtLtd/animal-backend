@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
-import { uploadAnimalImage } from '@/lib/storage-upload';
+import { uploadAnimalImage, deleteAnimalImageByUrl } from '@/lib/storage-upload';
 import { syncServiceProviderToPetFriendlyPlace } from '@/lib/sync-pet-friendly-places';
 import { resolveUserLocation, applyLocationFilterAndSort } from '@/lib/geo';
 
@@ -377,6 +377,12 @@ export async function PATCH(request: NextRequest) {
 
   // Sync images if provided
   if (images !== undefined && Array.isArray(images)) {
+    // Fetch old images to clean up removed image files from storage
+    const { data: existingImgRows } = await supabaseAdmin
+      .from('service_provider_images')
+      .select('image_url')
+      .eq('service_provider_id', providerId);
+
     // Delete old images from service_provider_images
     await supabaseAdmin
       .from('service_provider_images')
@@ -398,6 +404,20 @@ export async function PATCH(request: NextRequest) {
     // Keep images JSONB column and image_url column in sync
     providerUpdates.images = images;
     providerUpdates.image_url = images.length > 0 ? images[0] : null;
+
+    // Clean up removed image files from storage bucket
+    if (existingImgRows && existingImgRows.length > 0) {
+      const remainingUrls = new Set(images);
+      for (const oldImg of existingImgRows) {
+        if (oldImg.image_url && !remainingUrls.has(oldImg.image_url)) {
+          try {
+            await deleteAnimalImageByUrl(oldImg.image_url);
+          } catch (e) {
+            console.warn('Storage cleanup warning:', e);
+          }
+        }
+      }
+    }
   }
 
   // Sync services if provided
