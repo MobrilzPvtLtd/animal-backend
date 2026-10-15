@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseAdmin } from '@/lib/server-supabase';
+import { sendPasswordResetEmail } from '@/lib/email-service';
 
 export async function POST(request: NextRequest) {
   let body;
@@ -18,12 +20,30 @@ export async function POST(request: NextRequest) {
   }
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin || 'http://localhost:3000';
-  const redirectTo = `${origin}/reset-password`;
+  const redirectTo = `${origin.replace(/\/$/, '')}/reset-password`;
 
   try {
-    // Link generation alone does not send email. Wait for the recovery email
-    // request so delivery errors are handled before responding to the app.
-    const { error } = await supabaseServer.auth.resetPasswordForEmail(email, { redirectTo });
+    let error;
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      // Application SMTP settings are separate from Supabase Auth's mailer.
+      const result = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: { redirectTo },
+      });
+      error = result.error;
+      // Keep the response identical for addresses that have no account.
+      if (error?.code === 'user_not_found') {
+        return NextResponse.json({ message: 'If an account exists for this email, a password reset link has been sent.' });
+      }
+      if (!error) {
+        const resetUrl = result.data?.properties?.action_link;
+        if (!resetUrl) throw new Error('Recovery link is missing');
+        await sendPasswordResetEmail(email, resetUrl);
+      }
+    } else {
+      ({ error } = await supabaseServer.auth.resetPasswordForEmail(email, { redirectTo }));
+    }
     if (error) {
       console.error('Password reset email request failed:', error.code, error.status);
       const rateLimited = error.status === 429;
@@ -36,8 +56,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ message: 'If an account exists for this email, a password reset link has been sent.' });
-  } catch {
-    console.error('Password reset email request failed unexpectedly');
+  } catch (err) {
+    // Log diagnostic codes only; SMTP errors can contain recipient addresses
+    // and recovery links must never be logged.
+    const code = err && typeof err === 'object' && 'code' in err ? err.code : 'unknown';
+    console.error('Password reset email request failed:', code);
     return NextResponse.json({ error: 'Unable to send the password reset email. Please try again later.' }, { status: 500 });
   }
 }

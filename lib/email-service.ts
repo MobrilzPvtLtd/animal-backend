@@ -1,5 +1,44 @@
 import nodemailer from 'nodemailer';
 
+export async function sendPasswordResetEmail(to: string, resetUrl: string) {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) {
+    throw new Error('Password reset SMTP credentials are missing');
+  }
+
+  const port = Number(process.env.SMTP_PORT || '587');
+  const rawFrom = process.env.SMTP_FROM?.trim();
+  const sender = process.env.SMTP_SENDER_EMAIL || user;
+  const from = rawFrom?.includes('@')
+    ? rawFrom
+    : { name: rawFrom || 'Animal Click', address: sender };
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+  });
+
+  // Plain text avoids interpolating a bearer token into HTML and provides
+  // a usable link in mail clients that do not render HTML.
+  const info = await transporter.sendMail({
+    from,
+    to,
+    subject: 'Reset your Animal Click password',
+    text: `We received a request to reset your Animal Click password.\n\nOpen this link to choose a new password:\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+    disableFileAccess: true,
+    disableUrlAccess: true,
+  });
+  if (!info.accepted?.length || info.rejected?.length) {
+    throw new Error('Password reset email was not accepted by SMTP');
+  }
+  return { success: true, messageId: info.messageId };
+}
+
 export interface EventReminderEmailData {
   to: string;
   userName?: string;
