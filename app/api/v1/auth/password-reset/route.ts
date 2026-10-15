@@ -1,42 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/server-supabase';
 import { supabaseServer } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { email } = body;
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const email = typeof body?.email === 'string' ? body.email.trim() : '';
 
   if (!email) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
   }
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin || 'http://localhost:3000';
   const redirectTo = `${origin}/reset-password`;
 
   try {
-    // 1. Generate recovery link using admin API (bypasses Supabase email rate limit completely)
-    const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: { redirectTo },
-    });
-
-    if (!adminError && adminData?.properties?.action_link) {
-      // Try sending email via standard client if possible (silently ignore rate limit error)
-      supabaseServer.auth.resetPasswordForEmail(email, { redirectTo }).catch(() => {});
-
-      return NextResponse.json({
-        message: 'Password reset email sent',
-      });
+    // Link generation alone does not send email. Wait for the recovery email
+    // request so delivery errors are handled before responding to the app.
+    const { error } = await supabaseServer.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      console.error('Password reset email request failed:', error.code, error.status);
+      const rateLimited = error.status === 429;
+      return NextResponse.json(
+        { error: rateLimited
+          ? 'Too many password reset requests. Please try again later.'
+          : 'Unable to send the password reset email. Please try again later.' },
+        { status: rateLimited ? 429 : 502 }
+      );
     }
 
-    if (adminError) {
-      return NextResponse.json({ error: adminError.message }, { status: 400 });
-    }
-  } catch (err: any) {
-    console.error('Password reset generation failed:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to generate reset link' }, { status: 500 });
+    return NextResponse.json({ message: 'If an account exists for this email, a password reset link has been sent.' });
+  } catch {
+    console.error('Password reset email request failed unexpectedly');
+    return NextResponse.json({ error: 'Unable to send the password reset email. Please try again later.' }, { status: 500 });
   }
-
-  return NextResponse.json({ message: 'Password reset request processed' });
 }
