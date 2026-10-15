@@ -68,11 +68,28 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: 'If an account exists for this email, a password reset link has been sent.' });
   } catch (err) {
-    // Log diagnostic codes only; SMTP errors can contain recipient addresses
-    // and recovery links must never be logged.
+    // Keep provider diagnostics in server logs; redact addresses, URLs and secrets.
     const providerCode = err && typeof err === 'object' && 'code' in err &&
       typeof err.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(err.code) ? err.code : 'unknown';
     console.error('Password reset email request failed:', failureCode, providerCode);
+    if (failureCode === 'RESET_SMTP_DELIVERY_FAILED' && err && typeof err === 'object') {
+      const smtpError = err as { response?: unknown; responseCode?: unknown; command?: unknown };
+      let response = typeof smtpError.response === 'string' ? smtpError.response : '';
+      for (const secret of [process.env.SMTP_PASS, process.env.SUPABASE_SERVICE_ROLE_KEY, process.env.SUPABASE_SERVICE_KEY]) {
+        if (secret && secret.length >= 8) response = response.split(secret).join('[redacted]');
+      }
+      response = response
+        .replace(/https?:\/\/[^\s<>"']+/gi, '[URL]')
+        .replace(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+/gi, '[email]')
+        .replace(/[A-Za-z0-9_+/=-]{32,}/g, '[redacted]')
+        .replace(/[\r\n\t]/g, ' ')
+        .slice(0, 500);
+      console.error('Password reset SMTP diagnostics:', {
+        responseCode: typeof smtpError.responseCode === 'number' ? smtpError.responseCode : undefined,
+        command: typeof smtpError.command === 'string' && /^[A-Z :]{1,32}$/.test(smtpError.command) ? smtpError.command : undefined,
+        response,
+      });
+    }
     return NextResponse.json({ error: 'Unable to send the password reset email. Please try again later.', code: failureCode }, { status: 500 });
   }
 }
