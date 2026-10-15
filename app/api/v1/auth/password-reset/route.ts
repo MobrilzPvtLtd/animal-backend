@@ -48,8 +48,14 @@ export async function POST(request: NextRequest) {
           console.error('Password reset redirect does not match; check Supabase Auth URL Configuration');
           throw new Error('Recovery redirect is not allowed');
         }
+        const tokenHash = result.data.properties.hashed_token;
+        if (!tokenHash) throw new Error('Recovery token is missing');
+        // Opening this page does not verify the token. Only submitting the
+        // password form consumes it, so email link previews cannot use it up.
+        const emailUrl = new URL(redirectTo);
+        emailUrl.hash = new URLSearchParams({ recovery_token: tokenHash }).toString();
         failureCode = 'RESET_SMTP_DELIVERY_FAILED';
-        await sendPasswordResetEmail(email, resetUrl);
+        await sendPasswordResetEmail(email, emailUrl.toString());
       }
     } else {
       failureCode = 'RESET_AUTH_EMAIL_FAILED';

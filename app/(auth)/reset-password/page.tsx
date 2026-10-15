@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -22,18 +22,27 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const recoveryToken = useRef<string | null>(null);
+  const submitting = useRef(false);
 
   useEffect(() => {
     // Check URL hash for error parameters from Supabase
     if (typeof window !== "undefined" && window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const token = hashParams.get("recovery_token");
+      if (token) {
+        recoveryToken.current = token;
+        // Keep the bearer token out of the address bar after reading it.
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
       const errorDescription = hashParams.get("error_description");
       const errorCode = hashParams.get("error_code");
 
       if (errorCode === "otp_expired" || errorDescription) {
         setErrorMsg(
           errorDescription
-            ? decodeURIComponent(errorDescription.replace(/\+/g, " "))
+            ? errorDescription
             : "The password reset link is invalid or has expired."
         );
         return;
@@ -43,7 +52,7 @@ export default function ResetPasswordPage() {
     // Check if session is present (Supabase sets session automatically from recovery link)
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!data?.session && typeof window !== "undefined" && window.location.hash.includes("error")) {
+      if (!data?.session && !recoveryToken.current) {
         setErrorMsg("Your reset link has expired or is invalid. Please request a new link.");
       }
     };
@@ -65,6 +74,7 @@ export default function ResetPasswordPage() {
 
   async function handlePasswordUpdate(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
 
     if (!password || password.length < 6) {
       toast({
@@ -84,9 +94,23 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    submitting.current = true;
     setIsLoading(true);
 
     try {
+      if (recoveryToken.current) {
+        const { data, error: verificationError } = await supabase.auth.verifyOtp({
+          token_hash: recoveryToken.current,
+          type: "recovery",
+        });
+        if (verificationError || !data.session) {
+          setErrorMsg("Your reset link is invalid or has expired. Please request a new link.");
+          setIsLoading(false);
+          return;
+        }
+        recoveryToken.current = null;
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
@@ -121,6 +145,8 @@ export default function ResetPasswordPage() {
         description: err?.message || "An unexpected error occurred.",
         variant: "destructive",
       });
+    } finally {
+      submitting.current = false;
     }
   }
 
