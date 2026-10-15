@@ -2,17 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ArrowLeft, CheckCircle2, Lock, AlertCircle } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createPasswordRecoveryClient } from "@/lib/password-recovery-client";
 import { ClipLoader } from "react-spinners";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
+  const [supabase] = useState(createPasswordRecoveryClient);
   const { toast } = useToast();
 
   const [password, setPassword] = useState("");
@@ -70,7 +69,7 @@ export default function ResetPasswordPage() {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   async function handlePasswordUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -125,19 +124,17 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Sign out user so they are forced to log in with their new password
-      await supabase.auth.signOut();
+      // End only this temporary recovery session, not the user's app sessions.
+      await supabase.auth.signOut({ scope: "local" });
 
+      setPassword("");
+      setConfirmPassword("");
       setIsLoading(false);
       setIsSuccess(true);
       toast({
         title: "Success",
-        description: "Your password has been reset successfully. Please log in with your new password.",
+        description: "Your password has been changed. You can now return to the app and log in.",
       });
-
-      setTimeout(() => {
-        router.replace("/login");
-      }, 1500);
     } catch (err: any) {
       setIsLoading(false);
       toast({
@@ -198,18 +195,12 @@ export default function ResetPasswordPage() {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h2 className="text-2xl font-semibold tracking-tight">
-                Password Reset Successful!
+                Password Changed
               </h2>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Your password has been updated. Redirecting you to login page...
+                Your password has been changed successfully. You can close this page
+                and return to the AnimalClick app to log in with your new password.
               </p>
-              <div className="pt-4">
-                <Link href="/login">
-                  <Button className="w-full">
-                    Proceed to Log In
-                  </Button>
-                </Link>
-              </div>
             </div>
           ) : (
             <>

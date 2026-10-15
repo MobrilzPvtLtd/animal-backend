@@ -8,6 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    // Recovery links belong to the reset page's temporary auth client.
+    detectSessionInUrl: typeof window === 'undefined' || window.location.pathname !== '/reset-password',
   },
 });
