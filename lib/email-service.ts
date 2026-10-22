@@ -254,3 +254,22 @@ export async function sendSupportTicketReplyEmail(data: SupportTicketReplyEmailD
   const info = await transporter.sendMail(mailOptions);
   return { success: true, messageId: info.messageId };
 }
+
+export async function sendProviderRequestDecisionEmail(to: string, businessName: string, status: 'approved' | 'rejected', reason: string) {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) throw new Error('SMTP credentials are missing');
+  const port = Number(process.env.SMTP_PORT || '587');
+  const rawFrom = process.env.SMTP_FROM?.trim();
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com', port, secure: port === 465,
+    auth: { user, pass }, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
+  });
+  const info = await transporter.sendMail({
+    from: rawFrom?.includes('@') ? rawFrom : { name: rawFrom || 'Animal Click', address: process.env.SMTP_SENDER_EMAIL || user },
+    to, subject: `Your provider access request has been ${status}`,
+    text: `Your provider access request for ${businessName} has been ${status}.\n\nReason:\n${reason}\n\nAnimal Click Team`,
+    disableFileAccess: true, disableUrlAccess: true,
+  });
+  if (!info.accepted?.length || info.rejected?.length) throw new Error('Decision email was not accepted by SMTP');
+}

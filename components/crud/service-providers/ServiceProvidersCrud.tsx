@@ -50,6 +50,8 @@ import {
 import { DataTablePagination } from "@/components/tabel/DataTablePagination"
 import { DataTableToolbar } from "../DataTableToolbar"
 
+import { ProviderRequests } from "./ProviderRequests"
+
 export function ServiceProvidersCrud() {
   const [providers, setProviders] = useState<ServiceProvider[]>([])
   const [categories, setCategories] = useState<{ service_category_id: number; name: string }[]>([])
@@ -224,8 +226,8 @@ export function ServiceProvidersCrud() {
     }
   }, [updateURL])
 
-  const fetchProviders = async () => {
-    setLoading(true)
+  const fetchProviders = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
       const [providersRes, categoriesRes] = await Promise.all([
         supabase
@@ -254,7 +256,7 @@ export function ServiceProvidersCrud() {
       console.error("Error fetching service providers:", error)
       toast.error("Failed to load service providers")
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }
 
@@ -437,6 +439,7 @@ export function ServiceProvidersCrud() {
         </Button>
       </div>
 
+      <ProviderRequests onApproved={() => { void fetchProviders(false) }} />
       <div className="space-y-4">
         <DataTableToolbar 
           table={table} 
