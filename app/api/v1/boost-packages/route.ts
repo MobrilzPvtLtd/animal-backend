@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const { name, description, duration_days, price, is_active = true } = await request.json();
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const packageId = request.nextUrl.searchParams.get('boost_package_id');

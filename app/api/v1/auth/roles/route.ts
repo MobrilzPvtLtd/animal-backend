@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { isRetiredRole } from '@/lib/roles';
 
 export async function GET() {
   const { data, error } = await supabaseServer
@@ -25,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const roles = data?.map((role: any) => ({
+  const roles = data?.filter(role => !isRetiredRole(role.name)).map((role: any) => ({
     role_id: role.role_id,
     name: role.name,
     description: role.description,

@@ -115,6 +115,7 @@
   },
   "devDependencies": {
     "@types/google.maps": "^3.58.1",
-    "dotenv-cli": "^11.0.0"
+    "dotenv-cli": "^11.0.0",
+    "supabase": "2.118.0"
   }
 }

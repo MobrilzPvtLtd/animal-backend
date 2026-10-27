@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Approver', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const eventId = request.nextUrl.searchParams.get('event_id');

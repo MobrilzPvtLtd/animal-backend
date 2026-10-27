@@ -120,12 +120,12 @@ export default function LoginPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link
+                  {/* <Link
                     href="/forgot-password"
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot Password?
-                  </Link>
+                  </Link> */}
                 </div>
                 <div className="relative">
                   <Input
@@ -228,12 +228,12 @@ export default function LoginPage() {
                 </Link>
               </p>
 
-              <p className="text-muted-foreground">
+              {/* <p className="text-muted-foreground">
                 Don&apos;t have an account?{" "}
                 <Link href="/signup" className="text-primary hover:underline">
                   Sign Up
                 </Link>
-              </p>
+              </p> */}
             </div>
           </form>
 

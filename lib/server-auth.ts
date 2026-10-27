@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from './server-supabase';
 import { hashAccessToken } from './auth-session';
+import { roleKey, isRetiredRole } from './roles';
 
 
 type SupabaseUser = {
@@ -134,13 +135,13 @@ export async function getUserFromRequest(request: NextRequest): Promise<Authenti
     new Set([
       ...(rolesQuery.data || []).map((item: any) => item.roles?.name).filter(Boolean),
       ...fallbackRoleNames,
-    ])
+    ].filter(name => !isRetiredRole(name)))
   );
 
   const isManagement = hasManagementRole(roleNames);
 
   // Single-device restriction:
-  // 1. Management roles (Admin, Owner, Manager) must NEVER be kicked out by single-device checks
+  // 1. Super Admins (including legacy Admin/Owner names) bypass single-device checks
   //    or multi-tab / refreshed session token changes.
   // 2. For all valid sessions verified by Supabase Auth, keep the active token hash updated so
   //    subsequent requests match seamlessly.
@@ -179,7 +180,7 @@ export function buildErrorResponse(message: string, status: number = 401) {
 }
 
 function normalizeRoleName(roleName: string | undefined | null): string {
-  return String(roleName || '').trim().toLowerCase();
+  return roleKey(roleName);
 }
 
 export async function requireRoles(
@@ -222,6 +223,7 @@ export async function getUserPermissionNames(user: AuthenticatedUser): Promise<s
     .from('user_roles')
     .select(`
       roles (
+        name,
         role_permissions (
           permissions (
             name
@@ -239,6 +241,7 @@ export async function getUserPermissionNames(user: AuthenticatedUser): Promise<s
   const permissionNames = new Set<string>();
 
   (data || []).forEach((row: any) => {
+    if (isRetiredRole(row.roles?.name)) return;
     row.roles?.role_permissions?.forEach((rolePermission: any) => {
       if (rolePermission.permissions?.name) {
         permissionNames.add(rolePermission.permissions.name);
@@ -251,7 +254,7 @@ export async function getUserPermissionNames(user: AuthenticatedUser): Promise<s
 
 export function hasManagementRole(roleNames: string[]): boolean {
   const normalizedRoles = roleNames.map(normalizeRoleName);
-  return ['admin', 'owner', 'manager'].some((role) => normalizedRoles.includes(role));
+  return normalizedRoles.includes('super admin');
 }
 
 export async function recordAuditLog(payload: {

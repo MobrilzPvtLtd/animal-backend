@@ -59,6 +59,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/providers/AuthProvider";
+import { roleKey } from "@/lib/roles";
 
 const data = {
   user: {
@@ -75,8 +76,6 @@ const data = {
       roles: [
         "Owner",
         "Admin",
-        "Manager",
-        "Approver",
         "Provider",
         "Subscriber",
       ],
@@ -85,13 +84,13 @@ const data = {
       title: "Animal Types",
       url: "/dashboard/animal-types",
       icon: DatabaseIcon,
-      roles: ["Owner", "Admin", "Manager"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Breeds",
       url: "/dashboard/breeds",
       icon: DatabaseIcon,
-      roles: ["Owner", "Admin", "Manager"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "What's New",
@@ -103,20 +102,20 @@ const data = {
     //   title: "Breeders",
     //   url: "/dashboard/breeders",
     //   icon: UsersIcon,
-    //   roles: ["Owner", "Admin", "Manager"],
+    //   roles: ["Owner", "Admin"],
     // },
     {
       title: "Service Categories",
       url: "/dashboard/service-categories",
       icon: DatabaseIcon,
-      roles: ["Owner", "Admin", "Manager"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Service Providers",
       url: "/dashboard/service-providers",
       icon: UsersIcon,
       permissions: ["service_providers.view"],
-      roles: ["Owner", "Admin", "Manager", "Provider"],
+      roles: ["Owner", "Admin", "Provider"],
       items: [],
     },
 
@@ -125,13 +124,13 @@ const data = {
       url: "/dashboard/pet-friendly-places",
       icon: Building2,
       permissions: ["pet_friendly_places.view"],
-      roles: ["Owner", "Admin", "Manager", "Provider"],
+      roles: ["Owner", "Admin", "Provider"],
     },
     {
       title: "Event Categories",
       url: "/dashboard/event-categories",
       icon: Calendar,
-      roles: ["Owner", "Admin", "Manager", "Approver"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Events",
@@ -141,8 +140,6 @@ const data = {
       roles: [
         "Owner",
         "Admin",
-        "Manager",
-        "Approver",
         "Subscriber",
         "Provider",
       ],
@@ -151,25 +148,25 @@ const data = {
       title: "Donations",
       url: "/dashboard/donations",
       icon: Coins,
-      roles: ["Owner", "Admin", "Manager"]
+      roles: ["Owner", "Admin"]
     },
     {
       title: "Rescue Centres",
       url: "/dashboard/rescue-centres",
       icon: Building2,
-      roles: ["Owner", "Admin", "Manager"]
+      roles: ["Owner", "Admin"]
     },
     {
       title: "Community",
       url: "/dashboard/community",
       icon: GroupIcon,
-      roles: ["Owner", "Admin", "Manager", "Subscriber"]
+      roles: ["Owner", "Admin", "Subscriber"]
     },
     {
       title: "Community Comments",
       url: "/dashboard/community-comments",
       icon: MessageSquare,
-      roles: ["Owner", "Admin", "Manager"]
+      roles: ["Owner", "Admin"]
     },
     {
       title: "Users",
@@ -187,7 +184,7 @@ const data = {
       title: "Support",
       url: "/dashboard/support",
       icon: HelpCircleIcon,
-      roles: ["Owner", "Admin", "Manager"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Payments & Billing",
@@ -199,14 +196,14 @@ const data = {
       title: "Subscription Plans",
       url: "/dashboard/subscription-plans",
       icon: CreditCard,
-      roles: ["Owner", "Admin", "Manager"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Reports",
       url: "/dashboard/reports",
       icon: BarChartIcon,
       permissions: ["reports.view"],
-      roles: ["Owner", "Admin", "Manager", "Approver"],
+      roles: ["Owner", "Admin"],
     },
     {
       title: "Boost Packages",
@@ -231,7 +228,7 @@ const data = {
       url: "/dashboard/analytics",
       icon: BarChartIcon,
       permissions: ["analytics.view"],
-      roles: ["Owner", "Admin", "Manager", "Approver", "Provider"],
+      roles: ["Owner", "Admin", "Provider"],
     },
   ],
 };
@@ -250,13 +247,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const userRoleNames = roles.map((role) => role.name).filter(Boolean);
   const normalizedUserRoleNames = userRoleNames.map((roleName) =>
-    roleName.toLowerCase(),
+    roleKey(roleName),
   );
   const normalizedUserPermissions = permissions.map((permission) =>
     permission.toLowerCase(),
   );
   const hasRole = (roleName: string) =>
-    normalizedUserRoleNames.includes(roleName.toLowerCase());
+    normalizedUserRoleNames.includes(roleKey(roleName));
   const hasPermission = (permissionName: string) =>
     normalizedUserPermissions.includes(permissionName.toLowerCase());
   const isOwner = hasRole("Owner");
@@ -290,10 +287,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     if (title === "View Analytics") {
       return (
-        hasRole("Admin") ||
-        hasRole("Manager") ||
-        hasRole("Approver") ||
-        hasRole("Provider") ||
+        hasRole("Admin") ||        hasRole("Provider") ||
         hasPermission("analytics.view")
       );
     }

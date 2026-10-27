@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const { boost_package_id, entity_type, vet_id, breeder_id, pet_friendly_place_id, service_provider_id, start_date, end_date } = await request.json();
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const boostId = request.nextUrl.searchParams.get('entity_boost_id');

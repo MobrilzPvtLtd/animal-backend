@@ -13,7 +13,7 @@ export default function TermsPage() {
       </p>
       <h2 className="text-2xl font-semibold mt-8 mb-4">2. User Roles and Permissions</h2>
       <p className="mb-4">
-        The platform supports multiple user roles including Guest, Subscriber, Provider, Admin, Approver, Manager, and Owner. Access to dashboard features is strictly governed by role-based permissions.
+        The platform supports Guest, Subscriber, Provider and Super Admin roles. Access to dashboard features is strictly governed by role-based permissions.
       </p>
       <h2 className="text-2xl font-semibold mt-8 mb-4">3. User Accounts</h2>
       <p className="mb-4">
@@ -21,7 +21,7 @@ export default function TermsPage() {
       </p>
       <h2 className="text-2xl font-semibold mt-8 mb-4">4. Content and Moderation</h2>
       <p className="mb-4">
-        Community posts, reviews, event submissions, and provider updates may be subject to review and approval by Admin or Approver roles before becoming public.
+        Community posts, reviews, event submissions, and provider updates may be subject to review and approval by Super Admins before becoming public.
       </p>
       <h2 className="text-2xl font-semibold mt-8 mb-4">5. Donation and Rescue Campaigns</h2>
       <p className="mb-4">

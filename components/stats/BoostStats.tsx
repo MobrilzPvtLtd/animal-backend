@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Zap, TrendingUp, DollarSign, Calendar } from "lucide-react";
 
 interface BoostStats {
+  totalActivePackages: number;
   totalActiveBoosts: number;
   totalRevenue: number;
   expiringThisWeek: number;
@@ -14,6 +15,7 @@ interface BoostStats {
 
 export function BoostStats() {
   const [stats, setStats] = useState<BoostStats>({
+    totalActivePackages: 0,
     totalActiveBoosts: 0,
     totalRevenue: 0,
     expiringThisWeek: 0,
@@ -28,7 +30,8 @@ export function BoostStats() {
   const fetchBoostStats = async () => {
     try {
       // Get all boosts with package info
-      const { data: boosts, error } = await supabase
+      const [boostsResult, packagesResult] = await Promise.all([
+        supabase
         .from("entity_boosts")
         .select(`
           *,
@@ -36,9 +39,16 @@ export function BoostStats() {
             price,
             duration_days
           )
-        `);
+        `),
+        supabase
+          .from("boost_packages")
+          .select("boost_package_id", { count: "exact", head: true })
+          .eq("is_active", true),
+      ]);
 
-      if (error) throw error;
+      if (boostsResult.error) throw boostsResult.error;
+      if (packagesResult.error) throw packagesResult.error;
+      const boosts = boostsResult.data;
 
       const now = new Date();
       const oneWeekFromNow = new Date();
@@ -52,7 +62,8 @@ export function BoostStats() {
 
       boosts?.forEach((boost: any) => {
         const endDate = new Date(boost.end_date);
-        const isActive = boost.is_active && endDate > now;
+        const startDate = new Date(boost.start_date);
+        const isActive = boost.is_active && startDate <= now && endDate > now;
 
         if (isActive) {
           totalActiveBoosts++;
@@ -76,6 +87,7 @@ export function BoostStats() {
       });
 
       setStats({
+        totalActivePackages: packagesResult.count ?? 0,
         totalActiveBoosts,
         totalRevenue,
         expiringThisWeek,
@@ -90,8 +102,8 @@ export function BoostStats() {
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {[...Array(5)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Loading...</CardTitle>
@@ -107,7 +119,17 @@ export function BoostStats() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Active Booster Packages</CardTitle>
+          <Zap className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalActivePackages}</div>
+          <p className="text-xs text-muted-foreground">Packages available for purchase</p>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Active Boosts</CardTitle>

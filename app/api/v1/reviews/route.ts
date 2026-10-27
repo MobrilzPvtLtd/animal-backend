@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Approver']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const reviewId = request.nextUrl.searchParams.get('review_id');

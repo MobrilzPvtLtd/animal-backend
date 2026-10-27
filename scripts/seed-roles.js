@@ -17,17 +17,13 @@ const ROLES = [
   { name: 'Guest', description: 'Guest (Non-Subscriber)', is_system_role: false },
   { name: 'Subscriber', description: 'Paid or registered subscriber', is_system_role: false },
   { name: 'Provider', description: 'Linked Place Owner / Service Provider', is_system_role: false },
-  { name: 'Admin', description: 'Administrator with broad access', is_system_role: false },
-  { name: 'Approver', description: 'Approver role for content/workflows', is_system_role: false },
-  { name: 'Manager', description: 'Manager role for teams', is_system_role: false },
-  { name: 'Owner', description: 'Super Admin / Owner', is_system_role: true },
+  { name: 'Super Admin', description: 'Full platform administration', is_system_role: true },
 ];
 
 (async () => {
   try {
-    // Delete any roles that are not in our list
-    const names = ROLES.map(r => r.name);
-    await supabase.from('roles').delete().not('name', 'in', `(${names.map(n => `'${n}'`).join(',')})`);
+    // Existing/custom roles and assignments must survive seeding.
+    // Migration 061 merges legacy Owner/Admin records transactionally.
 
     // Upsert each role (insert if not exists, update if exists)
     for (const role of ROLES) {

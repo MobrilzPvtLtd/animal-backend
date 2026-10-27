@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/server-supabase';
+import { isSuperAdmin, isRetiredRole } from '@/lib/roles';
 
-export const PUBLIC_SIGNUP_ROLE_NAMES = ['Guest', 'Subscriber', 'Provider','Admin','Approver','Manager','Owner'] as const;
+export const PUBLIC_SIGNUP_ROLE_NAMES = ['Guest', 'Subscriber', 'Provider'] as const;
 
 export type PermissionRecord = {
   permission_id: number;
@@ -175,7 +176,7 @@ async function loadRoles(profileRecord: any, authUser: AuthUserInput) {
     }));
   }
 
-  return normalizedRoles;
+  return normalizedRoles.filter(role => role.roles && !isRetiredRole(role.roles.name));
 }
 
 async function loadPermissions(roleIds: number[]) {
@@ -261,7 +262,7 @@ export async function buildAuthProfile(authUser: AuthUserInput) {
   const permissions = await loadPermissions(roleIds);
 
   const roleNames = userRoles.map((role) => role.roles?.name).filter(Boolean) as string[];
-  const isPrivilegedRole = roleNames.some((r) => ['Owner', 'Admin', 'Manager', 'Subscriber'].includes(r));
+  const isPrivilegedRole = roleNames.some((r) => isSuperAdmin(r) || ['Subscriber'].includes(r));
 
   const rawStatus = String(baseProfile.subscription_status || '').toLowerCase();
   const expiresAtStr = baseProfile.subscription_expires_at;

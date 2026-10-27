@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const body = await request.json();
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const groupId = request.nextUrl.searchParams.get('group_id');

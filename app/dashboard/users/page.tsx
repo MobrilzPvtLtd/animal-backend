@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { isSuperAdmin, roleKey, roleLabel, systemRoleOptions } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +64,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [selectedUserRoles, setSelectedUserRoles] = useState<number[]>([]);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
@@ -75,6 +77,7 @@ export default function UsersPage() {
   });
 
   const { toast } = useToast();
+  const roleOptions = systemRoleOptions(roles);
 
   useEffect(() => {
     fetchUsers();
@@ -170,11 +173,11 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = (user: User) => {
-    const isTargetOwner = user.user_roles.some(ur => ur.roles?.name === "Owner");
+    const isTargetOwner = user.user_roles.some(ur => isSuperAdmin(ur.roles?.name));
     if (isTargetOwner) {
       toast({
         title: "Cannot Delete",
-        description: "Owner accounts cannot be deleted",
+        description: "Super Admin accounts cannot be deleted",
         variant: "destructive",
       });
       return;
@@ -184,10 +187,12 @@ export default function UsersPage() {
   };
 
   const confirmDeleteUser = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete || deletingUser) return;
+    setDeletingUser(true);
 
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error('Your session has expired. Sign in and try again.');
       const response = await fetch(`/api/v1/users?user_id=${userToDelete.user_id}`, {
         method: "DELETE",
         headers: {
@@ -195,9 +200,9 @@ export default function UsersPage() {
         },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to delete user");
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.success !== true || String(result.deleted_user_id) !== String(userToDelete.user_id)) {
+        throw new Error(result.error || "User deletion was not confirmed. Refresh and try again.");
       }
 
       toast({
@@ -205,7 +210,7 @@ export default function UsersPage() {
         description: `User ${userToDelete.user_name || userToDelete.email} has been deleted`,
       });
 
-      setUsers(users.filter(u => u.user_id !== userToDelete.user_id));
+      setUsers(previous => previous.filter(u => String(u.user_id) !== String(userToDelete.user_id)));
     } catch (error: any) {
       toast({
         title: "Error",
@@ -215,6 +220,7 @@ export default function UsersPage() {
     } finally {
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
+      setDeletingUser(false);
     }
   };
 
@@ -245,7 +251,7 @@ export default function UsersPage() {
       // Sync subscription_status if user is assigned privileged roles or Subscriber
       const hasPrivilegedRole = roles
         .filter((r) => selectedUserRoles.includes(r.role_id))
-        .some((r) => ["Owner", "Admin", "Manager", "Subscriber"].includes(r.name));
+        .some((r) => isSuperAdmin(r.name) || ["Subscriber"].includes(r.name));
 
       await supabase
         .from("users")
@@ -271,7 +277,7 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.toLowerCase().trim();
-    const userRoleNames = user.user_roles.map((ur) => ur.roles?.name?.toLowerCase() || "");
+    const userRoleNames = user.user_roles.map((ur) => roleKey(ur.roles?.name));
     const subStatus = (user.subscription_status || "guest").toLowerCase();
 
     // 1. Check Search Term (Matches Name, Email, Role name, or Subscription Status)
@@ -285,15 +291,14 @@ export default function UsersPage() {
     // 2. Check Role Filter
     const matchesRole =
       selectedRoleFilter === "all" ||
-      user.user_roles.some((ur) => ur.roles?.name?.toLowerCase() === selectedRoleFilter.toLowerCase());
+      user.user_roles.some((ur) => roleKey(ur.roles?.name) === selectedRoleFilter);
 
     // 3. Check Subscription Status Filter
     const isSubscriber =
       subStatus === "active" ||
       subStatus === "subscribed" ||
       userRoleNames.includes("subscriber") ||
-      userRoleNames.includes("owner") ||
-      userRoleNames.includes("admin");
+      userRoleNames.includes("super admin");
 
     const matchesStatus =
       selectedStatusFilter === "all" ||
@@ -327,7 +332,7 @@ export default function UsersPage() {
           <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by user, email, or role (e.g. Owner, Subscriber, Guest)..."
+              placeholder="Search by user, email, or role (e.g. Super Admin, Subscriber, Guest)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 bg-background"
@@ -345,8 +350,8 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                {roles.map((r) => (
-                  <SelectItem key={r.role_id} value={r.name.toLowerCase()}>
+                {roleOptions.map((r) => (
+                  <SelectItem key={r.role_id} value={roleKey(r.name)}>
                     {r.name}
                   </SelectItem>
                 ))}
@@ -405,12 +410,11 @@ export default function UsersPage() {
           </div>
         ) : (
           filteredUsers.map((user) => {
-            const userRoleNames = user.user_roles.map((ur) => ur.roles?.name || "");
+            const userRoleNames = user.user_roles.map((ur) => roleLabel(ur.roles?.name || ""));
             const isSubscriber =
               (user.subscription_status || "").toLowerCase() === "active" ||
               userRoleNames.includes("Subscriber") ||
-              userRoleNames.includes("Owner") ||
-              userRoleNames.includes("Admin");
+              userRoleNames.includes("Super Admin");
 
             return (
               <Card key={user.user_id} className="transition-shadow hover:shadow-md">
@@ -434,10 +438,10 @@ export default function UsersPage() {
                       variant="outline"
                       size="sm"
                       className="text-destructive hover:text-destructive"
-                      disabled={user.user_roles.some((ur) => ur.roles?.name === "Owner")}
+                      disabled={user.user_roles.some((ur) => isSuperAdmin(ur.roles?.name))}
                       title={
-                        user.user_roles.some((ur) => ur.roles?.name === "Owner")
-                          ? "Owner accounts cannot be deleted"
+                        user.user_roles.some((ur) => isSuperAdmin(ur.roles?.name))
+                          ? "Super Admin accounts cannot be deleted"
                           : "Delete user"
                       }
                       onClick={() => handleDeleteUser(user)}
@@ -473,15 +477,13 @@ export default function UsersPage() {
                         Guest
                       </Badge>
                     ) : (
-                      user.user_roles.map((ur) => {
-                        const rName = ur.roles?.name || "";
-                        const isOwner = rName === "Owner";
-                        const isAdmin = rName === "Admin";
+                      systemRoleOptions(user.user_roles.filter(ur => ur.roles).map(ur => ({ role_id: ur.role_id, name: ur.roles.name }))).map((ur) => {
+                        const rName = ur.name;
+                        const isOwner = isSuperAdmin(rName);
                         const isSub = rName === "Subscriber";
 
                         let badgeClass = "text-xs";
                         if (isOwner) badgeClass = "bg-purple-100 text-purple-800 border-purple-200";
-                        else if (isAdmin) badgeClass = "bg-blue-100 text-blue-800 border-blue-200";
                         else if (isSub) badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
 
                         return (
@@ -515,11 +517,11 @@ export default function UsersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToDelete(null)}>
+            <AlertDialogCancel disabled={deletingUser} onClick={() => setUserToDelete(null)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteUser} className="bg-destructive text-destructive-foreground">
-              Delete
+            <AlertDialogAction disabled={deletingUser} onClick={event => { event.preventDefault(); confirmDeleteUser(); }} className="bg-destructive text-destructive-foreground">
+              {deletingUser ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -538,17 +540,17 @@ export default function UsersPage() {
               </Label>
             </div>
             <div className="space-y-2">
-              {roles.map((role) => (
+              {roleOptions.map((role) => (
                 <div key={role.role_id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`role-${role.role_id}`}
-                    checked={selectedUserRoles.includes(role.role_id)}
+                    checked={role.role_ids.some(id => selectedUserRoles.includes(id))}
                     onCheckedChange={(checked) => {
                       if (checked) {
-                        setSelectedUserRoles([...selectedUserRoles, role.role_id]);
+                        setSelectedUserRoles([...selectedUserRoles.filter(id => !role.role_ids.includes(id)), role.role_id]);
                       } else {
                         setSelectedUserRoles(
-                          selectedUserRoles.filter((id) => id !== role.role_id)
+                          selectedUserRoles.filter((id) => !role.role_ids.includes(id))
                         );
                       }
                     }}
@@ -558,7 +560,7 @@ export default function UsersPage() {
                       <span className="font-medium">{role.name}</span>
                       {role.description && (
                         <div className="text-xs text-muted-foreground">
-                          {role.description}
+                          {isSuperAdmin(role.name) ? 'Full platform administration' : role.description}
                         </div>
                       )}
                     </div>

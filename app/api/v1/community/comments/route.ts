@@ -70,7 +70,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (existing.data.user_id !== user.internalUserId) {
-    const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+    const auth = await requireRoles(request, ['Admin', 'Owner']);
     if ('status' in auth) return auth;
   }
 
@@ -110,7 +110,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (existing.data.user_id !== user.internalUserId) {
-    const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+    const auth = await requireRoles(request, ['Admin', 'Owner']);
     if ('status' in auth) return auth;
   }
 

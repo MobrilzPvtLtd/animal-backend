@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (status && !['pending', 'approved', 'rejected'].includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
-  const auth = mine ? null : await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = mine ? null : await requireRoles(request, ['Admin', 'Owner']);
   if (auth && 'status' in auth) return auth;
   const user = auth?.user || await getUserFromRequest(request);
   if (!user?.internalUserId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
   const requestId = request.nextUrl.searchParams.get('request_id');
   if (!requestId || !/^\d+$/.test(requestId)) return NextResponse.json({ error: 'Valid request_id is required' }, { status: 400 });

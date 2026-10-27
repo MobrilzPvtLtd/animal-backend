@@ -19,7 +19,7 @@ export async function GET() {
       lookup[r.name] = r;
     });
 
-    const ordered = PUBLIC_SIGNUP_ROLE_NAMES.map((name) => lookup[name] || { name });
+    const ordered = PUBLIC_SIGNUP_ROLE_NAMES.map((name) => lookup[name]).filter(Boolean);
 
     return NextResponse.json({ roles: ordered });
   } catch (err: any) {

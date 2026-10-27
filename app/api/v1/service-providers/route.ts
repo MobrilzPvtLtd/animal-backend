@@ -117,7 +117,7 @@ function parseCategoryIds(rawCategoryIds: any, fallbackCategoryId?: any): number
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const contentType = request.headers.get('content-type') || '';
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) {
     console.error('PATCH /api/v1/service-providers - Auth FAILED:', JSON.stringify(auth));
     return auth;

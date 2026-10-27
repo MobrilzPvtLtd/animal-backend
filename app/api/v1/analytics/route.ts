@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/server-supabase';
 import { requireRoles } from '@/lib/server-auth';
 
 export async function GET(request: NextRequest) {
-  const auth = await requireRoles(request, ['Admin', 'Owner', 'Manager']);
+  const auth = await requireRoles(request, ['Admin', 'Owner']);
   if ('status' in auth) return auth;
 
   const userCountResult = await supabaseAdmin.from('users').select('user_id', { count: 'exact', head: true });

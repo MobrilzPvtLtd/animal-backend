@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
-import { getUserFromRequest } from '@/lib/server-auth';
+import { getUserFromRequest, hasManagementRole } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 
 const TICKET_SELECT = `
@@ -55,8 +55,7 @@ export async function GET(request: NextRequest) {
   const all = request.nextUrl.searchParams.get('all') === 'true';
 
   if (all) {
-    const normalizedRoles = user.roleNames.map(r => r.toLowerCase());
-    if (!['owner', 'admin', 'manager'].some(r => normalizedRoles.includes(r))) {
+    if (!hasManagementRole(user.roleNames)) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 

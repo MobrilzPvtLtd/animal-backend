@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
 import { getUserFromRequest, getUserPermissionNames, hasManagementRole } from '@/lib/server-auth';
+import { isRetiredRole } from '@/lib/roles';
 
 export async function GET(request: NextRequest) {
   const authUser = await getUserFromRequest(request);
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     permission_count: rolePermissionCounts[role.role_id.toString()] ?? 0,
     permissions: permissionsByRole[role.role_id.toString()] || [],
     can_edit: canManageAllRoles && !role.is_system_role,
-  })) ?? []).filter((role: any) => canManageAllRoles || visibleRoleIds.has(role.role_id.toString()));
+  })) ?? []).filter((role: any) => !isRetiredRole(role.name) && (canManageAllRoles || visibleRoleIds.has(role.role_id.toString())));
 
   return NextResponse.json({ roles: enrichedRoles });
 }

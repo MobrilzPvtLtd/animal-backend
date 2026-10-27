@@ -21,20 +21,8 @@ export const ROLE_ACCESS = {
     "Create promotions",
     "View place performance",
   ],
-  Approver: [
-    "Review and approve events",
-    "Review and approve reviews",
-    "Moderate community posts",
-    "Approve provider updates",
-  ],
-  Manager: [
-    "All approver features",
-    "Manage groups and group types",
-    "Manage analytics and audits",
-    "View support tickets",
-  ],
   Admin: [
-    "All manager features",
+    "Manage moderation, groups, analytics and support",
     "Manage users and roles",
     "Create booster packages",
     "Create rescue centre campaigns",

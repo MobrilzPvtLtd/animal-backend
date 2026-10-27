@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server-supabase';
-import { getUserFromRequest, requireRoles } from '@/lib/server-auth';
+import { getUserFromRequest, requireRoles, hasManagementRole } from '@/lib/server-auth';
 import { uploadAnimalImage } from '@/lib/storage-upload';
 import { sendSupportTicketReplyEmail } from '@/lib/email-service';
 
@@ -31,8 +31,7 @@ export async function GET(
 
   const params = await context.params;
 
-  const normalizedRoles = user.roleNames.map(r => r.toLowerCase());
-  const isAdmin = ['owner', 'admin', 'manager'].some(r => normalizedRoles.includes(r));
+  const isAdmin = hasManagementRole(user.roleNames);
 
   let query: any = supabaseAdmin
     .from('support_tickets')
@@ -126,7 +125,7 @@ export async function POST(
     return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
   }
 
-  const isAdmin = user.roleNames.some(r => ['owner', 'admin', 'manager'].includes(r.toLowerCase()));
+  const isAdmin = hasManagementRole(user.roleNames);
   const isOwner = String(ticket.user_id) === String(user.internalUserId);
 
   if (!isAdmin && !isOwner) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { generateTokens } from '@/lib/jwt';
 import bcrypt from 'bcryptjs';
+import { normalizeEmail, isDuplicateAccountError, DUPLICATE_ACCOUNT_MESSAGE } from '@/lib/account-identity';
 
 interface UserRow {
   user_id: number;
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-      email,
+      email: rawEmail,
       password,
       confirmPassword,
       name = '',
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       location = '',
       imagePath = '',
     } = body;
+    const email = normalizeEmail(rawEmail);
 
     // Validation
     if (!email || !password) {
@@ -73,12 +75,12 @@ export async function POST(request: NextRequest) {
 
     // Check existing user
     const existingUsers = await query<UserRow[]>(
-      'SELECT user_id FROM users WHERE email = ? LIMIT 1',
+      'SELECT user_id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1',
       [email]
     );
 
     if (existingUsers && existingUsers.length > 0) {
-      return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
+      return NextResponse.json({ error: DUPLICATE_ACCOUNT_MESSAGE }, { status: 409 });
     }
 
     // Hash password
@@ -153,6 +155,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error: any) {
     console.error('Signup API Error:', error);
+    if (isDuplicateAccountError(error)) return NextResponse.json({ error: DUPLICATE_ACCOUNT_MESSAGE }, { status: 409 });
     return NextResponse.json(
       { error: error?.message || 'Internal Server Error' },
       { status: 500 }

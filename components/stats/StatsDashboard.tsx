@@ -7,7 +7,7 @@ import { UserGrowthChart } from "./UserGrowthChart"
 import { BoostStats } from "./BoostStats"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
-import { Users, Building, Stethoscope, PawPrint, Zap } from "lucide-react"
+import { Users, Building, PawPrint, LifeBuoy } from "lucide-react"
 
 // Define types for our data
 type AnimalTypeData = {
@@ -34,6 +34,7 @@ export function StatsDashboard() {
     totalServiceProviders: 0,
     animalTypes: [] as AnimalTypeData[],
     totalBreeds: 0,
+    openSupportTickets: 0,
     boostedEntities: {
       total: 0,
       byCategory: {} as ServiceCategoryStats
@@ -56,7 +57,8 @@ export function StatsDashboard() {
         serviceProvidersResult,
         activeBoostedResult,
         animalTypesResult,
-        breedsResult
+        breedsResult,
+        openSupportTicketsResult
       ] = await Promise.all([
         // Get users count
         supabase
@@ -69,11 +71,10 @@ export function StatsDashboard() {
           .from('service_providers')
           .select(`
             service_category_id,
-            service_categories!service_providers_service_category_id_fkey!inner(name),
+            service_categories!service_providers_service_category_id_fkey(name),
             is_active,
             is_deleted
-          `)
-          .eq('is_active', true)
+          `, { count: 'exact' })
           .eq('is_deleted', false),
 
         // Get active boosts with service provider category info
@@ -113,7 +114,14 @@ export function StatsDashboard() {
         supabase
           .from('breeds')
           .select('*', { count: 'exact', head: true }),
+
+        supabase
+          .from('support_tickets')
+          .select('support_ticket_id', { count: 'exact', head: true })
+          .eq('status', 'open'),
       ])
+
+      if (openSupportTicketsResult.error) throw openSupportTicketsResult.error
 
       // Process service providers data
       const serviceProviderStats: ServiceCategoryStats = {}
@@ -121,11 +129,9 @@ export function StatsDashboard() {
 
       if (serviceProvidersResult.data) {
         serviceProvidersResult.data.forEach((provider: any) => {
-          const categoryName = provider.service_categories?.name
-          if (categoryName) {
-            serviceProviderStats[categoryName] = (serviceProviderStats[categoryName] || 0) + 1
-            totalServiceProviders++
-          }
+          const categoryName = provider.service_categories?.name || 'Uncategorized'
+          serviceProviderStats[categoryName] = (serviceProviderStats[categoryName] || 0) + 1
+          totalServiceProviders++
         })
       }
 
@@ -178,9 +184,10 @@ export function StatsDashboard() {
       setStats({
         users: usersResult.count || 0,
         serviceProviders: serviceProviderStats,
-        totalServiceProviders,
+        totalServiceProviders: serviceProvidersResult.count ?? totalServiceProviders,
         animalTypes: animalTypesWithDistribution,
         totalBreeds: breedsResult.count || 0,
+        openSupportTickets: openSupportTicketsResult.count ?? 0,
         boostedEntities: {
           total: totalBoostedCount,
           byCategory: boostedByCategory
@@ -228,28 +235,25 @@ export function StatsDashboard() {
           title="Total Users" 
           value={stats.users} 
           icon={<Users className="h-4 w-4" />}
-          change={{ value: 12.5, isPositive: true }}
-          subtitle="active users"
+          subtitle="total registered users"
         />
         <StatsCard 
-          title="Service Providers" 
+          title="Total Service Providers" 
           value={stats.totalServiceProviders} 
           icon={<Building className="h-4 w-4" />}
-          change={{ value: 8.2, isPositive: true }}
-          subtitle="total providers"
-        />
-        <StatsCard 
-          title="Veterinarians" 
-          value={stats.serviceProviders['Veterinary Services'] || 0} 
-          icon={<Stethoscope className="h-4 w-4" />}
-          change={{ value: 5.7, isPositive: true }}
-          subtitle="registered vets"
+          subtitle="including veterinarians"
         />
         <StatsCard 
           title="Breeds" 
           value={stats.totalBreeds} 
           icon={<PawPrint className="h-4 w-4" />}
           subtitle="total breeds"
+        />
+        <StatsCard
+          title="Total Open Support Tickets"
+          value={loading ? 'Loading...' : stats.openSupportTickets}
+          icon={<LifeBuoy className="h-4 w-4" />}
+          subtitle="tickets with open status"
         />
       </div>
 
